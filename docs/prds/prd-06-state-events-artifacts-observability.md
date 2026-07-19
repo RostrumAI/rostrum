@@ -40,6 +40,7 @@ Make every run explainable, inspectable, and recoverable. Rostrum needs a durabl
 - Search and filtering for active and historical runs.
 - Exportable run report suitable for review or audit.
 - Retention and deletion behavior for logs, artifacts, model content, and opt-in context snapshots.
+- Simulation-run events and explicit labels separating simulated state, artifacts, and evidence from production runs.
 
 ### Should
 

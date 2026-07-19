@@ -156,42 +156,52 @@ An event stream should make the execution record observable in real time. Artifa
 
 ### 4.8 Control API and service boundary
 
-The backend API is the boundary that allows every client and trigger to use the same product. At a high level it should support:
+The Control API is the product contract between the Rostrum daemon, control clients, integrations, and hosted services. It is both a configuration/control API and an observation API; there should not be a second, client-specific source of truth. At a high level it should support:
 
 - registering and versioning workflows;
+- validating, simulating, publishing, and selecting workflow versions;
 - starting, pausing, resuming, canceling, and retrying runs;
 - subscribing to run events;
 - inspecting graph state, node traces, approvals, and artifacts;
 - submitting approval decisions;
+- managing users, teams, groups, project membership, and approver policies;
 - managing workspaces, projects, credentials, policies, and runtime targets;
 - managing context sources, context policies, and context provenance;
 - receiving external events and reporting outcomes.
 
-For local use, this may be a local daemon or embedded service. For hosted use, it becomes the tenant-aware control plane and routes work to remote execution infrastructure.
+For local and self-hosted use, the Control API is served by or alongside the local Rostrum daemon. For hosted use, the same contract is implemented by the tenant-aware control plane and routes work to remote execution infrastructure. The daemon is responsible for execution; the API is responsible for the contracts and commands that govern it.
 
-### 4.9 User interfaces and clients
+### 4.9 Control clients
 
 Rostrum should have multiple clients over the same API rather than multiple sources of truth.
 
-#### TUI: the local and remote mission-control console
+#### Web control panel: primary workflow client
 
-The TUI should be the first serious client because it is natural for developers and works well for local workflows. Its responsibility is observability and control:
+The web control panel should be the primary client for workflow authoring, graph visualization, simulation, review, configuration, and run operations. It should:
+
+- visually create and edit workflow graphs, including contracts, branches, loops, approvals, policies, and completion conditions;
+- import and export the canonical workflow package in a Git-friendly structured format;
+- validate a workflow before publication;
+- ask a model to propose a workflow, render the proposal, and simulate it before a user publishes it;
+- compare workflow versions and inspect the impact of changes;
+- show active and historical runs, artifacts, traces, policies, approvals, and evidence;
+- provide responsive approval and intervention views suitable for mobile browsers.
+
+The web client must work against a local/self-hosted daemon as well as a remote Control API. It is a presentation and interaction layer, not a second orchestration system.
+
+#### TUI: optional operational console
+
+The TUI should be an optional, terminal-native client for fast local and remote operational work. Its responsibility is observability and control:
 
 - show all active and historical runs;
-- render the workflow graph, current node, branches, loops, and progress;
+- render a compact graph summary, current node, branches, loops, and progress;
 - stream agent activity, tool calls, outputs, and deterministic results;
 - inspect artifacts, diffs, logs, and failure evidence;
 - surface approval requests, policy violations, and blockers;
 - pause, resume, retry, or abort according to the user’s permissions;
 - detach from a run and reattach later, including to a remotely executing run.
 
-The TUI must not own workflow state, business logic, scheduling, model calls, or the authoritative approval record. It may issue commands through the control API, but the backend must remain correct if the TUI closes or is replaced by the web client.
-
-#### Web control panel
-
-The web application should provide a broader control plane for configuring workflows, workspaces, policies, integrations, runtime targets, users, and usage. It should also provide a richer view of run history, artifacts, approvals, and fleet-level activity.
-
-The web app is therefore connected to the TUI through the same backend contracts and event model. They are separate presentation clients, not separate workflow systems.
+The TUI must not own workflow state, business logic, scheduling, model calls, or the authoritative approval record. It may issue commands through the Control API, but the backend must remain correct if the TUI closes or is replaced by the web client.
 
 #### Mobile-friendly access
 
@@ -199,7 +209,17 @@ Mobile should initially be treated as a responsive control and approval surface,
 
 #### CLI, SDK, and integration clients
 
-The CLI and SDK should make Rostrum usable in scripts, CI, developer tooling, and internal platforms. Webhooks and chat or incident integrations should invoke the same API rather than bypassing the orchestration runtime.
+The CLI and SDK should make Rostrum usable in scripts, CI, developer tooling, and internal platforms. They should expose the same lifecycle contract as the web and TUI clients:
+
+- validate, simulate, publish, inspect, and version workflows;
+- start a run asynchronously and return a durable run handle;
+- observe a run through event cursors or streaming subscriptions;
+- wait for a run, approval, question, or terminal outcome with timeout and exit-status semantics;
+- inspect artifacts, node attempts, costs, and evidence;
+- pause, resume, cancel, retry, and submit approval decisions when authorized;
+- retrieve or download artifacts and report structured results to CI or another system.
+
+The default start operation should be asynchronous. A separate wait operation should make blocking behavior explicit, allowing callers to wait for the next human response, a terminal result, or a timeout. Webhooks and chat or incident integrations should invoke the same API rather than bypassing the orchestration runtime.
 
 ### 4.10 Triggers and integrations
 
@@ -235,26 +255,26 @@ The intended relationship is a shared execution core with replaceable clients, t
 
 ```mermaid
 flowchart LR
-    U["User or external event"] --> C["Client or trigger\nTUI / Web / Mobile / CLI / Webhook"]
-    C --> A["Control API"]
-    A --> O["Durable orchestrator"]
-    O --> M["Workflow graph"]
-    O --> S["State, events, artifacts, telemetry"]
-    O --> X["Execution target manager"]
+    U["User or external event"] --> C["Control clients\nWeb / TUI / Mobile / CLI / SDK / Webhook"]
+    C --> A["Control API\ncontracts, auth, approvals, events"]
+    A --> D["Rostrum daemon\nworkflow execution + lifecycle"]
+    D --> M["Canonical workflow package"]
+    D --> S["State, events, artifacts, telemetry"]
+    D --> X["Execution adapters"]
     X --> R["Local/self-hosted Docker"]
     X --> V["Rostrum Cloud microVM"]
-    O --> N["Reasoning nodes and model adapters"]
-    O --> K["Context layer\nread-only sources, policy, views"]
+    D --> N["Reasoning nodes and runnable bundles"]
+    D --> K["Context layer\nread-only sources, policy, views"]
     K --> N
-    O --> D["Deterministic tools and policy gates"]
-    N --> D
-    D --> O
-    O --> S
-    S --> C
+    D --> T["Deterministic tools and policy gates"]
+    N --> T
+    T --> D
+    S --> A
+    A --> C
     C --> U
 ```
 
-The important architectural rule is that the TUI, web panel, mobile surface, and integrations all observe the same run record and send commands to the same control API. A run must continue if a client disconnects. A workflow must behave the same way whether it was started by a human, a webhook, or a scheduled trigger, subject only to the selected policy and runtime.
+The important architectural rule is the separation of three top-level components: the Rostrum daemon executes workflows; the Control API defines the contracts, authorization, approvals, and observation/control operations; and control clients provide user-friendly interfaces over that API. The web panel, TUI, mobile surface, CLI, SDK, and integrations all observe the same run record. A run must continue if a client disconnects, and the daemon must never require a client process to remain alive.
 
 ## 6. Open-source and cloud boundary
 
@@ -265,13 +285,14 @@ Rostrum should be open-source wherever the capability can run locally or be self
 - workflow graph specification;
 - context source, policy, view, and provenance contracts;
 - workflow validation, compilation, and local authoring tools;
+- visual workflow authoring and simulation tools;
 - orchestration runtime and durable execution model;
 - node, tool, model, and integration adapter interfaces;
 - deterministic tool and policy framework;
 - local and self-hosted Docker execution targets;
 - local state, event, artifact, and telemetry implementations;
-- CLI and TUI;
-- self-hostable control API and web control panel where practical;
+- self-hostable Rostrum daemon and Control API;
+- web control panel, CLI, SDK, and TUI;
 - reference integrations and development tooling;
 - conformance tests and example workflows.
 
@@ -293,7 +314,7 @@ The build should proceed as vertical slices that prove the execution model early
 
 ### Phase 1: Local workflow slice
 
-Build a minimal workflow format, read-only context layer, durable local orchestrator, typed node contracts, deterministic tool runner, Docker workspace target, and TUI. Prove planning, review-only, and guided-build flows end to end with pause/resume and a bounded verify-fix loop.
+Build a canonical workflow package, read-only context layer, durable local daemon, Control API, typed node contracts, deterministic tool runner, Docker workspace target, and a web control panel with graph editing and simulation. Add the optional TUI as an operational client. Prove planning, review-only, and guided-build flows end to end with pause/resume and a bounded verify-fix loop.
 
 ### Phase 2: Reliable execution foundation
 
@@ -315,7 +336,7 @@ This sequencing keeps the riskiest product assumptions visible: whether graph-ba
 
 ## 8. What is intentionally deferred to the deeper PRDs
 
-This blueprint does not yet specify detailed screens, endpoint schemas, database tables, node-by-node behavior, model prompts, specific Docker/microVM implementations, pricing, or implementation tickets. Those belong in the next layer of planning.
+This blueprint does not yet specify detailed screens, endpoint schemas, database tables, node-by-node behavior, model prompts, the final state-storage implementation, specific Docker/microVM implementations, pricing, or implementation tickets. The high-level direction for the canonical format, visual authoring, and simulation is decided; the deeper PRDs should specify their behavior.
 
 The next PRDs should resolve, for each product area:
 
@@ -328,23 +349,22 @@ The next PRDs should resolve, for each product area:
 - success criteria and failure conditions;
 - dependencies, technical risks, and likely SPIKEs.
 
-The first PRDs should likely cover the workflow definition, context layer, orchestration runtime, deterministic tool and policy system, execution targets, control API, TUI, web control panel, triggers/integrations, and hosted governance services.
+The first PRDs should cover the workflow definition, workflow authoring and simulation, context layer, orchestration runtime, deterministic tool and policy system, execution targets, Control API, TUI, web control panel, triggers/integrations, and hosted governance services.
 
 ## 9. Decisions to facilitate next
 
 The most important discussion questions are architectural rather than cosmetic:
 
-1. What is the canonical workflow definition format, and how much should be declarative versus code-based?
-2. Is the first runtime embedded in a CLI/TUI process, or is a local daemon the primary unit from the beginning?
+1. Should the canonical workflow package use YAML as its editable source, JSON as its normalized interchange form, or another format?
+2. Which simulation levels are required before a workflow can be published or promoted?
 3. What state and event guarantees are required for pause/resume, replay, and exactly-once versus at-least-once tool execution?
-4. Which side effects require approval, and how are approvals scoped, authenticated, and audited?
-5. What is the minimum safe execution target for local development, and what must be true before hosted untrusted execution is offered?
-6. Which parts of the web control panel are configuration/control-plane functions versus run-observability functions?
-7. How should model providers, credentials, tools, and integrations be packaged and versioned?
-8. What should be a first-class artifact, and how long should execution history and artifacts be retained?
-9. What is the smallest vertical slice that demonstrates Rostrum’s advantage over a conventional coding-agent loop?
-10. Which cloud capabilities are necessary for the first hosted release, and which can remain self-hosted or deferred?
+4. Which side effects require approval, and how are approvals scoped to users, groups, projects, and workflow versions?
+5. Which Hermes-inspired Docker hardening and lifecycle behaviors are required for the first local/self-hosted release?
+6. How should model providers, credentials, tools, and runnable bundles be packaged and versioned for daemon-side, sidecar, and Cloud execution?
+7. What should be a first-class artifact, and how long should execution history and artifacts be retained?
+8. What is the smallest vertical slice that demonstrates Rostrum’s advantage over a conventional coding-agent loop?
+9. Which cloud capabilities are necessary for the first hosted release beyond microVM execution, and which can remain self-hosted or deferred?
 
 ## 10. Working definition of done for the product concept
 
-At a high level, Rostrum is on the right track when a user can define or select a workflow, start it from any supported client or trigger, watch a durable graph execute across agent and deterministic nodes, inspect the evidence produced at each step, approve or reject gated actions, recover from a disconnected client, and receive a verifiable final result. The same workflow should be able to run locally and, behind the same contracts, on Rostrum’s hosted infrastructure.
+At a high level, Rostrum is on the right track when a user can ask for a workflow to be generated, inspect and edit its visual graph, simulate it safely, publish a version, start it from any supported client or trigger, watch a durable graph execute across agent and deterministic nodes, inspect the evidence produced at each step, approve or reject gated actions, recover from a disconnected client, and receive a verifiable final result. The same workflow should be able to run locally and, behind the same contracts, on Rostrum’s hosted infrastructure.

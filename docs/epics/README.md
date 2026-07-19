@@ -28,10 +28,11 @@ Use SPIKEs for questions that require investigation, prototypes, benchmarks, or 
 - [Epic-12: Cross-cutting quality](epic-12-cross-cutting-quality.md)
 - [Epic-13: Deployment and live validation](epic-13-deployment-and-live-validation.md)
 - [Epic-14: Context layer](epic-14-context-layer.md)
+- [Epic-15: Workflow authoring and simulation](epic-15-workflow-authoring-and-simulation.md)
 
 ## Delivery sequence
 
-The recommended first vertical slice is: workflow definition → context policy and pass-through source → local durable runtime → deterministic tools → Docker workspace → state/events → control API → TUI → planning/review/guided-build workflow. Hosted governance and fleet-scale execution follow after the local execution contract has been proven.
+The recommended first vertical slice is: workflow package → context policy and pass-through source → local durable daemon → deterministic tools → Docker workspace → state/events → Control API → web authoring/simulation → optional TUI → planning/review/guided-build workflow. Hosted governance and fleet-scale execution follow after the local execution contract has been proven.
 
 ## Task convention
 
@@ -44,6 +45,6 @@ Suggested initial areas mirror the PRDs:
 - deterministic tools and policy;
 - execution targets;
 - control API and clients;
-- TUI and web surfaces;
+- web authoring/simulation, TUI, and other control clients;
 - integrations;
 - hosted governance and operations.

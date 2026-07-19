@@ -6,7 +6,7 @@ Primary epic: [Orchestration runtime epics](../epics/epic-02-orchestration-runti
 
 ## Purpose
 
-Execute workflow graphs reliably across process restarts, client disconnections, waiting periods, retries, parallel branches, and human decisions. The runtime is the authoritative owner of run state and transition semantics.
+Execute workflow graphs reliably across process restarts, client disconnections, waiting periods, retries, parallel branches, and human decisions. The runtime is the authoritative owner of run state and transition semantics. It is implemented by the Rostrum daemon, while the Control API exposes the contracts and commands that govern the daemon. Generated code, model providers, and untrusted tools must execute in an isolated target rather than inside the daemon process.
 
 ## Users and use cases
 
@@ -58,6 +58,7 @@ Execute workflow graphs reliably across process restarts, client disconnections,
 - Backpressure when model, runtime, or integration capacity is exhausted.
 - Operator controls for draining a runtime or taking a queue out of service.
 - Deterministic simulation configuration for workflow tests.
+- Simulation-run lifecycle and explicit separation between simulation state and production state.
 
 ### Could
 

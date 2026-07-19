@@ -16,6 +16,8 @@ Run controlled reasoning nodes with provider adapters, context provenance, struc
 - [ ] Implement the first production model adapter.
 - [ ] Add provider timeout, retry, fallback, and capability discovery.
 - [ ] Record model/provider configuration and usage per call.
+- [ ] Define pinned runnable/provider bundle metadata for daemon-side, sidecar, and Cloud microVM execution.
+- [ ] Ensure customer credentials are injected at runtime and never baked into runnable images.
 
 ### E-AGENT-02: Context-view consumption
 
@@ -46,6 +48,7 @@ Run controlled reasoning nodes with provider adapters, context provenance, struc
 - [ ] S-AGENT-02 Context-view delivery and reproducibility without a central content cache.
 - [ ] S-AGENT-03 Model quality gates beyond schema validation.
 - [ ] S-AGENT-04 Prompt/version storage and privacy boundary.
+- [ ] S-AGENT-05 Self-hosted sidecar versus daemon-side runnable packaging.
 
 ## Exit criteria
 

@@ -59,7 +59,7 @@ The product implication is that a backend or local daemon must own state and orc
 
 ### 6. Execution target is a policy decision
 
-The research describes a spectrum from native local processes and Git worktrees through Docker, filtered user-space runtimes, and isolated microVMs. Rostrum’s initial product decision is intentionally narrower: Docker for local and self-hosted execution, and microVMs only for Rostrum Cloud. Git branches and commits remain part of change tracking, but Git worktrees are not the execution-isolation mechanism.
+The research describes a spectrum from native local processes and Git worktrees through Docker, filtered user-space runtimes, and isolated microVMs. Rostrum’s initial product decision is intentionally narrower: Docker for local and self-hosted execution, and microVMs only for Rostrum Cloud. Git branches and commits remain part of change tracking, but Git worktrees are not the execution-isolation mechanism. See the separate [Hermes Agent Docker sandbox notes](hermes-agent-docker-sandbox-notes.md) for the implementation patterns Rostrum should investigate for Docker lifecycle and hardening.
 
 The product implication is that Rostrum needs a common execution-target contract. The workflow should be portable while the selected runtime supplies the appropriate isolation and capabilities. Each parallel task should receive its own container or microVM workspace and push its branch or commit to an origin.
 
@@ -95,7 +95,7 @@ The research supports the following initial architecture decisions:
 1. Build the execution core before building a rich conversational interface.
 2. Treat workflows as versioned workflow graphs with typed state and explicit side effects.
 3. Make durable state, event streams, artifacts, approvals, and bounded loops foundational.
-4. Keep the TUI, web panel, mobile surface, CLI, and integrations as clients of one control API.
+4. Keep the web panel, TUI, mobile surface, CLI, SDK, and integrations as clients of one Control API; make the web panel the primary graph-authoring and simulation surface.
 5. Make local execution a first-class path, not merely a development mock of the cloud.
 6. Make the Context Layer read-only and pass-through by default.
 7. Use Docker for local/self-hosted execution and microVMs only for Rostrum Cloud.
@@ -106,8 +106,10 @@ The research supports the following initial architecture decisions:
 The source establishes direction but does not settle implementation choices. The PRDs and SPIKEs should resolve:
 
 - the canonical workflow-definition format;
+- visual workflow authoring, model-generated workflow proposals, and simulation semantics;
 - whether code-based and declarative workflow authoring coexist;
 - local daemon versus embedded runtime boundaries;
+- CLI/SDK start, observe, wait, approval, and control semantics;
 - checkpointing and tool-execution delivery guarantees;
 - the policy model for approvals and side effects;
 - Docker workspace lifecycle and Rostrum Cloud microVM operations;

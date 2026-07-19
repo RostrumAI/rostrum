@@ -5,7 +5,7 @@ Status: Draft
 
 ## Outcome
 
-Give users coherent observability, review, approval, and control across terminal and browser surfaces.
+Give users coherent workflow authoring, simulation, observability, review, approval, and control across the primary web surface and optional terminal/mobile surfaces.
 
 ## Epics and tasks
 
@@ -20,14 +20,18 @@ Give users coherent observability, review, approval, and control across terminal
 
 - [ ] Choose TUI framework and interaction model.
 - [ ] Implement connection profiles and run list.
-- [ ] Implement graph/run detail and node trace views.
+- [ ] Implement compact graph/run detail and node trace views.
 - [ ] Implement event stream and reconnect.
 - [ ] Implement artifact/log/diff inspection.
 - [ ] Implement pause/resume/retry/cancel/approve controls.
+- [ ] Add handoff/deep links to the web client for full authoring and simulation.
 
 ### E-CLIENT-03: Web control panel
 
 - [ ] Implement auth, navigation, project/workspace, and run views.
+- [ ] Implement visual workflow graph authoring and canonical package import/export.
+- [ ] Implement validation, simulation launch, simulation results, and publication flow.
+- [ ] Implement model-generated workflow proposal review with assumptions and risks.
 - [ ] Implement artifact review and comments.
 - [ ] Implement approval inbox and decision history.
 - [ ] Implement configuration for workflows, targets, policies, and integrations.
@@ -43,9 +47,9 @@ Give users coherent observability, review, approval, and control across terminal
 
 ## SPIKEs
 
-- [ ] S-CLIENT-01 TUI framework and large-graph rendering.
+- [ ] S-CLIENT-01 TUI framework and compact graph/outline rendering.
 - [ ] S-CLIENT-02 Artifact preview/security model.
-- [ ] S-CLIENT-03 First web app open-source/self-host boundary.
+- [ ] S-CLIENT-03 Self-hosted web packaging and local-daemon connection model.
 - [ ] S-CLIENT-04 Notification and mobile approval delivery.
 
 ## Exit criteria

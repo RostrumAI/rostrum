@@ -53,6 +53,10 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 - Isolation classification visible to the workflow and user.
 - Target selection based on policy and required capabilities.
 - Cleanup guarantees and orphan detection.
+- Container lifecycle labels/metadata, reattach or inspection behavior, and orphan reaping for interrupted daemon processes.
+- Baseline Docker hardening: dropped capabilities, no-new-privileges, process/resource limits, explicit network policy, and minimal mounts.
+- Explicit credential/environment forwarding; arbitrary container arguments must not silently weaken the declared hardening policy.
+- Per-workflow/task containers when parallel work requires isolation; persistence is opt-in rather than an accidental default.
 
 ### Should
 
@@ -80,11 +84,12 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 
 ## Open questions and SPIKEs
 
-- Docker workspace lifecycle and source-snapshot strategy.
+- Docker workspace lifecycle and source-snapshot strategy, including Hermes-informed labels, reattach, orphan reaping, and persistence policy.
 - Rostrum Cloud microVM provider and fleet boundary.
 - Workspace snapshot and artifact transport model.
 - Network isolation and live dependency testing design.
 - How target lifecycle interacts with long-running development servers.
+- Which Hermes sandbox patterns should be adopted directly and which are unsuitable for Rostrum’s workflow/task model.
 
 ## Ownership boundary
 

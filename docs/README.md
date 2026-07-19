@@ -15,6 +15,7 @@ This directory is organized to move from evidence, to product decisions, to impl
 
 - [AI Workflow Engine Market Research - source PDF](research/source/AI%20Workflow%20Engine%20Market%20Research.pdf)
 - [AI Workflow Engine Market Research - synthesis](research/ai-workflow-engine-market-research-synthesis.md)
+- [Hermes Agent Docker sandbox notes](research/hermes-agent-docker-sandbox-notes.md)
 
 ### Strategy
 

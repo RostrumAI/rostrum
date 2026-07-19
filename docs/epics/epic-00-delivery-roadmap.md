@@ -21,33 +21,34 @@ Establish a sequence that proves Rostrum’s core product claim early: a user ca
 ### M1: Local execution slice
 
 - [ ] T-00-06 Implement a minimal workflow definition and validator.
-- [ ] T-00-07 Execute sequential nodes in a local daemon.
+- [ ] T-00-07 Execute sequential nodes in a local Rostrum daemon behind the Control API.
 - [ ] T-00-08 Add deterministic file, Git, process, and test tools.
 - [ ] T-00-09 Run work in an isolated Docker workspace, create a branch, push it to an origin, and collect a diff.
 - [ ] T-00-10 Persist run state and emit events.
 - [ ] T-00-11 Expose start/status/control through a local API.
-- [ ] T-00-12 Display and control runs in the TUI.
+- [ ] T-00-12 Build the web control panel’s first graph/validation/simulation slice.
+- [ ] T-00-13 Display and control runs in the optional TUI.
 
 ### M2: Human-gated guided build
 
-- [ ] T-00-13 Add planning artifacts and approval gates.
-- [ ] T-00-14 Add independent verification and bounded repair loops.
-- [ ] T-00-15 Implement review-only, planning, and guided-build reference workflows.
-- [ ] T-00-16 Demonstrate disconnect/reconnect and restart recovery.
+- [ ] T-00-14 Add planning artifacts and approval gates.
+- [ ] T-00-15 Add independent verification and bounded repair loops.
+- [ ] T-00-16 Implement review-only, planning, and guided-build reference workflows.
+- [ ] T-00-17 Demonstrate disconnect/reconnect and restart recovery.
 
 ### M3: Shared control and triggers
 
-- [ ] T-00-17 Add web run/project/artifact views.
-- [ ] T-00-18 Add mobile-friendly approval flow.
-- [ ] T-00-19 Add repository and CI event fixtures and one production connector.
-- [ ] T-00-20 Add run reports, audit trail, and basic usage accounting.
+- [ ] T-00-18 Add web run/project/artifact views.
+- [ ] T-00-19 Add mobile-friendly approval flow.
+- [ ] T-00-20 Add repository and CI event fixtures and one production connector.
+- [ ] T-00-21 Add run reports, audit trail, and basic usage accounting.
 
 ### M4: Deployment and hosted execution
 
-- [ ] T-00-21 Add staging deployment and live smoke/dependency test workflow.
-- [ ] T-00-22 Add Rostrum Cloud microVM target adapter and tenant boundary.
-- [ ] T-00-23 Add credential brokering, quotas, and kill switches.
-- [ ] T-00-24 Add hosted operations, billing, and retention controls.
+- [ ] T-00-22 Add staging deployment and live smoke/dependency test workflow.
+- [ ] T-00-23 Add Rostrum Cloud microVM target adapter and tenant boundary.
+- [ ] T-00-24 Add credential brokering, quotas, and kill switches.
+- [ ] T-00-25 Add hosted operations, billing, and retention controls.
 
 ## Cross-cutting SPIKEs
 
@@ -58,4 +59,4 @@ Establish a sequence that proves Rostrum’s core product claim early: a user ca
 
 ## Exit criteria
 
-The roadmap is validated when the M2 slice can be demonstrated end to end by a person who did not build the runtime, using only the documented local setup and TUI/API.
+The roadmap is validated when the M2 slice can be demonstrated end to end by a person who did not build the runtime, using only the documented local setup, web control panel, and Control API; the TUI remains an optional operational surface.

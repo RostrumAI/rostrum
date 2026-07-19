@@ -211,7 +211,9 @@ The core entities should be understandable to both users and the system:
 | Context view | A read-only, policy-filtered projection delivered to a node without exposing source credentials |
 | Context policy | Rules for which sources, scopes, fields, time ranges, and data classes a node may access |
 | Workflow | A reusable workflow graph with contracts, policies, and lifecycle rules |
+| Workflow package | The versioned, Git-friendly source and normalized representation of a workflow, including node contracts, policies, context requirements, and simulation fixtures |
 | Run | One execution of a workflow against a project, workspace, and trigger |
+| Simulation run | A non-production evaluation of a workflow graph using validation, fixtures, mocked side effects, shadow calls, or an ephemeral Docker workspace |
 | Node execution | One attempt to execute a graph node, with inputs, outputs, logs, and evidence |
 | Task | A planned unit of work with dependencies, acceptance criteria, and status |
 | Decision | A question, answer, review, approval, rejection, or override tied to a run |
@@ -294,21 +296,21 @@ Mutations: bounded by a task graph, worker policies, budgets, and release gates.
 ```mermaid
 flowchart LR
     I["Intent / external event"] --> C["Clients and integrations"]
-    C --> CP["Control plane\nAPI, auth, projects, policies"]
-    CP --> O["Durable orchestration\nworkflow runs, state, scheduling"]
-    O --> W["Workflow graph\nagent + deterministic nodes"]
-    O --> X["Execution fabric\nlocal, self-hosted, cloud"]
+    C --> CP["Control API\ncontracts, auth, approvals, events"]
+    CP --> D["Rostrum daemon\nworkflow runs, state, scheduling"]
+    D --> W["Workflow package\nagent + deterministic nodes"]
+    D --> X["Execution adapters\nlocal, self-hosted, cloud"]
     X --> T["Isolated targets\nDocker or Rostrum Cloud microVM"]
     W --> M["Model and agent adapters"]
     W --> K["Read-only context layer\nsources, policy, views"]
-    W --> D["Tools, integrations, gates"]
-    O --> E["Events, artifacts, telemetry"]
+    W --> G["Tools, integrations, gates"]
+    D --> E["Events, artifacts, telemetry"]
     E --> C
     E --> U["Users and approvers"]
     U --> C
 ```
 
-The control plane should own identity, project context, policy, workflow versions, run lifecycle, and client contracts. The context layer should own read-only source access, filtering, redaction, and provenance. The orchestration runtime should own graph execution. The execution fabric should own isolation and environment provisioning. These boundaries allow a local runtime to replace cloud services without changing the workflow or client model.
+The Control API should own identity, project context, policy, workflow versions, approvals, run lifecycle contracts, and client observation/control operations. The Rostrum daemon should own graph execution, scheduling, checkpointing, and execution lifecycle, but generated code should run in an isolated target rather than in the daemon process. The context layer should own read-only source access, filtering, redaction, and provenance. The execution adapters should own isolation and environment provisioning. These boundaries allow a local daemon and Docker target to replace cloud services without changing the workflow or client model.
 
 ## 9. Open-source and hosted product
 
@@ -319,12 +321,14 @@ The open-source distribution should be capable of meaningful local and self-host
 - workflow graph schema;
 - context source, policy, view, and provenance contracts;
 - graph validation and authoring tools;
+- visual graph authoring and simulation;
 - orchestration runtime;
 - node and adapter SDKs;
 - deterministic tools and policy interfaces;
 - local state, events, artifacts, and telemetry;
 - Docker-based local and self-hosted execution;
-- CLI, TUI, and self-hostable API/UI where practical;
+- self-hostable daemon and Control API;
+- web control panel, CLI, SDK, and optional TUI;
 - reference software-delivery workflows;
 - conformance tests and local development assets.
 
@@ -364,7 +368,7 @@ Safety should degrade toward stopping, not toward silently continuing.
 
 ### Horizon 1: prove the loop locally
 
-Deliver a local daemon, workflow model, read-only context layer, durable run record, deterministic tool runner, Docker target, TUI, and planning/review/guided-build workflows. The target proof is: a user can plan a small feature, approve it, implement it in an isolated container branch, run tests, push the result to an origin, see a bounded repair loop, and inspect the result after reconnecting.
+Deliver a local daemon, Control API, canonical workflow package, read-only context layer, durable run record, deterministic tool runner, Docker target, web graph editor/simulator, optional TUI, and planning/review/guided-build workflows. The target proof is: a user or model can propose a workflow, a user can inspect and simulate it, then plan a small feature, approve it, implement it in an isolated container branch, run tests, push the result to an origin, see a bounded repair loop, and inspect the result after reconnecting.
 
 ### Horizon 2: make execution dependable
 
@@ -397,6 +401,9 @@ The first meaningful success criteria are behavioral:
 - Implementation and verification occur in bounded, observable loops.
 - The system can resume after a client disconnect or process restart.
 - A user can inspect artifacts, evidence, and blockers from the TUI or web surface.
+- A user can visually edit a workflow, simulate it without unintended side effects, and publish a version only after validation.
+- A model can propose a workflow that is rendered, validated, simulated, and presented for human review before execution.
+- The CLI and SDK can start runs asynchronously, observe events, wait for approvals or terminal outcomes, control runs, and retrieve artifacts.
 - A workflow can run against at least one local and one isolated execution target.
 - Release workflows can deploy to a non-production environment and run live smoke/dependency checks.
 - Every externally visible side effect has an identity, policy, and audit record.

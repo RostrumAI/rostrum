@@ -1,16 +1,16 @@
 # PRD-08: TUI Console
 
 Status: Draft  
-Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#48-user-interfaces-and-clients)  
+Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#49-control-clients)<br>
 Primary epic: [Client surface epics](../epics/epic-08-clients.md)
 
 ## Purpose
 
-Provide a fast, terminal-native mission-control console for local and remote Rostrum runs. The TUI is an observability and control client; it is not the workflow engine.
+Provide an optional, fast, terminal-native operational console for local and remote Rostrum runs. The web control panel is the primary workflow-authoring and simulation client; the TUI is an observability and control client, not the workflow engine.
 
 ## Users and use cases
 
-- A developer starts a workflow against a local repository.
+- A developer starts or inspects a workflow against a local repository.
 - A user watches a remote run without keeping a process open locally.
 - An engineer navigates parallel branches, node traces, diffs, logs, and test results.
 - A reviewer inspects a plan and approves or rejects a gate.
@@ -37,7 +37,7 @@ Provide a fast, terminal-native mission-control console for local and remote Ros
 ### Must
 
 - Run list and detail views.
-- Graph/state view with current node, branches, loops, joins, and terminal status.
+- Compact graph/state view with current node, branches, loops, joins, and terminal status.
 - Live event stream with reconnect and cursor recovery.
 - Node detail: inputs/outputs subject to redaction, model/tool activity, status, timing, cost, and errors.
 - Artifact inspection for plans, diffs, reports, logs, and deployment results.
@@ -46,6 +46,7 @@ Provide a fast, terminal-native mission-control console for local and remote Ros
 - Search/filter/navigation optimized for keyboard use.
 - Connection profile for local daemon and remote control plane.
 - Read-only view and restricted-control operation.
+- Clear link or handoff to the web client for full graph authoring, version comparison, and simulation.
 
 ### Should
 
@@ -73,7 +74,7 @@ Provide a fast, terminal-native mission-control console for local and remote Ros
 ## Open questions and SPIKEs
 
 - TUI language/framework and portability target.
-- Graph rendering strategy for large workflows.
+- Compact graph/outline rendering strategy for large workflows.
 - How to summarize agent traces without hiding important evidence.
 - Terminal support for artifact previews and hyperlinks.
 - Whether TUI can safely support local interactive tools.

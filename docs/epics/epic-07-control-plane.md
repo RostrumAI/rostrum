@@ -11,10 +11,12 @@ Provide one stable control and configuration boundary for all Rostrum clients an
 
 ### E-API-01: Resource and command contract
 
-- [ ] Define resource schemas and lifecycle for projects, workspaces, workflows, runs, tasks, decisions, artifacts, targets, policies, integrations, context sources, and context policies.
-- [ ] Define start/control/approval/review command schemas.
+- [ ] Define resource schemas and lifecycle for organizations, teams, users, groups, memberships, approver policies, projects, workspaces, workflows, packages, simulations, runs, tasks, decisions, approvals, artifacts, targets, policies, integrations, context sources, and context policies.
+- [ ] Define validate/simulate/publish/start/observe/wait/control/approval/review command schemas.
 - [ ] Define pagination, filtering, cursors, idempotency, and errors.
 - [ ] Add API versioning and contract tests.
+- [ ] Define asynchronous start, wait-on-approval/terminal, event cursor, and machine-readable exit semantics for CLI/SDK callers.
+- [ ] Define approval scope, acceptable users/groups, expiry, quorum/dual-control, and immutable decision records.
 
 ### E-API-02: Local daemon
 
@@ -32,6 +34,7 @@ Provide one stable control and configuration boundary for all Rostrum clients an
 - [ ] Add context-source connection and context-policy management endpoints.
 - [ ] Add capability discovery and feature flags.
 - [ ] Add audit logging for control commands.
+- [ ] Add approval policy and project-membership administration.
 
 ### E-API-04: SDK and CLI
 
@@ -39,6 +42,7 @@ Provide one stable control and configuration boundary for all Rostrum clients an
 - [ ] Implement CLI commands for workflow/run/project/artifact/approval workflows.
 - [ ] Add shell/CI-friendly output formats.
 - [ ] Add API/CLI examples and local setup documentation.
+- [ ] Add SDK/CLI artifact retrieval, run waiting, event streaming, and approval commands.
 
 ## SPIKEs
 
@@ -46,6 +50,7 @@ Provide one stable control and configuration boundary for all Rostrum clients an
 - [ ] S-API-02 Local auth model and daemon packaging.
 - [ ] S-API-03 Event subscription protocol.
 - [ ] S-API-04 Safe offline command queue behavior.
+- [ ] S-API-05 Approval group and membership semantics.
 
 ## Exit criteria
 

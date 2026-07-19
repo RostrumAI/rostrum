@@ -18,9 +18,10 @@ These first-draft PRDs translate the [High-Level Build Blueprint](../strategy/ro
 - [PRD-12: Hosted governance, identity, and usage](prd-12-hosted-governance-identity-and-usage.md)
 - [PRD-13: Deployment, release, and live validation](prd-13-deployment-release-and-live-validation.md)
 - [PRD-14: Context layer](prd-14-context-layer.md)
+- [PRD-15: Workflow authoring and simulation](prd-15-workflow-authoring-and-simulation.md)
 
 ## Reading order
 
-Read PRDs 01-07 and PRD-14 for the execution platform and Context Layer, PRDs 08-10 for clients and external control, PRD-11 for the first domain-specific experience, PRD-13 for the deployment/release final mile, and PRD-12 for the hosted service boundary.
+Read PRDs 01-07 and PRD-14 for the execution platform and Context Layer, PRD-15 for visual authoring and simulation, PRDs 08-10 for clients and external control, PRD-11 for the first domain-specific experience, PRD-13 for the deployment/release final mile, and PRD-12 for the hosted service boundary.
 
 Keep architecture uncertainty visible. If a PRD depends on an unresolved technical choice, link to a SPIKE under `docs/epics/` rather than silently choosing an implementation. Requirement priorities use Must, Should, and Could as a first-pass guide, not as a final commitment.

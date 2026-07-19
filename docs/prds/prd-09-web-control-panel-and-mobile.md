@@ -6,7 +6,7 @@ Primary epic: [Client surface epics](../epics/epic-08-clients.md)
 
 ## Purpose
 
-Provide the browser-based control and review surface for project configuration, workflow history, artifact review, approvals, and fleet visibility. Provide a responsive mobile-friendly experience for high-value monitoring and decisions without requiring a separate native app initially.
+Provide the primary browser-based workflow client for visual authoring, graph review, simulation, project configuration, workflow history, artifact review, approvals, and fleet visibility. Provide a responsive mobile-friendly experience for high-value monitoring and decisions without requiring a separate native app initially.
 
 ## Users and use cases
 
@@ -17,6 +17,7 @@ Provide the browser-based control and review surface for project configuration, 
 - A user receives a mobile approval request and makes a bounded decision.
 - A user comments on an artifact and sends the workflow back for revision.
 - A team inspects historical evidence and run costs.
+- A user asks a model to propose a workflow, inspects the rendered graph, simulates it, and publishes an approved version.
 
 ## Goals
 
@@ -24,6 +25,7 @@ Provide the browser-based control and review surface for project configuration, 
 - Support richer review and configuration than the TUI.
 - Give mobile users safe, concise, auditable control.
 - Use the same API and event model as the TUI.
+- Make graph creation and simulation understandable to users who do not want to hand-author JSON/YAML.
 
 ## Required features
 
@@ -32,6 +34,9 @@ Provide the browser-based control and review surface for project configuration, 
 - Authentication, organization/project/workspace navigation, and role-aware access.
 - Project overview with goals, active runs, decisions, artifacts, blockers, and history.
 - Workflow/version selection and run initiation.
+- Visual workflow graph authoring for nodes, edges, contracts, loops, approvals, policies, and terminal conditions.
+- Canonical package import/export, version comparison, validation, simulation, and publication.
+- Model-generated workflow proposal review with assumptions, risks, and simulation evidence.
 - Plan, diff, report, log, and deployment artifact views.
 - Review comments, questions, decisions, approval, rejection, and request-changes actions.
 - Approval inbox with scope, evidence, risk, expiry, and identity.
@@ -52,7 +57,7 @@ Provide the browser-based control and review surface for project configuration, 
 
 - Native mobile wrapper.
 - Collaborative cursors and real-time comments.
-- Visual workflow editor.
+- Native mobile wrapper.
 
 ## Acceptance criteria
 
@@ -64,7 +69,7 @@ Provide the browser-based control and review surface for project configuration, 
 
 ## Open questions and SPIKEs
 
-- Whether the first web app is open-source/self-hostable or initially cloud-only.
+- Self-hosted packaging and local-daemon connection model for the web app.
 - Artifact rendering and safe preview strategy.
 - Notification delivery and offline behavior for mobile approvals.
 - Collaboration model: comments, mentions, threaded decisions, and review ownership.
@@ -72,5 +77,4 @@ Provide the browser-based control and review surface for project configuration, 
 
 ## Ownership boundary
 
-The UI shell and core run/review experience should be open-source if self-hosting is a goal. Hosted identity, notifications, fleet analytics, premium collaboration, and managed account administration may be hosted services.
-
+The UI shell, visual workflow editor, simulator client, and core run/review experience should be open-source because the web control panel is part of the self-hostable core. Hosted identity, notifications, fleet analytics, premium collaboration, and managed account administration may be hosted services.

@@ -6,7 +6,7 @@ Primary epic: [Hosted governance epics](../epics/epic-11-hosted-governance.md)
 
 ## Purpose
 
-Provide the hosted-service capabilities required to run autonomous workflows safely across organizations, users, projects, environments, and tenant boundaries. These capabilities are the primary cloud-dependent boundary of Rostrum.
+Provide the hosted-service capabilities required to run autonomous workflows safely across organizations, users, projects, environments, and tenant boundaries. The core daemon, Control API, clients, Context Layer, Docker execution, authoring, and simulation remain self-hostable; this PRD covers managed hosted operations and Rostrum Cloud microVM execution.
 
 ## Users and use cases
 
@@ -80,4 +80,4 @@ Provide the hosted-service capabilities required to run autonomous workflows saf
 
 ## Ownership boundary
 
-This is the primary cloud/closed-source area: hosted multi-tenancy, credential brokering, managed execution, operational fleet services, billing, and enterprise administration. Public contracts, local implementations, and self-hosting documentation should remain open where feasible.
+Managed multi-tenancy, credential brokering, hosted execution, operational fleet services, billing, and enterprise administration are hosted capabilities. The primary functional hosted differentiator is Rostrum Cloud microVM execution. Public contracts, local Docker implementations, the daemon, Control API, clients, Context Layer, authoring, simulation, and self-hosting documentation should remain open.

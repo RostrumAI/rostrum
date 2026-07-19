@@ -6,7 +6,7 @@ Primary epic: [Control plane epics](../epics/epic-07-control-plane.md)
 
 ## Purpose
 
-Expose one authoritative API for starting, controlling, inspecting, and configuring Rostrum. In local deployments this boundary is provided by a daemon or service; in hosted deployments it is provided by the tenant-aware control plane.
+Expose one authoritative API for defining, validating, simulating, publishing, starting, controlling, inspecting, and configuring Rostrum. The API is both the configuration/control contract and the observation contract. In local deployments this boundary is provided by or alongside the Rostrum daemon; in hosted deployments it is provided by the tenant-aware control plane.
 
 ## Users and use cases
 
@@ -17,6 +17,8 @@ Expose one authoritative API for starting, controlling, inspecting, and configur
 - An administrator connects context sources and defines read-only context policies.
 - An external event is authenticated and mapped to a workflow input.
 - An operator drains or disables a runtime target.
+- A CLI/SDK caller starts a run asynchronously, observes events, waits for approval or completion, controls the run, and retrieves artifacts.
+- A team administrator assigns project approvers and configures acceptable approval groups for a workflow.
 
 ## Goals
 
@@ -30,15 +32,19 @@ Expose one authoritative API for starting, controlling, inspecting, and configur
 
 ### Must
 
-- Resources for organizations, projects, workspaces, workflows, runs, nodes, tasks, decisions, artifacts, targets, policies, integrations, context sources, and context policies.
-- Commands for start, pause, resume, cancel, retry, approve, reject, comment, and re-run.
+- Resources for organizations, teams, users, groups, projects, memberships, approver policies, workspaces, workflows, workflow packages, simulations, runs, nodes, tasks, decisions, approvals, artifacts, targets, policies, integrations, context sources, and context policies.
+- Commands for validate, simulate, publish, start, wait, observe, pause, resume, cancel, retry, approve, reject, comment, and re-run.
 - Query and subscription endpoints for run state and events.
+- Asynchronous run start returning a durable run handle; wait semantics for approval/question/terminal transitions with timeout and machine-readable exit status.
+- Event cursors and streaming observation that can resume after disconnect.
+- Approval requests with required scope, acceptable users/groups, expiry, identity, evidence, and immutable decision history.
 - Idempotency, pagination, filtering, cursors, and optimistic concurrency.
 - Local daemon lifecycle, configuration, health, and data directory management.
 - Authentication and authorization hooks that work locally and remotely.
 - API versioning and machine-readable error model.
 - Webhook/event ingestion with signature verification and replay protection.
 - Capability discovery so clients know what the connected deployment supports.
+- Consistent CLI/SDK operations for workflow validation/simulation/publication, run lifecycle, event observation, waiting, approvals, controls, and artifact retrieval.
 
 ### Should
 
@@ -64,12 +70,13 @@ Expose one authoritative API for starting, controlling, inspecting, and configur
 
 ## Open questions and SPIKEs
 
-- Local daemon packaging and process supervision.
+- Local daemon packaging, process supervision, and separation from execution containers.
 - API style and contract tooling.
 - Local authentication model versus hosted identity.
 - Single-user local workspace versus local multi-user server.
+- Approval group semantics, membership changes during a run, quorum/dual-control rules, and delegated approval.
 - Which commands are safe to queue while disconnected.
 
 ## Ownership boundary
 
-The API contract, local daemon, CLI, and self-hosted server should be open-source. Hosted tenancy, ingress, account management, and managed control-plane operations are hosted capabilities.
+The API contract, local daemon, CLI, SDK, and self-hosted server should be open-source. Hosted tenancy, ingress, account management, managed identity, and managed control-plane operations are hosted capabilities. The public contract must not require the hosted service.

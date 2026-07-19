@@ -15,6 +15,10 @@ Run workflow work in explicit, isolated, reproducible environments selected by p
 - [ ] Define workspace snapshot, mount, image, environment, and resource configuration.
 - [ ] Implement target admission and readiness checks.
 - [ ] Implement target cleanup, expiration, and orphan recovery.
+- [ ] Add lifecycle labels/metadata, reattach/inspection behavior, and orphan reaping for interrupted daemon processes.
+- [ ] Add baseline Docker hardening: capability drop, no-new-privileges, process/resource limits, explicit network policy, and minimal mounts.
+- [ ] Restrict credential/environment forwarding to explicit allowlists and reject arbitrary hardening overrides.
+- [ ] Support per-workflow/task containers for parallel isolated work; make persistence explicit.
 - [ ] Add target status and operator drain controls.
 
 ### E-TARGET-02: Docker targets
@@ -47,6 +51,7 @@ Run workflow work in explicit, isolated, reproducible environments selected by p
 - [ ] S-TARGET-03 Network isolation and live dependency access.
 - [ ] S-TARGET-04 Long-running process and service lifecycle.
 - [ ] S-TARGET-05 Image provenance, cache, and vulnerability scanning.
+- [ ] S-TARGET-06 Compare Hermes Agent Docker sandbox lifecycle and hardening patterns with Rostrum’s per-task workspace model.
 
 ## Exit criteria
 
