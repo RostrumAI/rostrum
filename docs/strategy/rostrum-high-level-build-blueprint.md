@@ -19,7 +19,7 @@ Audience: Founders, product, engineering, and design
 
 ## 1. Executive summary
 
-Rostrum should be a workflow engine for reliable software-engineering automation. A Rostrum “workflow” is a reusable, versioned workflow graph rather than a system prompt or an open-ended chat session. The graph combines specialized reasoning nodes with deterministic nodes for operations that must be literal, inspectable, and repeatable.
+Rostrum should be a workflow engine for reliable software-engineering automation. A Rostrum "workflow" is a reusable, versioned workflow graph rather than a system prompt or an open-ended chat session. The graph combines specialized reasoning nodes with deterministic nodes for operations that must be literal, inspectable, and repeatable.
 
 The product should make it possible to define a workflow once and run it from several places: a local terminal, a web control panel, a mobile-friendly surface, an API, or an external event such as a pull request, CI failure, or production alert. The workflow itself should not depend on any one interface. Every surface should be a client of the same execution system.
 
@@ -32,7 +32,7 @@ The core product is therefore the execution lifecycle:
 5. Persist state, logs, decisions, and artifacts.
 6. Pause for policy decisions or human approval when required.
 7. Expose progress and controls to users.
-8. Produce a verifiable result, not merely a final answer.
+8. Produce a verifiable result, with the evidence to back it, rather than just a final answer.
 
 The market research strongly supports this direction: reliability comes from graph constraints, typed handoffs, deterministic verification, durable checkpoints, isolated execution, and a clear separation between orchestration and user interface.
 
@@ -49,11 +49,11 @@ Most coding agents combine planning, tool use, implementation, testing, and expl
 - poor visibility into what a remote or parallel workflow is doing;
 - workflows that cannot be reused consistently across local and hosted execution.
 
-Rostrum’s value is to turn an unpredictable model interaction into a governed execution process. The model can still reason, propose, and adapt, but the system determines what it is allowed to do, what it must hand off, what evidence is required, and when the workflow is complete or blocked.
+Rostrum's value is to turn an unpredictable model interaction into a governed execution process. The model can still reason, propose, and adapt, but the system determines what it is allowed to do, what it must hand off, what evidence is required, and when the workflow is complete or blocked.
 
 ## 3. Product concept: workflows as reusable execution graphs
 
-A workflow is Rostrum’s primary unit of behavior. It packages:
+A workflow is Rostrum's primary unit of behavior. It packages:
 
 - a workflow graph of nodes, branches, loops, and completion conditions;
 - input and output contracts between nodes;
@@ -82,7 +82,7 @@ These workflows cover the core examples in the research while leaving room for f
 
 Rostrum needs an open workflow model that can express sequential work, branching, parallel fan-out, joins, cycles, retries, approvals, timeouts, and escalation. It should be possible to inspect a workflow as a graph and validate it before execution.
 
-This layer is the stable contract between all Rostrum deployments and interfaces. It should support typed state, structured node inputs and outputs, explicit side effects, and a clear distinction between “reasoning” and “execution.”
+This layer is the stable contract between all Rostrum deployments and interfaces. It should support typed state, structured node inputs and outputs, explicit side effects, and a clear distinction between "reasoning" and "execution."
 
 ### 4.2 Durable orchestration runtime
 
@@ -103,7 +103,7 @@ This is the central product capability. Interfaces, triggers, and execution targ
 
 Rostrum needs an adapter layer for reasoning nodes. It should provide a consistent way to call different models and agent implementations while preserving structured contracts, context boundaries, and usage accounting.
 
-The runtime should support fresh contexts for separate roles such as product, architecture, implementation, and verification. A verifier should be able to evaluate an artifact against an original contract without inheriting the implementer’s assumptions.
+The runtime should support fresh contexts for separate roles such as product, architecture, implementation, and verification. A verifier should be able to evaluate an artifact against an original contract without inheriting the implementer's assumptions.
 
 ### 4.4 Context layer
 
@@ -144,7 +144,7 @@ The initial target spectrum should be intentionally small:
 - Docker for local and self-hosted execution;
 - microVMs for Rostrum Cloud execution.
 
-Each implementation run or parallel task gets its own container or microVM, separate from the user’s host repository and machine. Git branches, commits, diffs, and pushes remain useful for change tracking and collaboration, but Git worktrees are not the isolation mechanism. The execution target receives a source snapshot, creates or checks out a branch, and pushes the resulting branch or commit to the configured origin according to policy.
+Each implementation run or parallel task gets its own container or microVM, separate from the user's host repository and machine. Git branches, commits, diffs, and pushes remain useful for change tracking and collaboration, but Git worktrees are not the isolation mechanism. The execution target receives a source snapshot, creates or checks out a branch, and pushes the resulting branch or commit to the configured origin according to policy.
 
 The sandbox layer should provision a workspace, mount only the required data, expose approved tools, isolate credentials, collect logs and artifacts, and destroy or recycle the environment according to policy.
 
@@ -198,7 +198,7 @@ The TUI should be an optional, terminal-native client for fast local and remote 
 - stream agent activity, tool calls, outputs, and deterministic results;
 - inspect artifacts, diffs, logs, and failure evidence;
 - surface approval requests, policy violations, and blockers;
-- pause, resume, retry, or abort according to the user’s permissions;
+- pause, resume, retry, or abort according to the user's permissions;
 - detach from a run and reattach later, including to a remotely executing run.
 
 The TUI must not own workflow state, business logic, scheduling, model calls, or the authoritative approval record. It may issue commands through the Control API, but the backend must remain correct if the TUI closes or is replaced by the web client.
@@ -362,9 +362,9 @@ The most important discussion questions are architectural rather than cosmetic:
 5. Which Hermes-inspired Docker hardening and lifecycle behaviors are required for the first local/self-hosted release?
 6. How should model providers, credentials, tools, and runnable bundles be packaged and versioned for daemon-side, sidecar, and Cloud execution?
 7. What should be a first-class artifact, and how long should execution history and artifacts be retained?
-8. What is the smallest vertical slice that demonstrates Rostrum’s advantage over a conventional coding-agent loop?
+8. What is the smallest vertical slice that demonstrates Rostrum's advantage over a conventional coding-agent loop?
 9. Which cloud capabilities are necessary for the first hosted release beyond microVM execution, and which can remain self-hosted or deferred?
 
 ## 10. Working definition of done for the product concept
 
-At a high level, Rostrum is on the right track when a user can ask for a workflow to be generated, inspect and edit its visual graph, simulate it safely, publish a version, start it from any supported client or trigger, watch a durable graph execute across agent and deterministic nodes, inspect the evidence produced at each step, approve or reject gated actions, recover from a disconnected client, and receive a verifiable final result. The same workflow should be able to run locally and, behind the same contracts, on Rostrum’s hosted infrastructure.
+At a high level, Rostrum is on the right track when a user can ask for a workflow to be generated, inspect and edit its visual graph, simulate it safely, publish a version, start it from any supported client or trigger, watch a durable graph execute across agent and deterministic nodes, inspect the evidence produced at each step, approve or reject gated actions, recover from a disconnected client, and receive a verifiable final result. The same workflow should be able to run locally and, behind the same contracts, on Rostrum's hosted infrastructure.
