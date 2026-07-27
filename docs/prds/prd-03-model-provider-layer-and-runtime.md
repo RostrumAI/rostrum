@@ -1,14 +1,14 @@
-# PRD-03: Agent and Model Runtime
+# PRD-03: Model Provider Layer and Runtime
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [Agent runtime epics](../epics/epic-03-agent-runtime.md)
+Delivery Epics: [Epic-05](../epics/epic-05-model-providers-and-nodes.md), [Epic-06](../epics/epic-06-project-context.md)
 
 Research input: [Prewalk-style model handoff notes](../research/prewalk-model-handoff-notes.md)
 
 ## Purpose
 
-Provide reasoning nodes with controlled model selection, structured outputs, tool boundaries, and context-view consumption. Agents should be replaceable workers inside a workflow, not the source of workflow truth. The separate Context Layer owns source access and pass-through delivery.
+Provide two explicit boundaries: a Model Provider Layer that brokers access to model services, and a model runtime that executes reasoning nodes under workflow contracts. Agents remain replaceable workers inside a workflow, not the source of workflow truth. The separate Context Layer owns source retrieval and pass-through delivery.
 
 ## Users and use cases
 
@@ -23,6 +23,7 @@ Provide reasoning nodes with controlled model selection, structured outputs, too
 
 ## Goals
 
+- Keep provider authentication, discovery, routing, failure normalization, and usage accounting outside workflow and Context Layer logic.
 - Normalize multiple model and agent providers behind a stable node contract.
 - Consume context views from the Context Layer rather than retrieving directly from external systems.
 - Support fresh context boundaries and role-specific configuration.
@@ -36,11 +37,27 @@ Provide reasoning nodes with controlled model selection, structured outputs, too
 - Hiding the fact that model output is probabilistic.
 - Allowing agents to bypass workflow and policy boundaries.
 
+## Model Provider Layer boundary
+
+The Model Provider Layer:
+
+- maintains provider, model, capability, region, and data-handling metadata;
+- accepts scoped credential handles without exposing provider secrets to model nodes;
+- normalizes requests, responses, streaming, tool calls, errors, rate limits, and usage;
+- applies routing, retry, fallback, budget, and provider policy;
+- provides mock and local adapters for development and simulation;
+- runs beside the daemon for self-hosted deployments or as a managed Rostrum Cloud service.
+
+It does not retrieve project documents, Slack messages, repository data, or other source context. The Context Layer produces an approved context view; the model runtime binds that view to a provider request.
+
 ## Required features
 
 ### Must
 
 - Model adapter interface with request, response, error, and usage contracts.
+- Provider catalog and capability-discovery contract.
+- Scoped provider credential resolution and injection.
+- Provider request/response, streaming, error, rate-limit, and usage normalization.
 - Model and provider policy: allowed providers, models, regions, data handling, and budgets.
 - Prompt/context composition from declared context views rather than arbitrary ambient access.
 - Structured output schemas with validation and repair/failure behavior.
@@ -94,4 +111,4 @@ Provide reasoning nodes with controlled model selection, structured outputs, too
 
 ## Ownership boundary
 
-Adapter interfaces, local/mock providers, context-view contracts, trajectory/transfer contracts, and open-source model adapters belong in the open core. Hosted provider routing, managed model credentials, proprietary evaluation, and cloud cost optimization may be hosted features. Source connectors and pass-through retrieval are specified by PRD-14.
+Provider Layer contracts, local/mock providers, context-view contracts, trajectory/transfer contracts, and open-source provider adapters belong in the open core. Hosted provider routing, managed model credentials, proprietary evaluation, and cloud cost optimization may be hosted features. Source connectors and pass-through retrieval are specified by PRD-14.

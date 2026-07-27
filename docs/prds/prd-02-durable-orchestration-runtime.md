@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [Orchestration runtime epics](../epics/epic-02-orchestration-runtime.md)
+Delivery Epics: [Epic-02](../epics/epic-02-local-workflow-execution.md), [Epic-03](../epics/epic-03-durable-runs-and-human-control.md)
 
 ## Purpose
 
@@ -10,7 +10,7 @@ Execute workflow graphs reliably across process restarts, client disconnections,
 
 ## Users and use cases
 
-- A user starts a workflow and expects it to continue after closing the TUI.
+- A user starts a workflow and expects it to continue after closing the web or desktop application.
 - An orchestrator resumes a run after a worker or host failure.
 - A workflow fans out work to independent tasks and joins results.
 - A verifier fails a change and the runtime creates a bounded repair loop.
@@ -57,7 +57,7 @@ Execute workflow graphs reliably across process restarts, client disconnections,
 - Fair scheduling and priority classes.
 - Backpressure when model, runtime, or integration capacity is exhausted.
 - Operator controls for draining a runtime or taking a queue out of service.
-- Deterministic simulation configuration for workflow tests.
+- Per-node simulation-mode and mock-result handling for workflow tests.
 - Simulation-run lifecycle and explicit separation between simulation state and production state.
 - Durable transfer-node checkpoints containing retained/pruned trajectory references, completed/remaining task state, transfer condition, and receiving-runtime configuration.
 - Explicit node output binding and bounded streaming/materialization semantics for downstream inputs.

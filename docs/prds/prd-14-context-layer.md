@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#44-context-layer)  
-Primary epic: [Context layer epics](../epics/epic-14-context-layer.md)
+Delivery Epic: [Epic-06](../epics/epic-06-project-context.md)
 
 ## Purpose
 
@@ -132,4 +132,3 @@ The source system remains the system of record. Rostrum may retain a user-approv
 ## Ownership boundary
 
 Connector contracts, policy interfaces, local/mock connectors, and self-hosted Docker context broker should be open-source. Rostrum Cloud may provide managed OAuth, hosted connector execution, enterprise credential brokering, tenant policy distribution, and operational controls. Neither deployment should persist source content by default.
-

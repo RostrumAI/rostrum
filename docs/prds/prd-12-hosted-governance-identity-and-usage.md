@@ -1,12 +1,12 @@
 # PRD-12: Hosted Governance, Identity, and Usage
 
 Status: Draft  
-Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#6-product-boundaries)<br>
-Primary epic: [Hosted governance epics](../epics/epic-11-hosted-governance.md)
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#5-product-boundaries)<br>
+Delivery Epic: [Epic-13](../epics/epic-13-rostrum-cloud.md)
 
 ## Purpose
 
-Provide the hosted-service capabilities required to run autonomous workflows safely across organizations, users, projects, environments, and tenant boundaries. The core daemon, Control API, clients, Context Layer, Docker execution, authoring, and simulation remain self-hostable; this PRD covers managed hosted operations and Rostrum Cloud microVM execution.
+Provide the hosted-service capabilities required to run autonomous workflows safely across organizations, users, projects, environments, and tenant boundaries. The core daemon, Control API, clients, Model Provider Layer contracts/adapters, Context Layer, Docker execution, authoring, and simulation remain self-hostable; this PRD covers managed hosted operations and Rostrum Cloud microVM execution.
 
 ## Users and use cases
 
@@ -80,4 +80,4 @@ Provide the hosted-service capabilities required to run autonomous workflows saf
 
 ## Ownership boundary
 
-Managed multi-tenancy, credential brokering, hosted execution, operational fleet services, billing, and enterprise administration are hosted capabilities. The primary functional hosted differentiator is Rostrum Cloud microVM execution. Public contracts, local Docker implementations, the daemon, Control API, clients, Context Layer, authoring, simulation, and self-hosting documentation should remain open.
+Managed multi-tenancy, credential brokering, hosted provider routing, hosted execution, operational fleet services, billing, and enterprise administration are hosted capabilities. The primary functional hosted differentiator is Rostrum Cloud microVM execution. Public contracts, local Docker implementations, the daemon, Control API, clients, Model Provider Layer contracts/adapters, Context Layer, authoring, simulation, and self-hosting documentation should remain open.

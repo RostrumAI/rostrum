@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#48-control-api-and-service-boundary)<br>
-Primary epic: [Control plane epics](../epics/epic-07-control-plane.md)
+Delivery Epics: [Epic-01](../epics/epic-01-trusted-workflow-json.md), [Epic-02](../epics/epic-02-local-workflow-execution.md), [Epic-03](../epics/epic-03-durable-runs-and-human-control.md), [Epic-09](../epics/epic-09-sdk.md)
 
 ## Purpose
 
@@ -10,7 +10,8 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 
 ## Users and use cases
 
-- TUI, web, CLI, SDK, and integrations start and control runs.
+- Web, desktop, SDK, and integrations start and control runs.
+- The CLI validates, uploads, downloads, inspects, and compares workflow JSON.
 - A user lists projects, workflows, runs, artifacts, approvals, and environments.
 - A local developer connects clients to a local daemon.
 - A hosted organization manages workspaces, users, policies, and credentials.
@@ -18,7 +19,7 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 - An external event is authenticated and mapped to a workflow input.
 - A caller invokes a selected workflow version with schema-validated structured inputs.
 - An operator drains or disables a runtime target.
-- A CLI/SDK caller starts a run asynchronously, observes events, waits for approval or completion, controls the run, and retrieves artifacts.
+- An SDK caller starts a run asynchronously, observes events, waits for approval or completion, controls the run, and retrieves artifacts.
 - A team administrator assigns project approvers and configures acceptable approval groups for a workflow.
 
 ## Goals
@@ -33,7 +34,7 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 
 ### Must
 
-- Resources for organizations, teams, users, groups, projects, memberships, approver policies, workspaces, workflows, workflow packages, simulations, runs, nodes, tasks, decisions, approvals, artifacts, targets, policies, integrations, context sources, and context policies.
+- Resources for organizations, teams, users, groups, projects, memberships, approver policies, workspaces, workflows, draft revisions, published versions, simulations, runs, nodes, tasks, decisions, approvals, artifacts, targets, providers, policies, integrations, context sources, and context policies.
 - Commands for validate, simulate, publish, start, wait, observe, pause, resume, cancel, retry, approve, reject, comment, and re-run.
 - Query and subscription endpoints for run state and events.
 - Asynchronous run start returning a durable run handle; wait semantics for approval/question/terminal transitions with timeout and machine-readable exit status.
@@ -46,12 +47,13 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 - API versioning and machine-readable error model.
 - Webhook/event ingestion with signature verification and replay protection.
 - Capability discovery so clients know what the connected deployment supports.
-- Consistent CLI/SDK operations for workflow validation/simulation/publication, run lifecycle, event observation, waiting, approvals, controls, and artifact retrieval.
+- Workflow JSON validation, upload, download, inspection, and semantic-diff contracts for the CLI.
+- Typed run lifecycle, event observation, waiting, approvals, controls, and artifact retrieval contracts for SDKs.
 
 ### Should
 
 - SDKs for common languages.
-- CLI generated from the API contract.
+- SDK generation from the API contract where practical.
 - Offline command queue for selected local actions.
 - Administrative APIs for target draining and policy rollout.
 - GraphQL or query aggregation only if REST/event APIs become insufficient.
@@ -64,7 +66,7 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 
 ## Acceptance criteria
 
-1. TUI and web can display and control the same run through the API.
+1. Web and desktop clients can display and control the same run through the API.
 2. Closing and restarting the local daemon does not erase active run state.
 3. Repeated commands with the same idempotency key do not duplicate side effects.
 4. Unauthorized users cannot discover or control runs outside their scope.
@@ -81,4 +83,4 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 
 ## Ownership boundary
 
-The API contract, local daemon, CLI, SDK, and self-hosted server should be open-source. Hosted tenancy, ingress, account management, managed identity, and managed control-plane operations are hosted capabilities. The public contract must not require the hosted service.
+The API contract, local daemon, workflow CLI, SDKs, and self-hosted server should be open-source. Hosted tenancy, ingress, account management, managed identity, and managed control-plane operations are hosted capabilities. The public contract must not require the hosted service.

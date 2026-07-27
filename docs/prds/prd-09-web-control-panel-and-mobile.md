@@ -2,11 +2,11 @@
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [Client surface epics](../epics/epic-08-clients.md)
+Delivery Epics: [Epic-08](../epics/epic-08-control-applications.md), [Epic-11](../epics/epic-11-collaborative-authoring.md)
 
 ## Purpose
 
-Provide the primary browser-based workflow client for visual authoring, graph review, simulation, project configuration, workflow history, artifact review, approvals, and fleet visibility. Provide a responsive mobile-friendly experience for high-value monitoring and decisions without requiring a separate native app initially.
+Provide the primary browser-based workflow client for collaborative authoring, graph review, per-node simulation, project configuration, workflow history, artifact review, approvals, and fleet visibility. Its shared application code also powers the desktop client. Provide a responsive mobile-friendly experience for high-value monitoring and decisions without requiring a separate native mobile app initially.
 
 ## Users and use cases
 
@@ -22,10 +22,10 @@ Provide the primary browser-based workflow client for visual authoring, graph re
 ## Goals
 
 - Make Rostrum’s durable project/run/artifact model understandable.
-- Support richer review and configuration than the TUI.
+- Share the primary authoring and run-management experience with the desktop application.
 - Give mobile users safe, concise, auditable control.
-- Use the same API and event model as the TUI.
-- Make graph creation and simulation understandable to users who do not want to hand-author JSON/YAML.
+- Use the same API and event model across web and desktop.
+- Make graph creation and simulation understandable to users who do not want to hand-author workflow JSON.
 
 ## Required features
 
@@ -35,7 +35,8 @@ Provide the primary browser-based workflow client for visual authoring, graph re
 - Project overview with goals, active runs, decisions, artifacts, blockers, and history.
 - Workflow/version selection and run initiation.
 - Visual workflow graph authoring for nodes, edges, contracts, loops, approvals, policies, and terminal conditions.
-- Canonical package import/export, version comparison, validation, simulation, and publication.
+- Workflow JSON import/export, revision history, semantic comparison, comments, validation, review, and publication.
+- Per-node simulation configuration, rich mock-data selection, path coverage, and suppressed-effect reporting.
 - Optional model-generated workflow proposal review with assumptions, risks, and simulation evidence; ordinary workflow invocation still requires an explicit workflow and structured inputs.
 - Plan, diff, report, log, and deployment artifact views.
 - Review comments, questions, decisions, approval, rejection, and request-changes actions.
@@ -56,14 +57,13 @@ Provide the primary browser-based workflow client for visual authoring, graph re
 ### Could
 
 - Native mobile wrapper.
-- Collaborative cursors and real-time comments.
-- Native mobile wrapper.
+- Collaborative cursors and presence indicators.
 
 ## Acceptance criteria
 
 1. A reviewer can understand the product request, current plan, open questions, and required decision without reading the entire run trace.
-2. Mobile approval includes enough context to make a safe bounded decision or clearly defers to the full web/TUI experience.
-3. All decisions made in web/mobile are visible in the TUI and event history.
+2. Mobile approval includes enough context to make a safe bounded decision or clearly defers to the full web/desktop experience.
+3. All decisions made in web/mobile are visible in the desktop client and event history.
 4. Users cannot approve an action outside their authorization or after the request expires.
 5. Configuration changes are versioned or auditable and do not silently alter in-flight runs.
 
@@ -73,8 +73,8 @@ Provide the primary browser-based workflow client for visual authoring, graph re
 - Artifact rendering and safe preview strategy.
 - Notification delivery and offline behavior for mobile approvals.
 - Collaboration model: comments, mentions, threaded decisions, and review ownership.
-- How much administrative configuration belongs in web versus CLI/TUI.
+- How much administrative configuration belongs in the control application versus SDK or configuration files.
 
 ## Ownership boundary
 
-The UI shell, visual workflow editor, simulator client, and core run/review experience should be open-source because the web control panel is part of the self-hostable core. Hosted identity, notifications, fleet analytics, premium collaboration, and managed account administration may be hosted services.
+The UI shell, revisioned collaboration model, visual workflow editor, simulator client, and core run/review experience should be open-source because the web control application is self-hostable. Hosted identity, notifications, managed retention, fleet analytics, and account administration may be hosted services.

@@ -6,165 +6,123 @@ Audience: Product, engineering, design, security, and operations
 
 ## Purpose
 
-The [High-Level Build Blueprint](rostrum-high-level-build-blueprint.md) explains Rostrum’s conceptual architecture and major boundaries.
+The [High-Level Build Blueprint](rostrum-high-level-build-blueprint.md) describes Rostrum's architecture and boundaries. This document defines the product to deliver, the order in which it becomes useful, and the showcases that prove it is complete.
 
-This document answers a narrower question:
-
-> What are we building, why does each part exist, and in what order should we build it?
-
-Rostrum is a platform for defining and executing workflows. It receives an explicitly selected workflow and structured inputs. 
+Rostrum defines and executes workflows. A caller selects a workflow and supplies its declared inputs. Prompt intake, request interpretation, and workflow selection only exist when a user builds or connects a workflow that performs those jobs.
 
 ## Contents
 
 - [1. Product scope](#1-product-scope)
 - [2. What we are building and why](#2-what-we-are-building-and-why)
-- [3. PRD roadmap](#3-prd-roadmap)
-- [4. Example workflow suite](#4-example-workflow-suite)
-- [5. Product roadmap](#5-product-roadmap)
-- [6. Product boundaries](#6-product-boundaries)
-- [7. Definition of a complete product](#7-definition-of-a-complete-product)
-- [8. Open decisions](#8-open-decisions)
+- [3. Delivery milestones](#3-delivery-milestones)
+- [4. Showcase suite](#4-showcase-suite)
+- [5. Product boundaries](#5-product-boundaries)
+- [6. Finalized Rostrum state](#6-finalized-rostrum-state)
 
 ## 1. Product scope
 
-### Core product
+### Rostrum provides
 
-- Define, validate, simulate, publish, and version workflows.
-- Execute workflow graphs durably and safely.
-- Combine model, deterministic, script, integration, approval, and control nodes.
-- Pass typed, bounded outputs between nodes.
-- Provide read-only, pass-through access to approved external context.
-- Isolate code, scripts, and tools in Docker or Cloud microVMs.
-- Expose one Control API to all clients and integrations.
-- Record state, events, artifacts, policy decisions, and evidence.
+- Versioned workflow JSON definitions.
+- Durable graph execution across model, deterministic, script, integration, approval, and control nodes.
+- Typed node inputs and outputs, explicit policies, and required evidence.
+- Read-only, pass-through access to approved external context.
+- Docker isolation for local/self-hosted runs and microVM isolation for Rostrum Cloud.
+- One Control API shared by clients, SDKs, and integrations.
+- Co-authoring, validation, per-node simulation, publication, observation, and governance.
 
-### Not core product behavior
+### Rostrum does not implicitly provide
 
 - General-purpose chat or prompt intake.
-- Automatically deciding which workflow to run without an explicitly configured workflow or integration.
-- A single mandatory domain, such as software development.
-- Workflow packaging, marketplace distribution, signing, or monetization in the first planning phase.
+- Automatic workflow selection.
+- A mandatory workflow domain.
+- Workflow marketplace, packaging, signing, distribution, or monetization in the initial product.
 
 ## 2. What we are building and why
 
 | Product area | What we build | Why it exists |
 | --- | --- | --- |
-| Workflow definition | Versioned graphs with schemas, branches, loops, approvals, policies, and completion conditions | Makes automation explicit, reviewable, and repeatable |
-| Authoring and simulation | Visual graph editor, validation, simulation, version comparison, and publication flow | Lets people safely understand and modify workflows before execution |
-| Rostrum daemon | Durable scheduler and graph executor with retries, checkpoints, waits, and recovery | Keeps work running correctly when clients disconnect or processes fail |
-| Control API | Contracts for workflow versions, invocation, observation, control, approvals, artifacts, and configuration | Gives every client and integration one source of truth |
-| Web control panel | Primary workflow authoring, simulation, review, and run-management interface | Makes complex graphs and evidence understandable |
-| TUI | Optional terminal client for fast observation and operational control | Supports local development and remote operations |
-| CLI and SDK | Scriptable workflow validation, simulation, invocation, waiting, observation, control, and artifact access | Enables CI, automation, and integration with other systems |
-| Model runtime | Provider-neutral model nodes with structured outputs, context boundaries, usage tracking, and configurable model execution strategies | Adds reasoning without making models the source of workflow truth |
-| Deterministic tools and scripts | File/process/test/integration tools plus sandboxed scripts with typed stdout/JSON/JSONL piping | Handles literal work reproducibly and supplies machine-readable evidence |
-| Context Layer | Read-only, policy-filtered, just-in-time access to repositories, Slack, Discord, documentation, incidents, and other sources | Provides useful context without passing credentials or creating a mandatory data cache |
-| Sandboxing | Docker for local/self-hosted execution; microVMs for Rostrum Cloud | Keeps generated code, scripts, tools, and credentials outside the daemon and user host |
-| State and observability | Durable run state, event streams, artifacts, traces, usage, and audit records | Enables recovery, debugging, review, and trust |
-| Governance and approvals | Users, teams, groups, projects, policies, budgets, credentials, approvals, and kill switches | Makes automation safe to operate at meaningful scale |
-| Integrations | Triggers, callbacks, notifications, external jobs, and result publishing | Connects workflows to existing systems without bypassing Rostrum’s contracts |
+| Workflow definition | Portable, versioned workflow JSON with graph, schema, policy, budget, evidence, and completion contracts | Gives humans, AI authors, clients, and runtimes one executable source of truth |
+| Authoring and collaboration | Visual editing, revisioned drafts, semantic diffs, comments, review, immutable publication, and Git import/export | Supports live co-authoring as well as branch-and-pull-request review |
+| Simulation and mock library | Per-node simulation contracts defining allowed mock results and effects, plus reusable mock data for models, tools, context, integrations, and human decisions | Lets workflows exercise realistic paths without pretending a simulation is a real run |
+| Rostrum daemon | Durable scheduler and graph executor with retries, checkpoints, waits, recovery, and cancellation | Keeps execution correct when clients disconnect or workers fail |
+| Control API | Contracts for workflow versions, runs, events, controls, approvals, artifacts, configuration, and provider/context references | Gives every client and integration one authoritative boundary |
+| Web and desktop control app | Shared web application with an installable Electron or equivalent desktop shell; responsive approval views for mobile browsers | Provides the primary authoring, simulation, review, and run-management experience |
+| CLI | Local and remote validation, upload, download, inspection, and diffing of workflow JSON, with machine-readable results | Lets humans and AI systems create Rostrum workflows verifiably outside the visual editor |
+| Rostrum authoring skill | Instructions and fixtures that teach an AI coding agent to produce workflow JSON and use the CLI validation/upload loop | Makes AI-authored workflows practical without making prompt intake part of Rostrum |
+| SDK | Typed programmatic clients for invoking selected workflows, observing or waiting on runs, controlling execution, submitting decisions, and retrieving artifacts | Embeds Rostrum in applications, CI, and internal platforms |
+| Model Provider Layer | Provider-neutral model catalog, authentication, capability discovery, request/response normalization, routing, fallback, and usage accounting | Separates model access from workflow logic and from the Context Layer |
+| Model runtime | Structured reasoning nodes, tool boundaries, model execution strategies, context limits, and traceability | Adds probabilistic reasoning without making models the source of workflow truth |
+| Deterministic tools and scripts | Built-in tools plus container-defined script nodes supplied as an image, Dockerfile/build context, or equivalent runnable definition | Lets workflow authors bring any runtime while owning its dependencies and output behavior |
+| Context Layer | Read-only, policy-filtered, just-in-time access to repositories, Slack, Discord, documentation, incidents, and other sources | Supplies project knowledge without exposing source credentials or requiring a source-content cache |
+| Sandboxing | Docker targets for local/self-hosted execution and Rostrum Cloud microVM targets | Keeps code, scripts, tools, dependencies, and credentials outside the daemon and user host |
+| State and observability | Durable run state, event streams, artifacts, traces, costs, policy decisions, and audit records | Makes runs recoverable and their results inspectable |
+| Governance and approvals | Users, teams, groups, projects, policies, budgets, credentials, approvals, and kill switches | Makes consequential workflows safe to operate |
+| Integrations | Authenticated triggers, callbacks, notifications, external jobs, and structured result publishing | Connects workflows to the systems that initiate work and consume outcomes |
 
-Detailed requirements for these areas belong in the PRDs. This plan only defines their product purpose and order.
+## 3. Delivery milestones
 
-## 3. PRD roadmap
+Milestone and Epic numbers match one-to-one. Each Epic contains the work needed to reach its corresponding product state. [Epic-00](../epics/epic-00-delivery-roadmap.md) coordinates the complete sequence.
 
-Each stage below leaves Rostrum in a more capable, demonstrable state. The linked PRDs are the documents needed to reach that state.
+| Milestone | Product state | Delivery Epic | Exit demonstration |
+| --- | --- | --- | --- |
+| M1 | Workflow JSON can be trusted | [Epic-01: Trusted workflow JSON](../epics/epic-01-trusted-workflow-json.md) | A human or AI creates workflow JSON, validates it locally, uploads it, and retrieves its immutable version and digest. |
+| M2 | A workflow can execute locally | [Epic-02: Local workflow execution](../epics/epic-02-local-workflow-execution.md) | The daemon accepts an explicit workflow invocation and executes sequential, branching, and terminal control flow through the Control API. |
+| M3 | A run can survive, wait, and be inspected | [Epic-03: Durable runs and human control](../epics/epic-03-durable-runs-and-human-control.md) | A run survives restart and reconnect, exposes events and artifacts, retries bounded failures, and pauses and resumes around a human decision. |
+| M4 | A workflow can safely run tools and scripts | [Epic-04: Docker tools and scripts](../epics/epic-04-docker-tools-and-scripts.md) | A workflow runs built-in tools and a container-defined script in Docker, applies policy, and binds captured results into downstream nodes without losing durable evidence. |
+| M5 | Models can be used in workflows | [Epic-05: Model providers and model nodes](../epics/epic-05-model-providers-and-nodes.md) | A model node executes through the provider-neutral layer with structured output, scoped credentials, policy, usage accounting, retry, and fallback. |
+| M6 | Project context can be used in workflows | [Epic-06: Project context](../epics/epic-06-project-context.md) | A node receives a read-only, filtered context view with provenance while source credentials and source bodies remain outside the run record by default. |
+| M7 | Workflows can be simulated | [Epic-07: Workflow simulation](../epics/epic-07-workflow-simulation.md) | A workflow runs through per-node mocks, reports traversed and uncovered paths, and identifies every simulated result and suppressed effect. |
+| M8 | Workflows can be authored and operated visually | [Epic-08: Control applications](../epics/epic-08-control-applications.md) | One user can visually edit, validate, simulate, publish, invoke, observe, and control a workflow from web or desktop, with mobile-responsive decisions. |
+| M9 | Applications can embed Rostrum | [Epic-09: SDK](../epics/epic-09-sdk.md) | An application invokes a selected workflow, observes or waits on the run, submits a decision, and retrieves structured results and artifacts through a typed SDK. |
+| M10 | External systems can participate | [Epic-10: Integrations](../epics/epic-10-integrations.md) | A repository, CI system, schedule, alert, or external application invokes an explicit workflow and receives authenticated, replay-safe outcomes. |
+| M11 | Teams can co-author workflows | [Epic-11: Collaborative authoring](../epics/epic-11-collaborative-authoring.md) | Multiple authors create revisions, avoid silent overwrites, compare and merge changes, review in Rostrum or Git, and publish the approved revision. |
+| M12 | The showcase suite proves product breadth | [Epic-12: Showcase suite](../epics/epic-12-showcase-suite.md) | Every showcase below passes through the same public workflow, execution, policy, evidence, and client contracts on self-hosted Docker. |
+| M13 | Rostrum can be operated as Cloud | [Epic-13: Rostrum Cloud](../epics/epic-13-rostrum-cloud.md) | The same workflow JSON and Control API operate across tenants with managed identity, credentials, quotas, billing, operations, and microVM isolation. |
+| Final | Rostrum matches the finalized product state | Epics 01–13, in order | A team can define, simulate, operate, integrate, co-author, and govern workflows; run every node type durably across supported isolation targets; inspect complete evidence; and reproduce the showcase suite locally, self-hosted, and in Rostrum Cloud. |
 
-```mermaid
-flowchart LR
-    A["Define workflows<br/>PRD-01"] --> B["Invoke and execute<br/>PRD-07 · PRD-02"]
-    B --> C["Isolate work and capture evidence<br/>PRD-05 · PRD-04 · PRD-06"]
-    C --> D["Add models and approved context<br/>PRD-03 · PRD-14"]
-    D --> E["Author, simulate, and operate<br/>PRD-15 · PRD-09 · PRD-08"]
-    E --> F["Connect external systems<br/>PRD-10"]
-    F --> G["Complete software delivery<br/>PRD-11 · PRD-13"]
-    G --> H["Run the same platform in Cloud<br/>PRD-12"]
-```
+## 4. Showcase suite
 
-| Product state | PRDs | What can be demonstrated |
+| What to showcase | What it proves | What's needed |
 | --- | --- | --- |
-| A workflow exists | [PRD-01: Workflow definition](../prds/prd-01-workflow-definition.md) | A versioned graph declares inputs, outputs, node contracts, policies, branches, approvals, and completion conditions. |
-| A workflow can run | [PRD-07: Control API and local daemon](../prds/prd-07-control-plane-api-and-local-daemon.md) · [PRD-02: Durable orchestration runtime](../prds/prd-02-durable-orchestration-runtime.md) | A caller invokes a selected workflow through one API; the daemon schedules it, waits, retries, branches, joins, and recovers. |
-| A workflow can safely do work | [PRD-05: Execution targets and sandboxing](../prds/prd-05-execution-targets-and-sandboxing.md) · [PRD-04: Deterministic tools and policy gates](../prds/prd-04-deterministic-tools-and-policy.md) · [PRD-06: State, events, artifacts, and observability](../prds/prd-06-state-events-artifacts-observability.md) | A Docker-isolated run executes tools and scripts, pipes typed results, enforces policy, and leaves recoverable evidence and artifacts. |
-| A workflow can reason with controlled context | [PRD-03: Agent and model runtime](../prds/prd-03-agent-and-model-runtime.md) · [PRD-14: Context Layer](../prds/prd-14-context-layer.md) | Model nodes use declared context and model strategies; approved source data is passed through without exposing credentials or requiring a source-content cache. |
-| A workflow can be created and governed | [PRD-15: Workflow authoring and simulation](../prds/prd-15-workflow-authoring-and-simulation.md) · [PRD-09: Web control panel and mobile approvals](../prds/prd-09-web-control-panel-and-mobile.md) · [PRD-08: TUI console](../prds/prd-08-tui-console.md) | A user edits a graph visually, validates and simulates it, publishes a version, observes runs, reviews evidence, and handles decisions from web, mobile, or terminal clients. |
-| A workflow can participate in a system | [PRD-10: Triggers and integrations](../prds/prd-10-triggers-and-integrations.md) | A repository, CI system, schedule, alert, or external application starts a selected workflow and receives structured results. |
-| A workflow can deliver software | [PRD-11: Software delivery workflow collection](../prds/prd-11-software-delivery-workflows.md) · [PRD-13: Deployment, release, and live validation](../prds/prd-13-deployment-release-and-live-validation.md) | An explicitly supplied software task can pass through planning, isolated implementation, verification, deployment, live dependency testing, approval, and rollback or escalation. |
-| Rostrum can be operated as Cloud | [PRD-12: Hosted governance, identity, and usage](../prds/prd-12-hosted-governance-identity-and-usage.md) | The same workflow definitions and Control API run across tenants with managed identity, credentials, quotas, operations, billing, and microVM isolation. |
+| **Product discovery brief (product owner/manager):** turn approved customer feedback, product analytics, support themes, and strategy documents into a reviewable opportunity brief and proposed requirements | • Parallel pass-through context retrieval with provenance<br>• Model synthesis through the provider layer<br>• Human questions, comments, revision, and approval<br>• Artifact lineage from evidence to product decisions | • [Epic-05: Model providers and model nodes](../epics/epic-05-model-providers-and-nodes.md)<br>• [Epic-06: Project context](../epics/epic-06-project-context.md)<br>• [Epic-08: Control applications](../epics/epic-08-control-applications.md)<br>• [Epic-10: Integrations](../epics/epic-10-integrations.md) |
+| **Roadmap prioritization and release plan (product owner/manager):** combine objectives, backlog items, dependencies, capacity, and stakeholder constraints into scored scenarios and an approved roadmap | • Container-defined scoring and dependency scripts<br>• Typed script output feeding model and decision nodes<br>• Fan-out, joins, scenario comparison, and durable approval waits<br>• Per-node mocks for changing capacity and stakeholder inputs | • [Epic-03: Durable runs and human control](../epics/epic-03-durable-runs-and-human-control.md)<br>• [Epic-04: Docker tools and scripts](../epics/epic-04-docker-tools-and-scripts.md)<br>• [Epic-07: Workflow simulation](../epics/epic-07-workflow-simulation.md)<br>• [Epic-08: Control applications](../epics/epic-08-control-applications.md) |
+| **AI-authored Rostrum workflow:** give an AI coding agent the Rostrum authoring skill, have it produce workflow JSON, validate and upload it through the CLI, then review and simulate it visually | • AI can create workflows without privileged product behavior<br>• Workflow JSON is portable and machine-verifiable<br>• Invalid or unsafe AI output cannot be published silently<br>• CLI, Control API, visual editor, and simulator share one contract | • [Epic-01: Trusted workflow JSON](../epics/epic-01-trusted-workflow-json.md)<br>• [Epic-07: Workflow simulation](../epics/epic-07-workflow-simulation.md)<br>• [Epic-08: Control applications](../epics/epic-08-control-applications.md)<br>• [Epic-11: Collaborative authoring](../epics/epic-11-collaborative-authoring.md) |
+| **Secure note-taking application delivery:** build, test, and release a secure application for web, desktop, and mobile from an approved product brief | • Model and deterministic nodes can coordinate a large outcome<br>• Parallel work remains isolated in Docker or Cloud microVMs<br>• Git branches, independent verification, and repair loops compose reliably<br>• Deployment, live dependency checks, approvals, and rollback produce evidence | • [Epic-04: Docker tools and scripts](../epics/epic-04-docker-tools-and-scripts.md)<br>• [Epic-05: Model providers and model nodes](../epics/epic-05-model-providers-and-nodes.md)<br>• [Epic-12: Showcase suite](../epics/epic-12-showcase-suite.md)<br>• Secure note-taking reference repositories and environments |
+| **Incident investigation and governed remediation:** receive an alert, gather approved service context, reproduce the failure, propose a repair, wait for approval, deploy, and monitor | • External triggers can start durable workflows<br>• Read-only context and write-capable remediation remain separate<br>• Risk policies and approvals constrain production actions<br>• Failure, retry, rollback, and escalation paths survive long waits | • [Epic-03: Durable runs and human control](../epics/epic-03-durable-runs-and-human-control.md)<br>• [Epic-04: Docker tools and scripts](../epics/epic-04-docker-tools-and-scripts.md)<br>• [Epic-06: Project context](../epics/epic-06-project-context.md)<br>• [Epic-10: Integrations](../epics/epic-10-integrations.md) |
+| **Cross-system data reconciliation:** read records from two systems, normalize them with container-defined scripts, fan out comparisons, route exceptions for review, and publish a reconciliation report | • Rostrum is useful without model nodes<br>• Container-defined scripts, typed piping, idempotency, and per-record failure compose<br>• Parallel execution and joins produce deterministic artifacts<br>• Mock connectors can test external-system behavior safely | • [Epic-03: Durable runs and human control](../epics/epic-03-durable-runs-and-human-control.md)<br>• [Epic-04: Docker tools and scripts](../epics/epic-04-docker-tools-and-scripts.md)<br>• [Epic-10: Integrations](../epics/epic-10-integrations.md)<br>• [Epic-12: Showcase suite](../epics/epic-12-showcase-suite.md) |
 
-The [PRD index](../prds/README.md) is the entry point for the detailed documents. The [Epics index](../epics/README.md) then breaks each PRD into implementation tasks and SPIKEs.
+## 5. Product boundaries
 
-## 4. Example workflow suite
+### Open-source and self-hostable
 
-Rostrum should be evaluated through a suite of workflows rather than one showcase. These examples define the capabilities the product must eventually demonstrate.
+- Workflow JSON schema, validator, authoring skill, CLI, SDK, and Control API.
+- Rostrum daemon, web application, desktop application, and mobile-responsive views.
+- Revisioned draft, Git import/export, review, publication, and per-node simulation contracts.
+- Model Provider Layer contracts and self-hosted provider adapters.
+- Context Layer contracts, broker, and self-hosted connectors.
+- Deterministic tools, container-defined script nodes, Docker execution, state, events, artifacts, and conformance tests.
+- Showcase workflow definitions and local fixtures.
 
-| Example workflow | Inputs | Why it matters |
-| --- | --- | --- |
-| Structured script pipeline | Records, files, or bounded text | Proves sandboxed scripts, typed piping, limits, retries, and artifacts |
-| Model execution with context transition | A declared task, context policy, and model strategy | Proves multi-model execution, context management, fallback, and usage tracking |
-| Pass-through context review | Source selector, review contract, and output schema | Proves credential isolation, redaction, provenance, and no-body-persistence defaults |
-| Human approval and callback | Proposed action and approver policy | Proves durable waits, approval groups, expiry, rejection, resume, and callbacks |
-| Fan-out, join, retry, and compensation | Collection of items and a result policy | Proves parallelism, partial failure, bounded retries, aggregation, and recovery |
-| Optional workflow router/decider | Prompt/event envelope and allowed workflow registry | Proves prompt-driven behavior can be built on Rostrum without making intake implicit |
-| Guided software build | Product brief or approved task | Proves planning, isolated implementation, Git handoff, verification, and review gates |
-| Release and live validation | Approved artifact, environment, and dependency policy | Proves deployment, migrations, smoke tests, live dependencies, rollback, and evidence |
-| Research and evidence brief | Research question, source policy, and output schema | Proves context retrieval, parallel work, synthesis, citations, and review |
-| Incident investigation/remediation | Alert envelope, service scope, and remediation policy | Proves diagnosis, scripts/tools, approvals, staged changes, and monitoring follow-up |
-| Data synchronization with exceptions | Source records, destination policy, and reconciliation rules | Proves idempotency, transformations, per-record failure, and reconciliation reporting |
+### Rostrum Cloud
 
-Software development is the first workflow collection because it is a demanding validation case. The secure note-taking app remains its reference fixture, not Rostrum’s product definition.
-
-## 5. Product roadmap
-
-| Phase | Build | Exit condition |
-| --- | --- | --- |
-| 1. Generic local execution | Workflow schema, structured invocation, validator, local daemon, Control API, Docker target, deterministic tools/scripts, state/events, artifacts | A caller can invoke and inspect a simple workflow locally |
-| 2. Authoring and execution depth | Web authoring, simulation, publication/versioning, typed piping, model execution strategies, policy enforcement, CLI/SDK lifecycle | A workflow can be authored, simulated, approved, executed, paused, resumed, and reviewed |
-| 3. Core completeness suite | Script pipeline, context review, approvals/callbacks, fan-out/retry, and optional router/decider workflows | Core platform primitives work together across representative workflows |
-| 4. Software workflow collection | Planning, implementation, verification, deployment, and live validation; secure note-taking fixture | A complete software-delivery path works through isolated execution and evidence gates |
-| 5. Generality validation | Research, incident-response, and/or synchronization workflows | At least two non-software workflows use the same core contracts |
-| 6. Rostrum Cloud | Hosted tenancy, credential brokering, quotas, operations, billing, and microVM execution | The same workflow contracts work in Cloud with stronger hosted isolation |
-
-## 6. Product boundaries
-
-### Open-source/self-hosted core
-
-- Workflow definitions, validation, authoring, and simulation.
-- Rostrum daemon and Control API.
-- Web panel, CLI, SDK, and TUI.
-- Context Layer contracts and self-hosted broker/connectors.
-- Deterministic tools, sandboxed scripts, and model/runtime interfaces.
-- Docker execution, local state, events, artifacts, telemetry, and conformance tests.
-- Reference workflow collections and example fixtures.
-
-### Rostrum Cloud capabilities
-
-- Managed tenancy, identity, credentials, retention, notifications, and operations.
-- Hosted integrations and usage/billing services.
+- Managed tenancy, identity, credentials, retention, notifications, quotas, billing, and operations.
+- Hosted provider and integration credential brokering.
 - Rostrum Cloud microVM execution and fleet management.
 
-Packaging, installation, signing, distribution, marketplace behavior, and monetization of workflow collections are deferred decisions.
+Workflow packaging, installation, signing, distribution, marketplace behavior, and monetization remain deferred.
 
-## 7. Definition of a complete product
+## 6. Finalized Rostrum state
 
-Rostrum is a complete first product when:
+Rostrum is complete for this plan when:
 
-- a caller can invoke a versioned workflow with schema-validated inputs;
-- the workflow can be inspected, simulated, approved, and executed through the shared contracts;
-- model, deterministic, script, human, and integration nodes work together;
-- scripts and tools can produce bounded, typed downstream inputs;
-- context can be accessed without exposing source credentials or persisting source bodies by default;
-- runs survive client and daemon interruptions;
-- users can inspect evidence, artifacts, policies, costs, and failures;
-- the software workflow collection completes the reference application path;
-- at least two non-software workflows run without changing the core execution model;
-- the same workflow definition can run locally/self-hosted with Docker and in Rostrum Cloud with microVMs.
-
-## 8. Open decisions
-
-1. Which functionality belongs in the core versus a workflow collection or optional client?
-2. Which script runtimes and output formats should be supported first?
-3. What simulation levels are required before execution for each risk class?
-4. What state/event guarantees are required for retries, callbacks, and external side effects?
-5. How should model providers, runnable dependencies, and credentials be resolved in Docker and Cloud?
-6. Which two non-software workflows should follow the software collection?
+- humans and AI systems can create workflow JSON and verify it through the same CLI/API contract;
+- teams can co-author drafts, use Git-based review where appropriate, compare revisions, and publish immutable versions;
+- simulation behavior is declared per node and supported by a rich reusable mock library;
+- clients and integrations invoke explicitly selected workflows with schema-validated inputs;
+- model, deterministic, container-defined script, context, human, integration, and control nodes compose in one durable graph;
+- the Model Provider Layer brokers model access separately from the read-only Context Layer;
+- scripts own their runtime and dependencies through a Dockerfile, image, or equivalent runnable definition;
+- runs survive client, worker, and daemon interruptions and expose artifacts, policy decisions, costs, and failures;
+- the same workflow contracts run locally and self-hosted in Docker and in Rostrum Cloud microVMs;
+- every showcase in this document passes without adding a domain-specific execution path.

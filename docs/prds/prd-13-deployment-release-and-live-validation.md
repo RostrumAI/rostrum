@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [Deployment and live validation epics](../epics/epic-13-deployment-and-live-validation.md)
+Delivery Epic: [Epic-12](../epics/epic-12-showcase-suite.md)
 
 ## Purpose
 

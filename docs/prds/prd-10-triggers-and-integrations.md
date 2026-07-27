@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [Integration epics](../epics/epic-09-integrations.md)
+Delivery Epic: [Epic-10](../epics/epic-10-integrations.md)
 
 ## Purpose
 
@@ -71,7 +71,7 @@ Connect Rostrum to systems that invoke workflows, provide context, and receive r
 1. A duplicate external event cannot create duplicate work without an explicit rerun request.
 2. A trigger can be traced from the source event to the Rostrum run and published result.
 3. An integration failure does not erase or incorrectly fail the underlying workflow.
-4. External approvals resolve the same durable decision record as web/TUI approvals.
+4. External approvals resolve the same durable decision record as web, desktop, and mobile-responsive approvals.
 5. A repository/CI fixture can exercise a complete reference workflow in tests.
 
 ## Open questions and SPIKEs

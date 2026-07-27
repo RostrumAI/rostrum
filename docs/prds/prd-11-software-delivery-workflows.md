@@ -1,8 +1,8 @@
 # PRD-11: Software Delivery Workflow Collection
 
 Status: Draft  
-Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#4-example-workflow-suite)
-Primary epic: [Software delivery epics](../epics/epic-10-software-delivery.md)
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#4-showcase-suite)
+Delivery Epic: [Epic-12](../epics/epic-12-showcase-suite.md)
 
 ## Purpose
 

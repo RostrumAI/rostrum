@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [Tools and policy epics](../epics/epic-04-tools-and-policy.md)
+Delivery Epics: [Epic-04](../epics/epic-04-docker-tools-and-scripts.md), [Epic-07](../epics/epic-07-workflow-simulation.md)
 
 ## Purpose
 
@@ -26,12 +26,13 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - Make tool results structured and reproducible where possible.
 - Support local and hosted execution through the same tool definitions.
 - Make approvals, credentials, filesystem, network, and resource controls explicit.
-- Make scripts and node-to-node data piping explicit, bounded, and auditable.
+- Make container-defined scripts and node-to-node data piping explicit, bounded, and auditable.
 
 ## Non-goals
 
 - Guaranteeing that a command itself is safe in all possible environments.
 - Replacing operating-system isolation or sandboxing.
+- Managing language runtimes or dependencies on behalf of script authors.
 - Supporting arbitrary unrestricted shell access in the hosted service.
 
 ## Required features
@@ -40,8 +41,8 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 
 - Tool manifest: name, version, inputs, outputs, side effects, required capabilities, runtime, timeout, and risk class.
 - Built-in file, Git branch/commit/push, process, test, build, artifact, wait, approval, and notification primitives.
-- Sandboxed script node with pinned runtime/image, declared files and environment, stdin binding, stdout/stderr capture, exit-status semantics, and output schema.
-- Explicit output bindings from tool/script results to downstream node inputs, including JSON, JSON Lines, delimited records, and bounded text.
+- Sandboxed script node supplied as an OCI image, Dockerfile/build context, or equivalent runnable definition, with declared command, files, environment, input bindings, output capture, and exit semantics.
+- Explicit author-defined bindings from stdout, files, artifacts, or process status into downstream node inputs.
 - Command allowlists/denylists and argument validation.
 - Filesystem roots, read/write/delete policies, and symlink/path traversal controls.
 - Network egress policy with host, port, method, and data-classification controls.
@@ -49,7 +50,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - Environment and resource limits: CPU, memory, disk, process count, time, and output size.
 - Approval requirements based on tool, target, environment, data, and risk.
 - Structured result containing status, exit code, stdout/stderr references, evidence, and metadata.
-- Structured stream/result metadata containing format, schema, record count, truncation, backpressure, and downstream-consumption status.
+- Result metadata containing author-declared format/schema where present, output size, truncation, and downstream-consumption status.
 - Cancellation and timeout handling with cleanup behavior.
 - Audit record for every invocation and policy decision.
 
@@ -77,7 +78,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 4. A tool can require human approval without implementing approval logic itself.
 5. The audit record identifies the run, node, tool version, runtime, identity, policy, and outcome.
 6. The same tool definition can run against a Docker workspace and a hosted microVM with target-specific enforcement.
-7. A script’s stdout cannot become a downstream input without an explicit binding, format/schema declaration, size limit, and policy decision.
+7. A script result cannot become a downstream input without an explicit author-defined binding, size limit, and policy decision; when a schema is declared, the result must validate against it.
 8. A malformed, truncated, or non-zero-exit script result is observable and follows the workflow’s declared failure path.
 
 ## Open questions and SPIKEs
@@ -85,7 +86,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - Policy language and evaluation engine.
 - How much shell compatibility is needed for local development.
 - Safe handling of generated scripts and child processes.
-- Script runtime packaging, interpreter availability, and cross-platform behavior.
+- OCI image/build-context contract, cache behavior, and provenance.
 - Streaming versus materialized output semantics and backpressure.
 - Network proxy versus direct egress controls.
 - Compensation model for deployments, migrations, and external writes.
@@ -93,3 +94,5 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 ## Ownership boundary
 
 Tool contracts, reference tools, policy interfaces, and local policy execution should be open-source. Managed secret stores, enterprise policy distribution, hosted egress controls, and proprietary security operations may be hosted capabilities.
+
+Script authors own their runtime, dependencies, command behavior, and output production. Rostrum owns target isolation, input delivery, output capture, declared-schema validation, limits, policy, evidence, and failure routing.

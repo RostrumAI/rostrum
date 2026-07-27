@@ -7,7 +7,7 @@ This directory is organized to move from evidence, to product decisions, to impl
 1. **Research** establishes the market context, architectural patterns, and source material.
 2. **Strategy** defines what Rostrum is, why it exists, and how the end-to-end product should work.
 3. **PRDs** define use cases, requirements, product boundaries, and open decisions for each product area.
-4. **Epics** break approved PRDs into implementation work, including SPIKEs where the design is not yet settled.
+4. **Epics** combine the required parts of the PRDs into priority-ordered, demonstrable delivery milestones, including SPIKEs where the design is not yet settled.
 
 ## Current documents
 
@@ -23,7 +23,7 @@ This directory is organized to move from evidence, to product decisions, to impl
 - [Rostrum High-Level Build Blueprint](strategy/rostrum-high-level-build-blueprint.md)
 - [Rostrum Platform Product Plan](strategy/rostrum-end-to-end-product-plan.md)
 
-The end-to-end plan now treats workflows as the reusable unit, Context as a read-only pass-through layer, Docker as the local/self-hosted execution target, and microVMs as Rostrum Cloud infrastructure.
+The product plan now organizes Rostrum around delivery milestones and a showcase suite: workflow JSON and collaborative authoring, durable execution, a separate Model Provider Layer and read-only Context Layer, Docker/self-hosted execution, and Rostrum Cloud microVMs.
 
 ### Product requirements
 
@@ -35,4 +35,4 @@ The end-to-end plan now treats workflows as the reusable unit, Context as a read
 
 ## How to use this documentation
 
-The strategy blueprint is the discussion document for deciding the shape of Rostrum. Once the major boundaries are agreed, create one PRD per product area, link each PRD back to the relevant strategy sections, and then create epics under `docs/epics/` for the implementation work. Keep unresolved architecture questions as explicit SPIKEs instead of hiding them inside feature tasks.
+The strategy blueprint defines Rostrum's shape. PRDs describe requirements by product area. The product plan then orders those requirements into milestones, with Milestone M1 mapping to Epic-01, M2 to Epic-02, and so on. Keep unresolved architecture questions as explicit SPIKEs inside the Epic that needs the decision.

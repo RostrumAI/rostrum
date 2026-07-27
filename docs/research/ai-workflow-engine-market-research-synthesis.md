@@ -13,7 +13,7 @@ The research treats Rostrum’s proposed architecture as aligned with this direc
 - reasoning nodes and deterministic execution nodes are distinct;
 - loops are bounded and observable;
 - state is durable and can pause for human input;
-- the local TUI is an observability and control console;
+- control clients remain detachable from execution;
 - execution happens in a selectable local or hosted runtime;
 - SaaS execution is event-driven, isolated, governed, and metered.
 
@@ -57,11 +57,11 @@ Each shape is distinguished by what it may mutate, which gates it requires, how 
 
 The product implication is that Rostrum’s workflow system should encode permissions and lifecycle rules, not just a different system prompt.
 
-### 5. The TUI should be a detachable console
+### 5. Control clients should be detachable from execution
 
-The report explicitly separates the interface from execution. The TUI should visualize graph state, active nodes, nested work, tool calls, artifacts, approvals, loop state, and blockers. It should be able to pause, resume, or abort a remote workflow and reconnect after disconnection.
+The report explicitly separates the interface from execution. It proposed a TUI that could visualize graph state, tool calls, artifacts, approvals, and blockers while reconnecting to remote runs.
 
-The product implication is that a backend or local daemon must own state and orchestration. The TUI is one client of the control API, alongside web, mobile-friendly, CLI, SDK, and external integrations.
+The lasting product implication is that a backend or local daemon must own state and orchestration. Rostrum's initial product applies that finding through a shared web application, an Electron or equivalent desktop application, mobile-responsive views, the workflow CLI, SDKs, and integrations. A TUI is deferred.
 
 ### 6. Execution target is a policy decision
 
@@ -83,7 +83,7 @@ The product implication is that integrations, governance, and metering are part 
 
 ### 8. Sandboxed scripts are a general composition primitive
 
-Many useful workflows require small deterministic programs for parsing, transforming, querying, validating, or coordinating data. These scripts should execute in the same governed sandbox boundary as other tools and expose bounded, typed output streams to downstream nodes. Script support should not imply unrestricted shell access or an implicit authority escalation path.
+Many useful workflows require small deterministic programs for parsing, transforming, querying, validating, or coordinating data. Rostrum's product direction is to accept an image, Dockerfile/build context, or equivalent runnable definition and let the script author own dependencies and output behavior. Rostrum owns isolation, input delivery, output capture, author-defined bindings, limits, and policy.
 
 ## Landscape categories covered by the source
 
@@ -105,27 +105,28 @@ The research supports the following initial architecture decisions:
 1. Build the workflow definition and execution core before building any optional conversational or prompt-routing experience.
 2. Treat workflows as versioned workflow graphs with typed state and explicit side effects.
 3. Make durable state, event streams, artifacts, approvals, and bounded loops foundational.
-4. Keep the web panel, TUI, mobile surface, CLI, SDK, and integrations as clients of one Control API; make the web panel the primary graph-authoring and simulation surface.
+4. Keep the web/desktop application, mobile-responsive views, workflow CLI, SDK, and integrations as clients of one Control API.
 5. Make local execution a first-class path, not merely a development mock of the cloud.
 6. Make the Context Layer read-only and pass-through by default.
 7. Use Docker for local/self-hosted execution and microVMs only for Rostrum Cloud.
-8. Keep the workflow, context, runtime, script, and transfer-node contracts open-source; reserve managed multi-tenancy, hosted execution, credentials, billing, and cloud operations for the hosted service.
+8. Separate provider brokering from context retrieval through a distinct Model Provider Layer.
+9. Keep the workflow, context, provider, runtime, script, and transfer-node contracts open-source; reserve managed multi-tenancy, hosted execution, credentials, billing, and cloud operations for the hosted service.
 
 ## Open questions carried into the next documents
 
 The source establishes direction but does not settle implementation choices. The PRDs and SPIKEs should resolve:
 
-- the canonical workflow-definition format;
-- visual workflow authoring, model-generated workflow proposals, and simulation semantics;
+- workflow JSON schema evolution and semantic identity;
+- revisioned co-authoring, Git review, and per-node simulation/mock semantics;
 - whether code-based and declarative workflow authoring coexist;
 - local daemon versus embedded runtime boundaries;
-- CLI/SDK start, observe, wait, approval, and control semantics;
+- workflow CLI validation/upload semantics and separate SDK run-lifecycle semantics;
 - checkpointing and tool-execution delivery guarantees;
 - the policy model for approvals and side effects;
 - Docker workspace lifecycle and Rostrum Cloud microVM operations;
 - context source, selector, redaction, and pass-through retention contracts;
 - artifact retention and event replay requirements;
-- provider, credential, and integration packaging;
+- Model Provider Layer process placement, credentials, and adapter contracts;
 - the minimum vertical slice that proves Rostrum’s advantage.
 - provider-neutral model trajectory and transfer-node contracts;
-- sandboxed script runtime, output piping, and resource/backpressure semantics.
+- container-defined script admission, output bindings, and resource limits.

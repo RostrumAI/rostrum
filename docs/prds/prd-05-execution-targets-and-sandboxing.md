@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#46-execution-target-and-sandbox-layer)<br>
-Primary epic: [Execution target epics](../epics/epic-05-execution-targets.md)
+Delivery Epics: [Epic-04](../epics/epic-04-docker-tools-and-scripts.md), [Epic-13](../epics/epic-13-rostrum-cloud.md)
 
 ## Purpose
 
@@ -23,7 +23,7 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 - Define one target lifecycle contract across local and hosted implementations.
 - Keep the control plane separate from untrusted code execution.
 - Make workspace, image, mounts, network, credentials, and resource limits explicit.
-- Make script interpreters, dependencies, stdin/stdout channels, and output limits explicit.
+- Accept script-supplied images, Dockerfiles/build contexts, or equivalent runnable definitions and keep their inputs, outputs, and limits explicit.
 - Capture enough metadata to reproduce or investigate an execution.
 - Support cleanup, expiration, and artifact collection even after failure.
 
@@ -46,7 +46,8 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 
 - Target adapter interface: provision, ready, execute, collect, pause/cancel, cleanup, inspect.
 - Workspace and source snapshot binding.
-- Script/runtime bundle binding with pinned interpreter and dependency versions.
+- Script runnable binding from a pinned OCI image, Dockerfile/build context, or equivalent target-supported definition.
+- Image build, pull, provenance, cache, and admission behavior for script-supplied runtimes.
 - Per-run branch creation and push-to-origin change handoff without sharing the host repository.
 - Immutable or pinned environment image/configuration for reproducible runs.
 - Explicit mounts, environment variables, secrets, network, and capabilities.

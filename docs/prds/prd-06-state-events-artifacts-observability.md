@@ -2,7 +2,7 @@
 
 Status: Draft  
 Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
-Primary epic: [State and observability epics](../epics/epic-06-state-and-artifacts.md)
+Delivery Epic: [Epic-03](../epics/epic-03-durable-runs-and-human-control.md)
 
 ## Purpose
 
@@ -10,7 +10,7 @@ Make every run explainable, inspectable, and recoverable. Rostrum needs a durabl
 
 ## Users and use cases
 
-- A user watches a live workflow from the TUI or web panel.
+- A user watches a live workflow from the web or desktop application.
 - A reviewer inspects a plan, diff, test report, or deployment record.
 - An operator investigates a failed or expensive run.
 - A verifier consumes a prior artifact as a structured input.
