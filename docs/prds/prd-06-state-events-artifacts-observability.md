@@ -1,12 +1,12 @@
 # PRD-06: State, Events, Artifacts, and Observability
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#5-the-product-model)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
 Primary epic: [State and observability epics](../epics/epic-06-state-and-artifacts.md)
 
 ## Purpose
 
-Make every run explainable, inspectable, and recoverable. Rostrum needs a durable record that connects intent, decisions, graph transitions, model calls, tool execution, environments, artifacts, costs, and final outcomes.
+Make every run explainable, inspectable, and recoverable. Rostrum needs a durable record that connects workflow invocation and inputs, decisions, graph transitions, model calls and transfer nodes, tool/script execution, environments, artifacts, costs, and final outcomes.
 
 ## Users and use cases
 
@@ -33,7 +33,7 @@ Make every run explainable, inspectable, and recoverable. Rostrum needs a durabl
 - Canonical event envelope with event ID, run/node identity, sequence, timestamp, actor, type, payload, and schema version.
 - Run snapshots plus replayable event history.
 - Artifact registry with content identity, type, metadata, provenance, retention, and access policy.
-- Links among intent, decision, node execution, tool call, artifact, and deployment.
+- Links among invocation inputs, decision, node execution, transfer, tool/script call, artifact, and external side effect.
 - Live subscriptions with reconnect and cursor semantics.
 - Structured logs, metrics, traces, usage, and policy decisions.
 - Redaction and sensitivity labels.

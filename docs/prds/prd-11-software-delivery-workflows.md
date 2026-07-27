@@ -1,20 +1,20 @@
-# PRD-11: Software Delivery Workflow Pack
+# PRD-11: Software Delivery Workflow Collection
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#7-reference-software-delivery-workflows)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#4-example-workflow-suite)
 Primary epic: [Software delivery epics](../epics/epic-10-software-delivery.md)
 
 ## Purpose
 
-Provide the first domain-specific set of workflows, nodes, artifacts, and policies that can take a software idea from discovery through deployment and live validation.
+Provide the first software workflow collection: workflows, nodes, artifacts, and policies that can take an explicitly supplied software task from discovery through deployment and live validation.
 
-This PRD is where Rostrum’s general workflow platform becomes useful to a person who asks it to build an application. It should be implemented as a domain pack over the general runtime wherever possible.
+This PRD is the first software-development workflow collection built on Rostrum’s general workflow platform. It may expose prompt-oriented discovery workflows, but those are software-delivery workflows with declared inputs; they are not part of Rostrum’s core intake behavior.
 
 ## Users and use cases
 
 ### Product discovery
 
-Turn a plain-language product intent into requirements, personas, user journeys, non-goals, assumptions, and prioritized questions.
+Turn a supplied product brief or prompt into requirements, personas, user journeys, non-goals, assumptions, and prioritized questions.
 
 ### Architecture and security planning
 
@@ -60,7 +60,9 @@ Respond to CI failures, dependency alerts, incidents, flaky tests, documentation
 - Task graph builder with dependency validation and acceptance criteria.
 - Repository source snapshots, isolated Docker/microVM workspaces, branch creation, and push-to-origin change handoff.
 - Implementation worker workflow with structured task contracts.
+- Optional prewalk-style model handoff from exploration/planning to execution within an implementation workflow.
 - Independent verification workflow.
+- Sandboxed script nodes for repository analysis, code generation support, test orchestration, and structured evidence collection.
 - Bounded verify-fix loop with escalation.
 - Build/test/lint/type/security/license/accessibility check nodes.
 - Staged deployment and rollback/stop gates.
@@ -83,11 +85,11 @@ Respond to CI failures, dependency alerts, incidents, flaky tests, documentation
 - Automatic product discovery from user research artifacts.
 - Multi-agent architecture review with consensus gates.
 - Visual app preview and user acceptance testing.
-- Generalized non-software domain packs.
+- Generalized non-software workflow collections.
 
 ## Reference workflows
 
-1. **Discovery:** intent → context → questions → product brief.
+1. **Discovery:** supplied product brief/prompt → context → questions → product brief.
 2. **Plan:** brief → requirements → architecture/security/test/deploy plan → approval.
 3. **Guided build:** approved plan → task graph → implementation → verify/fix → reviewable change.
 4. **Fast fix:** failure/alert → triage → narrow patch → deterministic checks → summary.
@@ -97,7 +99,7 @@ Respond to CI failures, dependency alerts, incidents, flaky tests, documentation
 
 ## Acceptance criteria
 
-1. A single product intent can produce a linked set of reviewable plan artifacts.
+1. A supplied product brief can produce a linked set of reviewable plan artifacts.
 2. The workflow asks high-impact questions before it commits to irreversible architecture or security assumptions.
 3. An approved plan can produce tasks with machine-readable acceptance criteria.
 4. A task cannot be marked complete solely by an agent’s assertion when deterministic checks are available.

@@ -1,7 +1,7 @@
 # PRD-05: Execution Targets and Sandboxing
 
 Status: Draft  
-Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#45-execution-target-and-sandbox-layer)  
+Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#46-execution-target-and-sandbox-layer)<br>
 Primary epic: [Execution target epics](../epics/epic-05-execution-targets.md)
 
 ## Purpose
@@ -13,6 +13,7 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 - A developer prototypes a workflow in a local Docker workspace separate from the host repository.
 - A team runs repeatable tests inside local Docker.
 - A hosted run executes untrusted generated code in a microVM.
+- A workflow runs a declared analysis or transformation script in an isolated Docker workspace and returns bounded output to downstream nodes.
 - A cloud workflow runs untrusted code in a microVM with the required resources.
 - An operator configures environment images, mounts, caches, and network access.
 - A workflow promotes the same artifact from local validation to staging and production with stronger policy at each boundary.
@@ -22,6 +23,7 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 - Define one target lifecycle contract across local and hosted implementations.
 - Keep the control plane separate from untrusted code execution.
 - Make workspace, image, mounts, network, credentials, and resource limits explicit.
+- Make script interpreters, dependencies, stdin/stdout channels, and output limits explicit.
 - Capture enough metadata to reproduce or investigate an execution.
 - Support cleanup, expiration, and artifact collection even after failure.
 
@@ -44,11 +46,13 @@ Provide isolated, reproducible environments in which agent and deterministic nod
 
 - Target adapter interface: provision, ready, execute, collect, pause/cancel, cleanup, inspect.
 - Workspace and source snapshot binding.
+- Script/runtime bundle binding with pinned interpreter and dependency versions.
 - Per-run branch creation and push-to-origin change handoff without sharing the host repository.
 - Immutable or pinned environment image/configuration for reproducible runs.
 - Explicit mounts, environment variables, secrets, network, and capabilities.
 - Resource limits and expiration.
 - Artifact and log collection on success, failure, cancellation, and timeout.
+- Separate capture and policy treatment for stdout, stderr, files, and structured script output.
 - Health checks and target admission before work starts.
 - Isolation classification visible to the workflow and user.
 - Target selection based on policy and required capabilities.

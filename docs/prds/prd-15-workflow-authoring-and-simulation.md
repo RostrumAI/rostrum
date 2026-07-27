@@ -6,16 +6,16 @@ Primary epic: [Workflow authoring and simulation epic](../epics/epic-15-workflow
 
 ## Purpose
 
-Make Rostrum workflows understandable and safe to create. The web control panel is the primary authoring surface: a person or model can create a workflow, see its graph, validate it, simulate it, review the result, and publish an immutable version before a real run is allowed.
+Make Rostrum workflows understandable and safe to create. The web control panel is the primary authoring surface: a person or an explicitly configured authoring workflow/service can create a workflow, see its graph, validate it, simulate it, review the result, and publish an immutable version before a real run is allowed.
 
 ## Users and use cases
 
 - A workflow author creates and edits a graph without hand-writing every edge.
 - An engineer reviews a Git-friendly workflow package in a code review.
-- A model proposes a workflow from a natural-language software goal.
+- An explicitly enabled authoring workflow or service proposes a workflow from supplied request data.
 - A reviewer sees the proposed graph, policies, context requirements, and likely paths before approving it.
 - An operator simulates a workflow with fixtures or an ephemeral Docker workspace before enabling it.
-- A domain-pack author ships reusable nodes, subgraphs, fixtures, and reference workflows.
+- A workflow-suite author defines reusable nodes, subgraphs, fixtures, and reference workflows.
 
 ## Goals
 
@@ -30,6 +30,7 @@ Make Rostrum workflows understandable and safe to create. The web control panel 
 - Proving that a model-generated workflow is semantically correct.
 - Replacing the durable daemon with a browser-side execution engine.
 - Allowing simulation to perform real external writes by default.
+- Making natural-language intake or workflow selection an implicit responsibility of the core platform.
 - Finalizing the storage engine or graph-editor library in this PRD.
 
 ## Canonical workflow package
@@ -51,11 +52,12 @@ Published packages are immutable and addressable by version or digest. Drafts ca
 
 ### Must
 
-- Visual graph editing for nodes, edges, conditions, loops, joins, approvals, and terminal states.
+- Visual graph editing for nodes, edges, conditions, loops, joins, approvals, transfer nodes, and terminal states.
+- Transfer-node configuration for target, condition, context pruning, continuation state, and failure behavior.
 - A graph view that exposes capabilities, context requirements, side effects, policies, and budgets.
 - Import/export of a Git-friendly canonical package and normalized API representation.
 - Static validation for schema errors, unreachable paths, missing terminal states, invalid joins, unbounded loops, undeclared capabilities, and policy conflicts.
-- A model proposal flow: natural-language request → draft package → validation → visual review → simulation → human review → publication.
+- A model proposal flow, when an installation provides one: supplied request/input → draft package → validation → visual review → simulation → human review → publication.
 - Simulation runs that are clearly distinct from real runs and cannot silently mutate external systems.
 - Simulation output containing traversed paths, node results, policy decisions, failures, timing/cost estimates where available, and generated artifacts.
 - Version comparison and a publication gate that records who approved the package and which validation/simulation results supported it.
@@ -107,7 +109,7 @@ Every simulation result must state which nodes were mocked, which providers were
 - How deterministic structural simulation should be when model nodes are replaced with fixtures.
 - Safe shadow-simulation provider access and cost limits.
 - How much generated prompt/context metadata should be retained with a draft.
-- Package signing, trust, and domain-pack compatibility.
+- Future workflow-collection compatibility and dependency semantics; packaging/distribution is deferred.
 
 ## Ownership boundary
 

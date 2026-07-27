@@ -1,7 +1,7 @@
 # PRD-09: Web Control Panel and Mobile Approvals
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#6-human-collaboration)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
 Primary epic: [Client surface epics](../epics/epic-08-clients.md)
 
 ## Purpose
@@ -17,7 +17,7 @@ Provide the primary browser-based workflow client for visual authoring, graph re
 - A user receives a mobile approval request and makes a bounded decision.
 - A user comments on an artifact and sends the workflow back for revision.
 - A team inspects historical evidence and run costs.
-- A user asks a model to propose a workflow, inspects the rendered graph, simulates it, and publishes an approved version.
+- An explicitly enabled authoring experience asks a model to propose a workflow, inspects the rendered graph, simulates it, and publishes an approved version.
 
 ## Goals
 
@@ -36,7 +36,7 @@ Provide the primary browser-based workflow client for visual authoring, graph re
 - Workflow/version selection and run initiation.
 - Visual workflow graph authoring for nodes, edges, contracts, loops, approvals, policies, and terminal conditions.
 - Canonical package import/export, version comparison, validation, simulation, and publication.
-- Model-generated workflow proposal review with assumptions, risks, and simulation evidence.
+- Optional model-generated workflow proposal review with assumptions, risks, and simulation evidence; ordinary workflow invocation still requires an explicit workflow and structured inputs.
 - Plan, diff, report, log, and deployment artifact views.
 - Review comments, questions, decisions, approval, rejection, and request-changes actions.
 - Approval inbox with scope, evidence, risk, expiry, and identity.

@@ -1,4 +1,4 @@
-# Epic-10: Software Delivery Workflow Pack
+# Epic-10: Software Delivery Workflow Collection
 
 Source PRD: [PRD-11](../prds/prd-11-software-delivery-workflows.md)  
 Status: Draft
@@ -11,7 +11,7 @@ Demonstrate the end-to-end Rostrum experience for software development, from an 
 
 ### E-SD-01: Discovery and decision workflows
 
-- [ ] Define product intent, assumption, question, answer, and decision artifacts.
+- [ ] Define product brief, assumption, question, answer, and decision artifacts.
 - [ ] Implement context gathering from repository/project history through the Context Layer.
 - [ ] Implement prioritized clarification-question generation.
 - [ ] Implement multi-channel question/feedback routing.
@@ -34,6 +34,8 @@ Demonstrate the end-to-end Rostrum experience for software development, from an 
 - [ ] Implement Docker/microVM workspace creation, branch creation, and task isolation.
 - [ ] Push task branches to the configured origin and record the change handoff.
 - [ ] Implement worker assignment and task result handoff.
+- [ ] Add optional transfer-node exploration-to-execution model transfer with context pruning.
+- [ ] Add sandboxed repository-analysis and verification scripts with structured output piping.
 - [ ] Implement pull-request/change-set generation.
 
 ### E-SD-04: Deterministic verification
@@ -72,4 +74,4 @@ Demonstrate the end-to-end Rostrum experience for software development, from an 
 
 ## Exit criteria
 
-A user can give Rostrum a bounded software product intent, review a generated plan, approve it, observe implementation and deterministic verification, and receive a deployment/live-validation report for a non-production target.
+A caller can invoke the software-delivery pack with a bounded product brief, review a generated plan, approve it, observe implementation and deterministic verification, and receive a deployment/live-validation report for a non-production target.

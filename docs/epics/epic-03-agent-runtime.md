@@ -34,6 +34,9 @@ Run controlled reasoning nodes with provider adapters, context provenance, struc
 - [ ] Implement role and instruction configuration.
 - [ ] Implement bounded agent tool-call loop.
 - [ ] Link model calls to node traces and artifacts.
+- [ ] Define provider-neutral transfer packets for context references, retained/pruned turns, tool calls, task checklists, hypotheses, artifacts, and transfer metadata.
+- [ ] Implement the transfer node with configurable target, conditions, context pruning, continuation, and failure behavior.
+- [ ] Implement receiving-model initialization from preserved transfer state rather than prose plan alone.
 
 ### E-AGENT-04: Quality and safety
 
@@ -49,6 +52,7 @@ Run controlled reasoning nodes with provider adapters, context provenance, struc
 - [ ] S-AGENT-03 Model quality gates beyond schema validation.
 - [ ] S-AGENT-04 Prompt/version storage and privacy boundary.
 - [ ] S-AGENT-05 Self-hosted sidecar versus daemon-side runnable packaging.
+- [ ] S-AGENT-06 Evaluate prewalk-style trajectory handoff against single-model and prose-plan baselines.
 
 ## Exit criteria
 

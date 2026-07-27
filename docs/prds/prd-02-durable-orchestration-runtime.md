@@ -1,12 +1,12 @@
 # PRD-02: Durable Orchestration Runtime
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#4-the-end-to-end-journey)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
 Primary epic: [Orchestration runtime epics](../epics/epic-02-orchestration-runtime.md)
 
 ## Purpose
 
-Execute workflow graphs reliably across process restarts, client disconnections, waiting periods, retries, parallel branches, and human decisions. The runtime is the authoritative owner of run state and transition semantics. It is implemented by the Rostrum daemon, while the Control API exposes the contracts and commands that govern the daemon. Generated code, model providers, and untrusted tools must execute in an isolated target rather than inside the daemon process.
+Execute workflow graphs reliably across process restarts, client disconnections, waiting periods, retries, parallel branches, transfer nodes, typed node piping, and human decisions. The runtime is the authoritative owner of run state and transition semantics. It is implemented by the Rostrum daemon, while the Control API exposes the contracts and commands that govern the daemon. Generated code, model providers, scripts, and untrusted tools must execute in an isolated target rather than inside the daemon process.
 
 ## Users and use cases
 
@@ -59,6 +59,8 @@ Execute workflow graphs reliably across process restarts, client disconnections,
 - Operator controls for draining a runtime or taking a queue out of service.
 - Deterministic simulation configuration for workflow tests.
 - Simulation-run lifecycle and explicit separation between simulation state and production state.
+- Durable transfer-node checkpoints containing retained/pruned trajectory references, completed/remaining task state, transfer condition, and receiving-runtime configuration.
+- Explicit node output binding and bounded streaming/materialization semantics for downstream inputs.
 
 ### Could
 

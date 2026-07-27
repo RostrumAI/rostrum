@@ -1,423 +1,170 @@
-# Rostrum: End-to-End Product Plan
+# Rostrum: Platform Product Plan
 
 Status: Rough first draft for product and architecture discussion  
 Depends on: [High-Level Build Blueprint](rostrum-high-level-build-blueprint.md)  
 Audience: Product, engineering, design, security, and operations
 
+## Purpose
+
+The [High-Level Build Blueprint](rostrum-high-level-build-blueprint.md) explains Rostrum’s conceptual architecture and major boundaries.
+
+This document answers a narrower question:
+
+> What are we building, why does each part exist, and in what order should we build it?
+
+Rostrum is a platform for defining and executing workflows. It receives an explicitly selected workflow and structured inputs. 
+
 ## Contents
 
-- [1. North-star outcome](#1-north-star-outcome)
-- [2. Product promise](#2-product-promise)
-- [3. Users and jobs to be done](#3-users-and-jobs-to-be-done)
-- [4. The end-to-end journey](#4-the-end-to-end-journey)
-- [5. The product model](#5-the-product-model)
-- [6. Human collaboration](#6-human-collaboration)
-- [7. Reference software-delivery workflows](#7-reference-software-delivery-workflows)
-- [8. Architecture and system boundaries](#8-architecture-and-system-boundaries)
-- [9. Open-source and hosted product](#9-open-source-and-hosted-product)
-- [10. Trust and safety posture](#10-trust-and-safety-posture)
-- [11. Delivery strategy](#11-delivery-strategy)
-- [12. Success criteria](#12-success-criteria)
-- [13. Product questions to keep open](#13-product-questions-to-keep-open)
+- [1. Product scope](#1-product-scope)
+- [2. What we are building and why](#2-what-we-are-building-and-why)
+- [3. PRD roadmap](#3-prd-roadmap)
+- [4. Example workflow suite](#4-example-workflow-suite)
+- [5. Product roadmap](#5-product-roadmap)
+- [6. Product boundaries](#6-product-boundaries)
+- [7. Definition of a complete product](#7-definition-of-a-complete-product)
+- [8. Open decisions](#8-open-decisions)
 
-## 1. North-star outcome
+## 1. Product scope
 
-A user should be able to say:
+### Core product
 
-> Build me a secure note-taking app for mobile, web, and desktop.
+- Define, validate, simulate, publish, and version workflows.
+- Execute workflow graphs durably and safely.
+- Combine model, deterministic, script, integration, approval, and control nodes.
+- Pass typed, bounded outputs between nodes.
+- Provide read-only, pass-through access to approved external context.
+- Isolate code, scripts, and tools in Docker or Cloud microVMs.
+- Expose one Control API to all clients and integrations.
+- Record state, events, artifacts, policy decisions, and evidence.
 
-Rostrum should transform that request into a governed, inspectable, and resumable delivery process that can:
+### Not core product behavior
 
-1. clarify what “secure,” “note-taking,” and “mobile, web, and desktop” mean;
-2. ask the user for decisions at the right moments and through the right channels;
-3. produce product, security, architecture, and delivery plans;
-4. obtain approval for the plan and any high-impact decisions;
-5. decompose the plan into a dependency-aware work graph;
-6. implement the work in isolated environments;
-7. run deterministic tests, security checks, builds, and compatibility checks;
-8. route failures into bounded repair loops or human escalation;
-9. deploy to controlled environments;
-10. run live dependency and smoke tests against the deployed system;
-11. report evidence, risks, decisions, and remaining work;
-12. stop safely whenever required evidence or approval is missing.
+- General-purpose chat or prompt intake.
+- Automatically deciding which workflow to run without an explicitly configured workflow or integration.
+- A single mandatory domain, such as software development.
+- Workflow packaging, marketplace distribution, signing, or monetization in the first planning phase.
 
-The goal is not “one prompt produces perfect software.” The goal is an autonomous delivery system that can do the work between clear gates, expose its reasoning and evidence, and involve humans where product judgment, risk acceptance, or irreversible action is required.
+## 2. What we are building and why
 
-## 2. Product promise
-
-Rostrum should provide four guarantees at the product level:
-
-### Governed autonomy
-
-Users can delegate a large amount of work without granting an agent unrestricted authority. Every action is constrained by a workflow, policy, workspace, runtime, budget, and approval rule.
-
-### Verifiable progress
-
-Every meaningful transition produces an observable state change and, where possible, evidence: a decision record, plan artifact, diff, test result, security report, deployment record, or live check.
-
-### Durable collaboration
-
-The system keeps working when a user closes a TUI, loses a browser connection, changes devices, or responds later. A user can review and control the same run from multiple channels.
-
-### Portable execution
-
-The same workflow definition should run locally, self-hosted, or through Rostrum Cloud with different execution-target adapters. Local development should not be a fake version of the hosted product.
-
-### Pass-through context
-
-External project context should remain under the customer’s source-system control wherever possible. Rostrum should fetch read-only context just in time, apply policy and redaction, deliver it to the authorized node, and avoid persisting message or documentation bodies by default. Source content storage, caching, or replay snapshots should be explicit opt-in features with visible retention rules.
-
-## 3. Users and jobs to be done
-
-### Product owner or founder
-
-They want to turn an outcome into a usable product without manually translating every idea into requirements, tickets, and acceptance criteria. They need to answer product questions, approve tradeoffs, and understand what will be built.
-
-### Software engineer
-
-They want to delegate routine implementation, testing, maintenance, and review while retaining control over architecture, sensitive changes, and final quality. They need diffs, reproducible runs, and a clear path to intervene.
-
-### Security or compliance reviewer
-
-They want to ensure that requirements, dependencies, secrets, access controls, data handling, and deployment settings satisfy policy before release. They need auditable evidence and approval gates.
-
-### Team or engineering manager
-
-They want visibility into multiple workflows and confidence that autonomous work is bounded, reviewable, and cost-controlled. They need fleet-level status, blockers, budgets, and outcomes.
-
-### Platform or operations engineer
-
-They want to configure environments, integrations, credentials, policies, deployment targets, and observability without modifying every workflow. They need isolation, audit logs, and operational controls.
-
-### External system
-
-CI, Git hosting, monitoring, issue trackers, schedulers, and communication tools need to trigger workflows and receive structured outcomes without pretending to be the workflow engine.
-
-## 4. The end-to-end journey
-
-Rostrum should treat an initiative as a durable project and a run as one execution of a workflow against that project. The journey below is the target product behavior, even if the first release implements only a subset.
-
-```mermaid
-flowchart TD
-    A["Intent received\nprompt, ticket, PR, alert, schedule"] --> B["Intake and context\nrepository, constraints, history, policies"]
-    B --> C["Product and risk discovery\nquestions, assumptions, decision record"]
-    C --> D["Plan synthesis\nrequirements, architecture, security, delivery"]
-    D --> E{"Human gate\nplan accepted?"}
-    E -- "No / revise" --> C
-    E -- "Yes" --> F["Task graph\ndependencies, owners, acceptance criteria"]
-    F --> G["Isolated implementation\nworkers and deterministic tools"]
-    G --> H["Verification\ntests, security, review, quality gates"]
-    H --> I{"Pass?"}
-    I -- "No, within budget" --> J["Targeted repair\nnew context, bounded loop"]
-    J --> G
-    I -- "No, budget exceeded" --> K["Escalate or stop\nblocker with evidence"]
-    I -- "Yes" --> L["Release readiness\napproval, migration, rollback plan"]
-    L --> M["Deploy to staged target"]
-    M --> N["Live dependency and smoke tests"]
-    N --> O{"Healthy?"}
-    O -- "No" --> P["Rollback, diagnose, or escalate"]
-    O -- "Yes" --> Q["Release result\nartifacts, evidence, follow-up"]
-```
-
-### 4.1 Intent and intake
-
-The user can start from a plain-language outcome, structured request, issue, pull request, CI failure, alert, or schedule. Rostrum should normalize the trigger into a project and run context containing the objective, requester, workspace, constraints, policy, and available channels.
-
-The system should not immediately write code when the request is materially ambiguous. It should first identify missing information, retrieve relevant context, and decide whether questions can be answered from available evidence or require a human.
-
-### 4.2 Product and risk discovery
-
-Discovery is a workflow, not a single agent response. It should:
-
-- extract goals, users, constraints, and non-goals;
-- identify ambiguity, conflicting requirements, and risky assumptions;
-- ask only the questions that change the product or technical plan;
-- group questions into a reviewable decision set;
-- route questions to the appropriate person or channel;
-- record answers, rejected alternatives, and unresolved decisions;
-- determine whether the work is safe to plan or needs more information.
-
-For the note-taking example, this stage may ask about authentication, encryption, offline behavior, synchronization, sharing, data residency, recovery, supported platforms, accessibility, and threat model. It should not force the user to answer every possible question before making progress; it should prioritize questions by impact and reversibility.
-
-### 4.3 Plan synthesis
-
-The planning workflow should produce separate but linked artifacts:
-
-- product requirements and user journeys;
-- architecture and component boundaries;
-- data model and API contracts;
-- security and privacy model;
-- platform and deployment plan;
-- test and quality strategy;
-- dependency and licensing assessment;
-- implementation task graph;
-- release, migration, rollback, and live-validation plan.
-
-The plan is an input contract for implementation. It should be reviewable, versioned, internally consistent, and traceable from user goals to acceptance tests.
-
-### 4.4 Human feedback and approval
-
-Rostrum should distinguish between a question, a review request, an approval gate, and an emergency intervention:
-
-- **Question:** the workflow needs information before choosing a path.
-- **Review request:** the workflow has produced an artifact for feedback; work may continue in parallel if policy allows.
-- **Approval gate:** the workflow may not cross a defined boundary without an explicit decision.
-- **Intervention:** a user pauses, cancels, retries, or changes a run because of an unexpected condition.
-
-Feedback channels should be selected from the urgency, richness, and security of the request:
-
-| Need | Preferred channel | Why |
+| Product area | What we build | Why it exists |
 | --- | --- | --- |
-| Rich plan or architecture review | Web panel or TUI | Supports artifacts, diffs, comments, and decision history |
-| Quick binary approval | Mobile-friendly web, Slack, or notification action | Low friction for a bounded decision |
-| Interactive clarification | TUI, web, or chat integration | Allows a conversational answer tied to the run |
-| Security-sensitive approval | Authenticated web/TUI with step-up authentication | Strong identity and auditability |
-| Urgent production intervention | Pager/incident integration plus control API | Fast notification and explicit pause/rollback controls |
+| Workflow definition | Versioned graphs with schemas, branches, loops, approvals, policies, and completion conditions | Makes automation explicit, reviewable, and repeatable |
+| Authoring and simulation | Visual graph editor, validation, simulation, version comparison, and publication flow | Lets people safely understand and modify workflows before execution |
+| Rostrum daemon | Durable scheduler and graph executor with retries, checkpoints, waits, and recovery | Keeps work running correctly when clients disconnect or processes fail |
+| Control API | Contracts for workflow versions, invocation, observation, control, approvals, artifacts, and configuration | Gives every client and integration one source of truth |
+| Web control panel | Primary workflow authoring, simulation, review, and run-management interface | Makes complex graphs and evidence understandable |
+| TUI | Optional terminal client for fast observation and operational control | Supports local development and remote operations |
+| CLI and SDK | Scriptable workflow validation, simulation, invocation, waiting, observation, control, and artifact access | Enables CI, automation, and integration with other systems |
+| Model runtime | Provider-neutral model nodes with structured outputs, context boundaries, usage tracking, and configurable model execution strategies | Adds reasoning without making models the source of workflow truth |
+| Deterministic tools and scripts | File/process/test/integration tools plus sandboxed scripts with typed stdout/JSON/JSONL piping | Handles literal work reproducibly and supplies machine-readable evidence |
+| Context Layer | Read-only, policy-filtered, just-in-time access to repositories, Slack, Discord, documentation, incidents, and other sources | Provides useful context without passing credentials or creating a mandatory data cache |
+| Sandboxing | Docker for local/self-hosted execution; microVMs for Rostrum Cloud | Keeps generated code, scripts, tools, and credentials outside the daemon and user host |
+| State and observability | Durable run state, event streams, artifacts, traces, usage, and audit records | Enables recovery, debugging, review, and trust |
+| Governance and approvals | Users, teams, groups, projects, policies, budgets, credentials, approvals, and kill switches | Makes automation safe to operate at meaningful scale |
+| Integrations | Triggers, callbacks, notifications, external jobs, and result publishing | Connects workflows to existing systems without bypassing Rostrum’s contracts |
 
-All channels must write to the same durable decision record. A Slack button or mobile approval is not a separate approval system.
+Detailed requirements for these areas belong in the PRDs. This plan only defines their product purpose and order.
 
-### 4.5 Implementation and verification
+## 3. PRD roadmap
 
-Implementation should happen in isolated Docker containers or cloud microVMs using tasks with explicit contracts. Workers should receive only the context view needed for their task plus the relevant plan and acceptance criteria. Deterministic tools should perform file changes, builds, tests, scans, and artifact collection. Each implementation run should work from a source snapshot, create or check out its own branch, and push changes to the configured origin; the user’s host repository is never the execution workspace.
-
-Verification should be independent where possible. It should evaluate the result against the approved plan and executable checks, not merely ask the implementing agent whether it is complete. A failed check should produce structured evidence and a targeted repair task. After configured limits, the workflow must escalate or stop.
-
-### 4.6 Deployment and live dependency testing
-
-Deployment is part of the workflow, not a postscript. The release path should include:
-
-- environment selection and policy checks;
-- secret and configuration validation;
-- build provenance and artifact promotion;
-- database migration or data-change planning;
-- staged deployment;
-- health and smoke checks;
-- live dependency tests against real or controlled external services;
-- rollback or forward-fix behavior;
-- post-deployment evidence and handoff.
-
-Live dependency testing must be explicit about what data it may create, what systems it may contact, how credentials are scoped, and how failures are reversed. Production execution should require a stronger policy and approval profile than local or staging execution.
-
-## 5. The product model
-
-The core entities should be understandable to both users and the system:
-
-| Entity | Meaning |
-| --- | --- |
-| Organization | Users, policy, billing, and global settings |
-| Project | A durable product or engineering initiative with goals, context, and history |
-| Workspace | A codebase, repository set, environment, or data boundary used by a project |
-| Context source | An approved external or project information system available through the context layer |
-| Context view | A read-only, policy-filtered projection delivered to a node without exposing source credentials |
-| Context policy | Rules for which sources, scopes, fields, time ranges, and data classes a node may access |
-| Workflow | A reusable workflow graph with contracts, policies, and lifecycle rules |
-| Workflow package | The versioned, Git-friendly source and normalized representation of a workflow, including node contracts, policies, context requirements, and simulation fixtures |
-| Run | One execution of a workflow against a project, workspace, and trigger |
-| Simulation run | A non-production evaluation of a workflow graph using validation, fixtures, mocked side effects, shadow calls, or an ephemeral Docker workspace |
-| Node execution | One attempt to execute a graph node, with inputs, outputs, logs, and evidence |
-| Task | A planned unit of work with dependencies, acceptance criteria, and status |
-| Decision | A question, answer, review, approval, rejection, or override tied to a run |
-| Artifact | A plan, diff, report, log, build, deployment record, or other durable output |
-| Policy | Rules for tools, data, models, runtimes, approvals, budgets, and side effects |
-| Execution target | The isolated environment in which a node or run executes |
-| Integration | An external system that triggers, supplies context to, or receives results from Rostrum |
-
-Runs should be event-sourced enough to explain what happened without requiring the original model context to be reconstructed. Artifacts and decisions should remain useful after a run ends.
-
-## 6. Human collaboration
-
-Rostrum should optimize for asynchronous collaboration. Humans should not need to sit in front of a chat window while a workflow performs routine work. The system should make it easy to:
-
-- see what needs attention;
-- understand why attention is needed;
-- review the smallest useful artifact;
-- answer with structured choices or free-form guidance;
-- approve only the specific boundary in question;
-- return later without losing context;
-- change the plan through a new decision rather than an undocumented prompt.
-
-### Decision policy
-
-Each workflow should declare which decisions are:
-
-- automatic when evidence meets a threshold;
-- suggested but reviewable;
-- always human-approved;
-- prohibited.
-
-Examples of always-gated actions include production deployment, destructive migrations, handling of regulated data, adding an unapproved external dependency, modifying identity or payment systems, and expanding network access.
-
-### Feedback quality
-
-Human feedback should be captured as structured state when possible: selected option, rationale, scope, expiration, approver identity, and affected artifacts. Free-form comments remain valuable but should be attached to the relevant decision or artifact rather than living only in chat history.
-
-## 7. Reference software-delivery workflows
-
-The first domain pack should make the following workflows available as reference workflows:
-
-### Product discovery and planning
-
-Input: a product intent or existing issue.  
-Output: approved product, architecture, security, test, and delivery plan.  
-Mutations: documentation artifacts only until approval.
-
-### Guided feature build
-
-Input: an approved plan or task.  
-Output: code changes, tests, evidence, and a reviewable change set.  
-Mutations: isolated container or microVM branch; changes are pushed to the configured origin and gated before merge or deployment.
-
-### Review-only
-
-Input: repository, diff, or artifact.  
-Output: structured findings, risk assessment, and citations.  
-Mutations: none.
-
-### Fast fix
-
-Input: CI failure, issue, or alert.  
-Output: narrow patch and deterministic validation.  
-Mutations: restricted to an isolated change set; approval based on risk.
-
-### Release and live validation
-
-Input: an approved build artifact and deployment target.  
-Output: deployment record, smoke results, live dependency results, and rollback status.  
-Mutations: increasingly gated as the target becomes more sensitive.
-
-### Autonomous project delivery
-
-Input: an approved product plan.  
-Output: coordinated changes across repositories, environments, and release stages.  
-Mutations: bounded by a task graph, worker policies, budgets, and release gates.
-
-## 8. Architecture and system boundaries
+Each stage below leaves Rostrum in a more capable, demonstrable state. The linked PRDs are the documents needed to reach that state.
 
 ```mermaid
 flowchart LR
-    I["Intent / external event"] --> C["Clients and integrations"]
-    C --> CP["Control API\ncontracts, auth, approvals, events"]
-    CP --> D["Rostrum daemon\nworkflow runs, state, scheduling"]
-    D --> W["Workflow package\nagent + deterministic nodes"]
-    D --> X["Execution adapters\nlocal, self-hosted, cloud"]
-    X --> T["Isolated targets\nDocker or Rostrum Cloud microVM"]
-    W --> M["Model and agent adapters"]
-    W --> K["Read-only context layer\nsources, policy, views"]
-    W --> G["Tools, integrations, gates"]
-    D --> E["Events, artifacts, telemetry"]
-    E --> C
-    E --> U["Users and approvers"]
-    U --> C
+    A["Define workflows<br/>PRD-01"] --> B["Invoke and execute<br/>PRD-07 · PRD-02"]
+    B --> C["Isolate work and capture evidence<br/>PRD-05 · PRD-04 · PRD-06"]
+    C --> D["Add models and approved context<br/>PRD-03 · PRD-14"]
+    D --> E["Author, simulate, and operate<br/>PRD-15 · PRD-09 · PRD-08"]
+    E --> F["Connect external systems<br/>PRD-10"]
+    F --> G["Complete software delivery<br/>PRD-11 · PRD-13"]
+    G --> H["Run the same platform in Cloud<br/>PRD-12"]
 ```
 
-The Control API should own identity, project context, policy, workflow versions, approvals, run lifecycle contracts, and client observation/control operations. The Rostrum daemon should own graph execution, scheduling, checkpointing, and execution lifecycle, but generated code should run in an isolated target rather than in the daemon process. The context layer should own read-only source access, filtering, redaction, and provenance. The execution adapters should own isolation and environment provisioning. These boundaries allow a local daemon and Docker target to replace cloud services without changing the workflow or client model.
+| Product state | PRDs | What can be demonstrated |
+| --- | --- | --- |
+| A workflow exists | [PRD-01: Workflow definition](../prds/prd-01-workflow-definition.md) | A versioned graph declares inputs, outputs, node contracts, policies, branches, approvals, and completion conditions. |
+| A workflow can run | [PRD-07: Control API and local daemon](../prds/prd-07-control-plane-api-and-local-daemon.md) · [PRD-02: Durable orchestration runtime](../prds/prd-02-durable-orchestration-runtime.md) | A caller invokes a selected workflow through one API; the daemon schedules it, waits, retries, branches, joins, and recovers. |
+| A workflow can safely do work | [PRD-05: Execution targets and sandboxing](../prds/prd-05-execution-targets-and-sandboxing.md) · [PRD-04: Deterministic tools and policy gates](../prds/prd-04-deterministic-tools-and-policy.md) · [PRD-06: State, events, artifacts, and observability](../prds/prd-06-state-events-artifacts-observability.md) | A Docker-isolated run executes tools and scripts, pipes typed results, enforces policy, and leaves recoverable evidence and artifacts. |
+| A workflow can reason with controlled context | [PRD-03: Agent and model runtime](../prds/prd-03-agent-and-model-runtime.md) · [PRD-14: Context Layer](../prds/prd-14-context-layer.md) | Model nodes use declared context and model strategies; approved source data is passed through without exposing credentials or requiring a source-content cache. |
+| A workflow can be created and governed | [PRD-15: Workflow authoring and simulation](../prds/prd-15-workflow-authoring-and-simulation.md) · [PRD-09: Web control panel and mobile approvals](../prds/prd-09-web-control-panel-and-mobile.md) · [PRD-08: TUI console](../prds/prd-08-tui-console.md) | A user edits a graph visually, validates and simulates it, publishes a version, observes runs, reviews evidence, and handles decisions from web, mobile, or terminal clients. |
+| A workflow can participate in a system | [PRD-10: Triggers and integrations](../prds/prd-10-triggers-and-integrations.md) | A repository, CI system, schedule, alert, or external application starts a selected workflow and receives structured results. |
+| A workflow can deliver software | [PRD-11: Software delivery workflow collection](../prds/prd-11-software-delivery-workflows.md) · [PRD-13: Deployment, release, and live validation](../prds/prd-13-deployment-release-and-live-validation.md) | An explicitly supplied software task can pass through planning, isolated implementation, verification, deployment, live dependency testing, approval, and rollback or escalation. |
+| Rostrum can be operated as Cloud | [PRD-12: Hosted governance, identity, and usage](../prds/prd-12-hosted-governance-identity-and-usage.md) | The same workflow definitions and Control API run across tenants with managed identity, credentials, quotas, operations, billing, and microVM isolation. |
 
-## 9. Open-source and hosted product
+The [PRD index](../prds/README.md) is the entry point for the detailed documents. The [Epics index](../epics/README.md) then breaks each PRD into implementation tasks and SPIKEs.
 
-### Open-source foundation
+## 4. Example workflow suite
 
-The open-source distribution should be capable of meaningful local and self-hosted use:
+Rostrum should be evaluated through a suite of workflows rather than one showcase. These examples define the capabilities the product must eventually demonstrate.
 
-- workflow graph schema;
-- context source, policy, view, and provenance contracts;
-- graph validation and authoring tools;
-- visual graph authoring and simulation;
-- orchestration runtime;
-- node and adapter SDKs;
-- deterministic tools and policy interfaces;
-- local state, events, artifacts, and telemetry;
-- Docker-based local and self-hosted execution;
-- self-hostable daemon and Control API;
-- web control panel, CLI, SDK, and optional TUI;
-- reference software-delivery workflows;
-- conformance tests and local development assets.
+| Example workflow | Inputs | Why it matters |
+| --- | --- | --- |
+| Structured script pipeline | Records, files, or bounded text | Proves sandboxed scripts, typed piping, limits, retries, and artifacts |
+| Model execution with context transition | A declared task, context policy, and model strategy | Proves multi-model execution, context management, fallback, and usage tracking |
+| Pass-through context review | Source selector, review contract, and output schema | Proves credential isolation, redaction, provenance, and no-body-persistence defaults |
+| Human approval and callback | Proposed action and approver policy | Proves durable waits, approval groups, expiry, rejection, resume, and callbacks |
+| Fan-out, join, retry, and compensation | Collection of items and a result policy | Proves parallelism, partial failure, bounded retries, aggregation, and recovery |
+| Optional workflow router/decider | Prompt/event envelope and allowed workflow registry | Proves prompt-driven behavior can be built on Rostrum without making intake implicit |
+| Guided software build | Product brief or approved task | Proves planning, isolated implementation, Git handoff, verification, and review gates |
+| Release and live validation | Approved artifact, environment, and dependency policy | Proves deployment, migrations, smoke tests, live dependencies, rollback, and evidence |
+| Research and evidence brief | Research question, source policy, and output schema | Proves context retrieval, parallel work, synthesis, citations, and review |
+| Incident investigation/remediation | Alert envelope, service scope, and remediation policy | Proves diagnosis, scripts/tools, approvals, staged changes, and monitoring follow-up |
+| Data synchronization with exceptions | Source records, destination policy, and reconciliation rules | Proves idempotency, transformations, per-record failure, and reconciliation reporting |
 
-### Hosted product
+Software development is the first workflow collection because it is a demanding validation case. The secure note-taking app remains its reference fixture, not Rostrum’s product definition.
 
-The hosted product should provide operational leverage, not a proprietary replacement for the workflow model:
+## 5. Product roadmap
 
-- managed multi-tenant control plane;
-- remote scheduling and fleet coordination;
-- Rostrum Cloud microVM fleet;
-- credential brokering and enterprise identity;
-- hosted integrations and event ingestion;
-- retention, audit, notifications, and operational observability;
-- usage metering, quotas, billing, and support.
+| Phase | Build | Exit condition |
+| --- | --- | --- |
+| 1. Generic local execution | Workflow schema, structured invocation, validator, local daemon, Control API, Docker target, deterministic tools/scripts, state/events, artifacts | A caller can invoke and inspect a simple workflow locally |
+| 2. Authoring and execution depth | Web authoring, simulation, publication/versioning, typed piping, model execution strategies, policy enforcement, CLI/SDK lifecycle | A workflow can be authored, simulated, approved, executed, paused, resumed, and reviewed |
+| 3. Core completeness suite | Script pipeline, context review, approvals/callbacks, fan-out/retry, and optional router/decider workflows | Core platform primitives work together across representative workflows |
+| 4. Software workflow collection | Planning, implementation, verification, deployment, and live validation; secure note-taking fixture | A complete software-delivery path works through isolated execution and evidence gates |
+| 5. Generality validation | Research, incident-response, and/or synchronization workflows | At least two non-software workflows use the same core contracts |
+| 6. Rostrum Cloud | Hosted tenancy, credential brokering, quotas, operations, billing, and microVM execution | The same workflow contracts work in Cloud with stronger hosted isolation |
 
-The open/cloud boundary should be enforced through public contracts and replaceable implementations. A user should be able to migrate a workflow from local to hosted execution without rewriting its business logic.
+## 6. Product boundaries
 
-## 10. Trust and safety posture
+### Open-source/self-hosted core
 
-Rostrum should assume that model output, external content, dependencies, and generated code can be wrong or malicious. The platform should be designed around least privilege and evidence:
+- Workflow definitions, validation, authoring, and simulation.
+- Rostrum daemon and Control API.
+- Web panel, CLI, SDK, and TUI.
+- Context Layer contracts and self-hosted broker/connectors.
+- Deterministic tools, sandboxed scripts, and model/runtime interfaces.
+- Docker execution, local state, events, artifacts, telemetry, and conformance tests.
+- Reference workflow collections and example fixtures.
 
-- no model receives long-lived integration secrets directly;
-- tools authenticate separately and receive scoped, ephemeral credentials;
-- untrusted code runs outside the core control plane;
-- every side effect is attributable to a run, node, policy, and identity;
-- approval gates are cryptographically attributable and auditable;
-- budgets and kill switches exist at organization, project, run, and node levels;
-- prompt-injected instructions cannot expand a node’s declared authority;
-- source-system credentials are held by context connectors, never passed to agents;
-- external context bodies are not persisted by default;
-- artifacts and logs are tamper-evident enough for operational review;
-- deployment and data-changing operations have explicit environment policy.
+### Rostrum Cloud capabilities
 
-Safety should degrade toward stopping, not toward silently continuing.
+- Managed tenancy, identity, credentials, retention, notifications, and operations.
+- Hosted integrations and usage/billing services.
+- Rostrum Cloud microVM execution and fleet management.
 
-## 11. Delivery strategy
+Packaging, installation, signing, distribution, marketplace behavior, and monetization of workflow collections are deferred decisions.
 
-### Horizon 1: prove the loop locally
+## 7. Definition of a complete product
 
-Deliver a local daemon, Control API, canonical workflow package, read-only context layer, durable run record, deterministic tool runner, Docker target, web graph editor/simulator, optional TUI, and planning/review/guided-build workflows. The target proof is: a user or model can propose a workflow, a user can inspect and simulate it, then plan a small feature, approve it, implement it in an isolated container branch, run tests, push the result to an origin, see a bounded repair loop, and inspect the result after reconnecting.
+Rostrum is a complete first product when:
 
-### Horizon 2: make execution dependable
+- a caller can invoke a versioned workflow with schema-validated inputs;
+- the workflow can be inspected, simulated, approved, and executed through the shared contracts;
+- model, deterministic, script, human, and integration nodes work together;
+- scripts and tools can produce bounded, typed downstream inputs;
+- context can be accessed without exposing source credentials or persisting source bodies by default;
+- runs survive client and daemon interruptions;
+- users can inspect evidence, artifacts, policies, costs, and failures;
+- the software workflow collection completes the reference application path;
+- at least two non-software workflows run without changing the core execution model;
+- the same workflow definition can run locally/self-hosted with Docker and in Rostrum Cloud with microVMs.
 
-Add event replay, artifact storage, policy gates, independent verification, structured escalation, SDK/CLI contracts, and a stable execution-target interface.
+## 8. Open decisions
 
-### Horizon 3: add shared control surfaces and triggers
-
-Add web control, mobile-friendly approvals, repository/CI triggers, first integrations, notifications, and project/run history.
-
-### Horizon 4: add hosted execution
-
-Add tenancy, Rostrum Cloud microVM execution, remote execution, credential brokering, enterprise identity, metering, quotas, billing, and operational controls. Keep self-hosted deployments Docker-only.
-
-### Horizon 5: expand from feature work to product delivery
-
-Add multi-repository task graphs, environment promotion, deployment/live validation, autonomous project workflows, reusable domain packs, and fleet-scale operations.
-
-### Horizon 6: generalize the workflow platform
-
-Extract domain-specific nodes and workflows from the core. Keep the execution, policy, artifact, approval, and integration abstractions general enough for domains beyond software development.
-
-## 12. Success criteria
-
-The first meaningful success criteria are behavioral:
-
-- A user can start a workflow from a plain-language software goal.
-- Rostrum can ask clarifying questions and associate answers with the run.
-- Rostrum produces a plan that is traceable to requirements and acceptance checks.
-- No implementation begins before the declared approval condition is satisfied.
-- Implementation and verification occur in bounded, observable loops.
-- The system can resume after a client disconnect or process restart.
-- A user can inspect artifacts, evidence, and blockers from the TUI or web surface.
-- A user can visually edit a workflow, simulate it without unintended side effects, and publish a version only after validation.
-- A model can propose a workflow that is rendered, validated, simulated, and presented for human review before execution.
-- The CLI and SDK can start runs asynchronously, observe events, wait for approvals or terminal outcomes, control runs, and retrieve artifacts.
-- A workflow can run against at least one local and one isolated execution target.
-- Release workflows can deploy to a non-production environment and run live smoke/dependency checks.
-- Every externally visible side effect has an identity, policy, and audit record.
-- The same workflow contract works locally and in the hosted architecture.
-
-## 13. Product questions to keep open
-
-1. How much product discovery should Rostrum conduct autonomously before it asks a question?
-2. Should user questions be generated by a dedicated discovery graph, a reusable node, or a general workflow primitive?
-3. How should conflicting human feedback from different channels be resolved?
-4. Which artifacts are authoritative when a plan, issue tracker, and repository disagree?
-5. What is the minimum evidence required before a node can claim completion?
-6. How should Rostrum handle live dependencies that are flaky, rate-limited, or unavailable?
-7. How do users express risk tolerance and acceptable autonomy at the project and environment level?
-8. Should release/deployment workflows live in the core platform or in a software-development domain pack?
-9. How much of the hosted control plane can be open-source without exposing the operationally sensitive service layer?
-10. What is the first non-software domain that would validate the generality of Rostrum without expanding the first release too far?
+1. Which functionality belongs in the core versus a workflow collection or optional client?
+2. Which script runtimes and output formats should be supported first?
+3. What simulation levels are required before execution for each risk class?
+4. What state/event guarantees are required for retries, callbacks, and external side effects?
+5. How should model providers, runnable dependencies, and credentials be resolved in Docker and Cloud?
+6. Which two non-software workflows should follow the software collection?

@@ -1,19 +1,19 @@
 # PRD-10: Triggers and Integrations
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#4-the-end-to-end-journey)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
 Primary epic: [Integration epics](../epics/epic-09-integrations.md)
 
 ## Purpose
 
-Connect Rostrum to the systems where software work starts, gets reviewed, runs, and is operated. Integrations should translate external events into durable Rostrum inputs and publish structured outcomes back through authenticated contracts.
+Connect Rostrum to systems that invoke workflows, provide context, and receive results. Integrations should translate external events into authenticated, durable workflow invocations with declared inputs and publish structured outcomes back through stable contracts.
 
 ## Users and use cases
 
 - A pull request triggers review-only analysis.
 - A CI failure triggers a fast-fix workflow.
 - A monitoring alert triggers diagnosis and a staged repair plan.
-- A Slack or Teams message starts a planning workflow or requests status.
+- A Slack or Teams message is mapped by an explicitly configured workflow or decider workflow to a structured invocation.
 - A scheduled job runs dependency updates or documentation maintenance.
 - A repository event supplies source, diff, issue, and ownership context.
 - A deployment workflow reports status back to the originating system.
@@ -43,7 +43,7 @@ Connect Rostrum to the systems where software work starts, gets reviewed, runs, 
 ### Must
 
 - Signed inbound webhook validation and replay protection.
-- Trigger registry mapping event types to workflows and input schemas.
+- Trigger registry mapping event types to explicitly selected workflows and input schemas.
 - Idempotent event handling and deduplication.
 - Normalized trigger envelope with source, actor, timestamp, payload reference, and correlation IDs.
 - Outbound status, comment, artifact, and result publishing.
@@ -85,4 +85,3 @@ Connect Rostrum to the systems where software work starts, gets reviewed, runs, 
 ## Ownership boundary
 
 Connector interfaces, fixtures, and baseline integrations should be open-source. Hosted event ingestion, managed OAuth, notifications, secret storage, and premium connectors may be hosted features.
-

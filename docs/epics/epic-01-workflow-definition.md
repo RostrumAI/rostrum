@@ -13,6 +13,7 @@ Provide a versioned, portable, validated representation of Rostrum workflows and
 
 - [ ] Define workflow, node, edge, policy, runtime, artifact, and completion schemas.
 - [ ] Define node input/output contract conventions and schema references.
+- [ ] Define explicit input bindings, output formats, stream/materialization rules, and downstream piping contracts.
 - [ ] Define sensitive-field and visibility annotations.
 - [ ] Add schema versioning and compatibility metadata.
 - [ ] Publish example workflows for review-only, planning, and guided build.
@@ -32,12 +33,13 @@ Provide a versioned, portable, validated representation of Rostrum workflows and
 - [ ] Add workflow diff and run-to-version provenance.
 - [ ] Define local file registry and hosted registry adapters.
 
-### E-WF-04: Composition and domain packs
+### E-WF-04: Composition and workflow collections
 
 - [ ] Define reusable subgraph references and parameter passing.
-- [ ] Define node/tool/skill package metadata.
-- [ ] Create software-delivery domain pack structure.
-- [ ] Add pack compatibility and dependency checks.
+- [ ] Define node/tool/skill capability metadata.
+- [ ] Define script-node and transfer-node metadata, including conditions, pruning, continuation, and failure behavior.
+- [ ] Create software-delivery workflow collection structure.
+- [ ] Add collection compatibility and dependency checks without defining distribution mechanics.
 
 ## SPIKEs
 
@@ -49,4 +51,4 @@ Provide a versioned, portable, validated representation of Rostrum workflows and
 
 ## Exit criteria
 
-Three reference workflows validate, serialize, diff, and execute through the runtime without workflow-specific scheduler code.
+Three reference workflows validate, serialize, diff, and execute through the runtime without workflow-specific scheduler code, including at least one workflow with structured script output piped into downstream nodes.

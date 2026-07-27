@@ -1,7 +1,7 @@
 # PRD-07: Control Plane API and Local Daemon
 
 Status: Draft  
-Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#47-control-api-and-service-boundary)  
+Strategic context: [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md#48-control-api-and-service-boundary)<br>
 Primary epic: [Control plane epics](../epics/epic-07-control-plane.md)
 
 ## Purpose
@@ -16,6 +16,7 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 - A hosted organization manages workspaces, users, policies, and credentials.
 - An administrator connects context sources and defines read-only context policies.
 - An external event is authenticated and mapped to a workflow input.
+- A caller invokes a selected workflow version with schema-validated structured inputs.
 - An operator drains or disables a runtime target.
 - A CLI/SDK caller starts a run asynchronously, observes events, waits for approval or completion, controls the run, and retrieves artifacts.
 - A team administrator assigns project approvers and configures acceptable approval groups for a workflow.
@@ -36,6 +37,7 @@ Expose one authoritative API for defining, validating, simulating, publishing, s
 - Commands for validate, simulate, publish, start, wait, observe, pause, resume, cancel, retry, approve, reject, comment, and re-run.
 - Query and subscription endpoints for run state and events.
 - Asynchronous run start returning a durable run handle; wait semantics for approval/question/terminal transitions with timeout and machine-readable exit status.
+- Invocation contracts that require an explicit workflow identifier/version and validated input payload; natural-language routing is an optional workflow or external service, not an implicit API behavior.
 - Event cursors and streaming observation that can resume after disconnect.
 - Approval requests with required scope, acceptable users/groups, expiry, identity, evidence, and immutable decision history.
 - Idempotency, pagination, filtering, cursors, and optimistic concurrency.

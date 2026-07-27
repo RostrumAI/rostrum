@@ -22,6 +22,8 @@ Provide deterministic, auditable tool execution with explicit side-effect and ap
 - [ ] Implement safe file read/write/list/search tools.
 - [ ] Implement Git status/diff/branch/commit/push tools.
 - [ ] Implement process/test/build/lint/type-check tools.
+- [ ] Implement sandboxed script execution with pinned runtime/dependencies, stdin bindings, stdout/stderr capture, and exit semantics.
+- [ ] Implement typed JSON/JSONL/delimited/text output bindings from scripts/tools into downstream nodes.
 - [ ] Implement artifact capture and publishing tools.
 - [ ] Implement wait, approval, notification, and branch-decision tools.
 
@@ -37,6 +39,7 @@ Provide deterministic, auditable tool execution with explicit side-effect and ap
 
 - [ ] Add timeout, cancellation, output limits, and cleanup.
 - [ ] Add structured exit/result parsing.
+- [ ] Add stream limits, truncation/backpressure handling, schema validation, and malformed-output failure paths.
 - [ ] Add dry-run and tool simulation configuration.
 - [ ] Add retry/idempotency metadata for side effects.
 - [ ] Add tool invocation audit records.
@@ -48,6 +51,8 @@ Provide deterministic, auditable tool execution with explicit side-effect and ap
 - [ ] S-TOOLS-03 Network proxy/egress enforcement.
 - [ ] S-TOOLS-04 Credential injection and secret redaction.
 - [ ] S-TOOLS-05 Compensation/rollback patterns for external writes.
+- [ ] S-TOOLS-06 Script runtime packaging and cross-platform execution strategy.
+- [ ] S-TOOLS-07 Streaming versus materialized node-output semantics.
 
 ## Exit criteria
 

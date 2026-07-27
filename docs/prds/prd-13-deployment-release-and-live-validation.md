@@ -1,7 +1,7 @@
 # PRD-13: Deployment, Release, and Live Validation
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#4-the-end-to-end-journey)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
 Primary epic: [Deployment and live validation epics](../epics/epic-13-deployment-and-live-validation.md)
 
 ## Purpose
@@ -94,4 +94,3 @@ Make deployment a governed workflow with staged promotion, environment-specific 
 ## Ownership boundary
 
 Deployment contracts, local adapters, reference checks, and self-hosted workflows should be open-source. Managed preview environments, hosted deployment orchestration, production connectors, and enterprise release policy may be hosted or separately licensed.
-

@@ -1,7 +1,7 @@
 # PRD-12: Hosted Governance, Identity, and Usage
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#9-open-source-and-hosted-product)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#6-product-boundaries)<br>
 Primary epic: [Hosted governance epics](../epics/epic-11-hosted-governance.md)
 
 ## Purpose

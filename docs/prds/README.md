@@ -1,6 +1,6 @@
 # Rostrum PRDs
 
-These first-draft PRDs translate the [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md) and [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md) into concrete users, use cases, features, constraints, and acceptance criteria. They are intentionally broad enough to support architecture discussion and intentionally incomplete where a SPIKE is needed.
+These first-draft PRDs translate the [High-Level Build Blueprint](../strategy/rostrum-high-level-build-blueprint.md) and [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md) into concrete users, use cases, features, constraints, and acceptance criteria. They are intentionally broad enough to support architecture discussion and intentionally incomplete where a SPIKE is needed.
 
 ## PRD index
 
@@ -14,7 +14,7 @@ These first-draft PRDs translate the [High-Level Build Blueprint](../strategy/ro
 - [PRD-08: TUI console](prd-08-tui-console.md)
 - [PRD-09: Web control panel and mobile approvals](prd-09-web-control-panel-and-mobile.md)
 - [PRD-10: Triggers and integrations](prd-10-triggers-and-integrations.md)
-- [PRD-11: Software delivery workflow pack](prd-11-software-delivery-workflows.md)
+- [PRD-11: Software delivery workflow collection](prd-11-software-delivery-workflows.md)
 - [PRD-12: Hosted governance, identity, and usage](prd-12-hosted-governance-identity-and-usage.md)
 - [PRD-13: Deployment, release, and live validation](prd-13-deployment-release-and-live-validation.md)
 - [PRD-14: Context layer](prd-14-context-layer.md)
@@ -22,6 +22,6 @@ These first-draft PRDs translate the [High-Level Build Blueprint](../strategy/ro
 
 ## Reading order
 
-Read PRDs 01-07 and PRD-14 for the execution platform and Context Layer, PRD-15 for visual authoring and simulation, PRDs 08-10 for clients and external control, PRD-11 for the first domain-specific experience, PRD-13 for the deployment/release final mile, and PRD-12 for the hosted service boundary.
+Use the [PRD roadmap in the Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#3-prd-roadmap) as the canonical build and reading order. It explains what each PRD contributes to Rostrum, which product phase it supports, and how the documents compose into the complete platform.
 
 Keep architecture uncertainty visible. If a PRD depends on an unresolved technical choice, link to a SPIKE under `docs/epics/` rather than silently choosing an implementation. Requirement priorities use Must, Should, and Could as a first-pass guide, not as a final commitment.

@@ -1,7 +1,7 @@
 # PRD-04: Deterministic Tools and Policy Gates
 
 Status: Draft  
-Strategic context: [End-to-End Product Plan](../strategy/rostrum-end-to-end-product-plan.md#10-trust-and-safety-posture)  
+Strategic context: [Platform Product Plan](../strategy/rostrum-end-to-end-product-plan.md#2-what-we-are-building-and-why)<br>
 Primary epic: [Tools and policy epics](../epics/epic-04-tools-and-policy.md)
 
 ## Purpose
@@ -13,6 +13,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - A workflow reads repository context under a defined path and size policy.
 - An implementation worker edits files inside an isolated Docker or microVM workspace and pushes a branch to the configured origin.
 - A verifier runs tests, builds, linters, type checks, and security scans.
+- A workflow runs a declared script in a sandbox and pipes its structured output into one or more downstream nodes.
 - A deployment node promotes a known artifact to a permitted environment.
 - An operator approves a network call or destructive migration.
 - A tool author publishes a reusable command or integration node.
@@ -25,6 +26,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - Make tool results structured and reproducible where possible.
 - Support local and hosted execution through the same tool definitions.
 - Make approvals, credentials, filesystem, network, and resource controls explicit.
+- Make scripts and node-to-node data piping explicit, bounded, and auditable.
 
 ## Non-goals
 
@@ -38,6 +40,8 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 
 - Tool manifest: name, version, inputs, outputs, side effects, required capabilities, runtime, timeout, and risk class.
 - Built-in file, Git branch/commit/push, process, test, build, artifact, wait, approval, and notification primitives.
+- Sandboxed script node with pinned runtime/image, declared files and environment, stdin binding, stdout/stderr capture, exit-status semantics, and output schema.
+- Explicit output bindings from tool/script results to downstream node inputs, including JSON, JSON Lines, delimited records, and bounded text.
 - Command allowlists/denylists and argument validation.
 - Filesystem roots, read/write/delete policies, and symlink/path traversal controls.
 - Network egress policy with host, port, method, and data-classification controls.
@@ -45,6 +49,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - Environment and resource limits: CPU, memory, disk, process count, time, and output size.
 - Approval requirements based on tool, target, environment, data, and risk.
 - Structured result containing status, exit code, stdout/stderr references, evidence, and metadata.
+- Structured stream/result metadata containing format, schema, record count, truncation, backpressure, and downstream-consumption status.
 - Cancellation and timeout handling with cleanup behavior.
 - Audit record for every invocation and policy decision.
 
@@ -56,6 +61,7 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 - Signed tool packages and trust levels.
 - Compensation or rollback hooks for selected side effects.
 - Integration tools that use the same policy path as local commands.
+- Script fixtures and deterministic replay for structured output pipelines.
 
 ### Could
 
@@ -71,12 +77,16 @@ Make literal operations safe, observable, repeatable, and composable in workflow
 4. A tool can require human approval without implementing approval logic itself.
 5. The audit record identifies the run, node, tool version, runtime, identity, policy, and outcome.
 6. The same tool definition can run against a Docker workspace and a hosted microVM with target-specific enforcement.
+7. A script’s stdout cannot become a downstream input without an explicit binding, format/schema declaration, size limit, and policy decision.
+8. A malformed, truncated, or non-zero-exit script result is observable and follows the workflow’s declared failure path.
 
 ## Open questions and SPIKEs
 
 - Policy language and evaluation engine.
 - How much shell compatibility is needed for local development.
 - Safe handling of generated scripts and child processes.
+- Script runtime packaging, interpreter availability, and cross-platform behavior.
+- Streaming versus materialized output semantics and backpressure.
 - Network proxy versus direct egress controls.
 - Compensation model for deployments, migrations, and external writes.
 

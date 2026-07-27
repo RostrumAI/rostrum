@@ -23,6 +23,8 @@ Execute graphs durably with bounded control flow, restart recovery, parallelism,
 - [ ] Implement parallel fan-out, joins, and branch failure behavior.
 - [ ] Implement bounded loops and retry policies.
 - [ ] Implement child workflows and parent result aggregation.
+- [ ] Implement explicit node output bindings and bounded streaming/materialization for downstream inputs.
+- [ ] Implement durable transfer-node checkpoints and receiving-runtime initialization.
 - [ ] Add concurrency and resource admission controls.
 
 ### E-ORCH-03: Recovery and control
@@ -47,8 +49,8 @@ Execute graphs durably with bounded control flow, restart recovery, parallelism,
 - [ ] S-ORCH-03 Durable state/event store benchmark.
 - [ ] S-ORCH-04 Parallel scheduling model for local and hosted execution.
 - [ ] S-ORCH-05 Long-running approval and external callback behavior.
+- [ ] S-ORCH-06 Transfer-packet persistence, pruning, and recovery semantics.
 
 ## Exit criteria
 
-A guided-build run survives daemon restart, waits for approval, executes a bounded verify-fix loop, and exposes a correct final state.
-
+A workflow run survives daemon restart, waits for approval, executes bounded retry/transfer loops with typed node piping, and exposes a correct final state.

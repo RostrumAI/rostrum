@@ -5,7 +5,7 @@ Purpose: Preserve the research conclusions that inform the Rostrum strategy docu
 
 ## Core thesis
 
-The market is moving from unconstrained coding-agent loops toward graph-based workflow engines. In this model, the system owns sequencing, state, retries, approvals, and completion conditions. Language models provide specialized reasoning inside that system rather than acting as the entire system.
+The market is moving from unconstrained agent loops toward graph-based workflow engines. In this model, the system owns sequencing, state, retries, approvals, and completion conditions. Language models provide specialized reasoning inside that system rather than acting as the entire system. The same platform primitives can support software development and other automation domains.
 
 The research treats Rostrum’s proposed architecture as aligned with this direction:
 
@@ -29,13 +29,19 @@ The product implication is that Rostrum needs a stable workflow definition and e
 
 File access, tests, compilers, static analysis, policy checks, artifact collection, approvals, and branching on structured results should not be left to model discretion. These nodes provide the evidence that later reasoning nodes use to decide what happens next.
 
-The product implication is that “agent” and “tool” are peer node categories in the workflow model, with explicit input/output contracts and side-effect policies.
+The product implication is that “agent,” “tool,” and “sandboxed script” are peer node categories in the workflow model, with explicit input/output contracts, piping rules, and side-effect policies.
 
 ### 3. Verification should be independent from implementation
 
 The research highlights an orchestrator-worker-validator pattern. An implementation worker gets a bounded task and a fresh context. A separate verifier evaluates the resulting artifact against the original contract and deterministic checks. Failures are returned to the orchestrator for a targeted fix or escalation.
 
 The product implication is that Rostrum should model verify-fix loops, attempt limits, budgets, and escalation paths directly rather than hiding them in prompts.
+
+### 3a. Transfer nodes should preserve trajectory, not only prose
+
+The [Prewalk-style model handoff notes](prewalk-model-handoff-notes.md) capture a related execution pattern: let a capable model explore and establish a grounded trajectory, then use a transfer node to move execution to another model after an explicit transition condition. The useful transfer packet is context and state that has already been grounded in the environment, not a short plan that forces a second model to reread everything.
+
+The product implication is that Rostrum should support provider-neutral trajectory checkpoints and explicit transfer-node conditions as a first-class workflow capability.
 
 ### 4. Workflows represent constraints, not personalities
 
@@ -75,6 +81,10 @@ Hosted workflows are most valuable when triggered by repository events, CI failu
 
 The product implication is that integrations, governance, and metering are part of the hosted execution architecture, not later dashboard features.
 
+### 8. Sandboxed scripts are a general composition primitive
+
+Many useful workflows require small deterministic programs for parsing, transforming, querying, validating, or coordinating data. These scripts should execute in the same governed sandbox boundary as other tools and expose bounded, typed output streams to downstream nodes. Script support should not imply unrestricted shell access or an implicit authority escalation path.
+
 ## Landscape categories covered by the source
 
 | Category | Examples discussed | Relevance to Rostrum |
@@ -92,14 +102,14 @@ These references are market context, not implementation commitments. They help i
 
 The research supports the following initial architecture decisions:
 
-1. Build the execution core before building a rich conversational interface.
+1. Build the workflow definition and execution core before building any optional conversational or prompt-routing experience.
 2. Treat workflows as versioned workflow graphs with typed state and explicit side effects.
 3. Make durable state, event streams, artifacts, approvals, and bounded loops foundational.
 4. Keep the web panel, TUI, mobile surface, CLI, SDK, and integrations as clients of one Control API; make the web panel the primary graph-authoring and simulation surface.
 5. Make local execution a first-class path, not merely a development mock of the cloud.
 6. Make the Context Layer read-only and pass-through by default.
 7. Use Docker for local/self-hosted execution and microVMs only for Rostrum Cloud.
-8. Keep the workflow, context, and runtime contracts open-source; reserve managed multi-tenancy, hosted execution, credentials, billing, and cloud operations for the hosted service.
+8. Keep the workflow, context, runtime, script, and transfer-node contracts open-source; reserve managed multi-tenancy, hosted execution, credentials, billing, and cloud operations for the hosted service.
 
 ## Open questions carried into the next documents
 
@@ -117,3 +127,5 @@ The source establishes direction but does not settle implementation choices. The
 - artifact retention and event replay requirements;
 - provider, credential, and integration packaging;
 - the minimum vertical slice that proves Rostrum’s advantage.
+- provider-neutral model trajectory and transfer-node contracts;
+- sandboxed script runtime, output piping, and resource/backpressure semantics.

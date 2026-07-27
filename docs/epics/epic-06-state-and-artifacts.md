@@ -13,6 +13,7 @@ Create the durable evidence layer that lets Rostrum recover, observe, explain, a
 
 - [ ] Define event envelope, schema version, sequence, cursor, and correlation fields.
 - [ ] Define run/node/tool/artifact/decision/deployment identifiers.
+- [ ] Define transfer-packet, context-pruning, script-stream, and downstream-binding event identities.
 - [ ] Implement event validation and compatibility checks.
 - [ ] Add snapshot plus replay semantics.
 
@@ -29,6 +30,7 @@ Create the durable evidence layer that lets Rostrum recover, observe, explain, a
 - [ ] Define artifact type, provenance, sensitivity, and retention metadata.
 - [ ] Implement content-addressed or integrity-checked storage.
 - [ ] Add plan, diff, log, report, test, build, and deployment artifact types.
+- [ ] Add transfer packet, script output, truncation, and schema-validation artifact/event types.
 - [ ] Add artifact access control and redaction.
 - [ ] Add artifact preview/export and run report generation.
 - [ ] Ensure external context bodies are metadata-only by default and opt-in snapshots are explicit.

@@ -16,11 +16,12 @@ This directory is organized to move from evidence, to product decisions, to impl
 - [AI Workflow Engine Market Research - source PDF](research/source/AI%20Workflow%20Engine%20Market%20Research.pdf)
 - [AI Workflow Engine Market Research - synthesis](research/ai-workflow-engine-market-research-synthesis.md)
 - [Hermes Agent Docker sandbox notes](research/hermes-agent-docker-sandbox-notes.md)
+- [Prewalk-style model handoff notes](research/prewalk-model-handoff-notes.md)
 
 ### Strategy
 
 - [Rostrum High-Level Build Blueprint](strategy/rostrum-high-level-build-blueprint.md)
-- [Rostrum End-to-End Product Plan](strategy/rostrum-end-to-end-product-plan.md)
+- [Rostrum Platform Product Plan](strategy/rostrum-end-to-end-product-plan.md)
 
 The end-to-end plan now treats workflows as the reusable unit, Context as a read-only pass-through layer, Docker as the local/self-hosted execution target, and microVMs as Rostrum Cloud infrastructure.
 

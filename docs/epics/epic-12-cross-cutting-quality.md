@@ -22,6 +22,8 @@ Make Rostrum itself reliable, secure, testable, understandable, and maintainable
 - [ ] Threat-model control plane, runtime, tools, clients, and integrations.
 - [ ] Add prompt-injection and tool-confusion test cases.
 - [ ] Add secret leakage, path traversal, network egress, and sandbox escape tests.
+- [ ] Add script-output schema, truncation, backpressure, child-process, and authority-boundary tests.
+- [ ] Add transfer-node trajectory, pruning, recovery, cost, and premature-commitment evaluation fixtures.
 - [ ] Add Docker hardening tests for capability drop, no-new-privileges, resource/process limits, mounts, network policy, credential forwarding, and orphan cleanup.
 - [ ] Add context-source credential isolation, pass-through retention, and prompt-injection tests.
 - [ ] Define dependency/license/security scanning for Rostrum itself.
