@@ -13,7 +13,7 @@ Audience: Founders, product, engineering, and design
 - [5. How the pieces interact](#5-how-the-pieces-interact)
 - [6. Open-source and cloud boundary](#6-open-source-and-cloud-boundary)
 - [7. Recommended build shape](#7-recommended-build-shape)
-- [8. What is intentionally deferred to the deeper PRDs](#8-what-is-intentionally-deferred-to-the-deeper-prds)
+- [8. What the delivery Epics must resolve](#8-what-the-delivery-epics-must-resolve)
 - [9. Decisions to facilitate next](#9-decisions-to-facilitate-next)
 - [10. Working definition of done for the product concept](#10-working-definition-of-done-for-the-product-concept)
 
@@ -21,7 +21,7 @@ Audience: Founders, product, engineering, and design
 
 Rostrum is a platform for defining and executing reliable automation and AI workflows. A Rostrum "workflow" is a reusable, versioned workflow graph, not a system prompt or an open-ended chat session. The graph combines reasoning nodes with deterministic nodes for operations that must be literal, inspectable, and repeatable. Natural-language intake is outside Rostrum's core responsibility: callers provide structured workflow inputs, while a domain-specific workflow may accept a prompt or route a request to another workflow.
 
-Users can define a workflow once and invoke it from several places: the web/desktop control application, a mobile-friendly surface, an SDK or API, or an external event such as a pull request, CI failure, data arrival, or production alert. The CLI initially validates and uploads workflow JSON. Every invocation supplies a workflow identifier and structured inputs. A workflow may contain a prompt-taking node or decider, but that is workflow behavior rather than implicit Rostrum intake.
+Users can define a workflow once and invoke it from several places: the web/desktop control application, a mobile-friendly surface, an SDK or API, or an external event such as a pull request, CI failure, data arrival, or production alert. Every invocation supplies a workflow identifier and structured inputs. A workflow may contain a prompt-taking node or decider, but that is workflow behavior rather than implicit Rostrum intake.
 
 The product centers on the execution lifecycle:
 
@@ -205,7 +205,7 @@ Mobile should initially be treated as a responsive control and approval surface,
 
 #### CLI
 
-The initial CLI should focus on workflow JSON: validate it locally or through the Control API, upload and download revisions, inspect normalized structure, and compare revisions semantically. It should return stable machine-readable diagnostics so an AI coding agent can use the CLI in a create/validate/repair/upload loop. Rostrum should ship an open-source authoring skill that teaches this workflow.
+The workflow CLI should be added in a late delivery Epic after the workflow, Control API, and client contracts stabilize. It should validate workflow JSON locally or through the Control API, upload and download revisions, inspect normalized structure, and compare revisions semantically. It should return stable machine-readable diagnostics so an AI coding agent can use it in a create/validate/repair/upload loop. The open-source authoring skill should teach the Control API workflow first and add the CLI workflow when the CLI ships.
 
 #### SDK and integration clients
 
@@ -311,15 +311,16 @@ The canonical priority order lives in the [Platform Product Plan delivery milest
 3. add per-node simulation before investing in the full web/desktop operating experience;
 4. add the SDK and external integrations after the execution and client contracts stabilize;
 5. add multi-user co-authoring after single-user authoring, simulation, and operation work;
-6. prove breadth through the showcase suite before adding the Rostrum Cloud execution boundary.
+6. add the workflow CLI after its public workflow and Control API contracts stabilize;
+7. prove breadth through the showcase suite before adding the Rostrum Cloud execution boundary.
 
 This order keeps collaboration and hosted scale from delaying the first useful, inspectable workflow engine.
 
-## 8. What is intentionally deferred to the deeper PRDs
+## 8. What the delivery Epics must resolve
 
-This blueprint does not yet specify detailed screens, endpoint schemas, database tables, node-by-node behavior, model-provider prompts, the final state-storage implementation, specific Docker/microVM implementations, pricing, or implementation tickets. The high-level direction for workflow JSON, explicit inputs, revisioned/Git collaboration, per-node simulation, the Model Provider Layer, container-defined scripts, and visual authoring is decided; the deeper PRDs specify their behavior.
+This blueprint does not specify detailed screens, endpoint schemas, database tables, node-by-node behavior, model-provider prompts, the final state-storage implementation, specific Docker/microVM implementations, pricing, or implementation tickets. The high-level direction for workflow JSON, explicit inputs, revisioned/Git collaboration, per-node simulation, the Model Provider Layer, container-defined scripts, and visual authoring is decided; the delivery Epics specify their behavior and ordered work.
 
-The next PRDs should resolve, for each product area:
+Each delivery Epic should resolve, for its product state:
 
 - target users and concrete use cases;
 - required capabilities and non-goals;
@@ -330,7 +331,7 @@ The next PRDs should resolve, for each product area:
 - success criteria and failure conditions;
 - dependencies, technical risks, and likely SPIKEs.
 
-The first PRDs should cover workflow definition; authoring, collaboration, and per-node simulation; the Context Layer; orchestration; the Model Provider Layer and runtime; deterministic tools and container-defined scripts; execution targets; the Control API; web and desktop applications; triggers/integrations; and hosted governance services.
+Together, the delivery Epics cover workflow definition; authoring, collaboration, and per-node simulation; the Context Layer; orchestration; the Model Provider Layer and runtime; deterministic tools and container-defined scripts; execution targets; the Control API; web and desktop applications; triggers and integrations; hosted governance services; and the late-stage workflow CLI.
 
 ## 9. Decisions to facilitate next
 

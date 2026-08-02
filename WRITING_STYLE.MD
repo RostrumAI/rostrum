@@ -1,6 +1,6 @@
 # Writing Style
 
-Use this style for Rostrum strategy, product, PRD, and Epic documentation.
+Use this style for Rostrum strategy, product, Epic, and task documentation.
 
 ## Start with the point
 
@@ -8,13 +8,21 @@ Use this style for Rostrum strategy, product, PRD, and Epic documentation.
 - Describe the product as a platform for defining and executing workflows. Do not imply that prompt intake, workflow selection, or AI authorship are inherent platform behavior; they are capabilities a workflow may implement.
 - Define scope primarily by stating what the document delivers. Do not enumerate obvious exclusions. State a boundary only when a reasonable reader might otherwise infer a materially different product or body of work.
 
+## Explain work in operational terms
+
+- Begin with a plain-language statement of what the work creates or changes.
+- Translate abstract capabilities and contracts into the concrete questions they answer or operations they perform.
+- State the observable end state: what will exist, work, or be provable when the work is complete.
+- Name the artifact or behavior directly. Avoid relying on abstract verbs such as “support,” “enable,” “establish,” or “publish” without saying what is produced.
+- A reader should be able to explain the work's purpose and end state without reading its acceptance criteria.
+
 ## Make the structure do the explaining
 
 - Prefer short sections, tables, bullets, and diagrams only when they clarify a relationship better than prose.
 - Use tables for ordered delivery, comparisons, ownership, dependencies, and “what / why / proof” views.
 - Keep rows concrete and independently understandable. A reader should see why an item exists from its outcome, demonstration, or dependency.
 - Organize plans in priority and dependency order. Each milestone should name the observable product state it unlocks.
-- Link implementation plans to Epics, not PRDs. The connection from a plan to its next work should be evident from the table or structure, not asserted in explanatory prose.
+- Link product-plan milestones to Epics. The connection from a plan to its next work should be evident from the table or structure, not asserted in explanatory prose.
 
 ## Be concise and specific
 
@@ -29,10 +37,10 @@ Use this style for Rostrum strategy, product, PRD, and Epic documentation.
 | --- | --- | --- |
 | High-level blueprint | Define the product shape, major components, and their relationships | Components, responsibilities, boundaries, and build direction |
 | Product plan | Show the prioritized path to a complete product and the proof at each stage | Product states, delivery milestones, showcase outcomes, Epic links |
-| PRD | Explain a feature set and the use cases it must satisfy | Users, capabilities, constraints, behavior, and acceptance criteria |
-| Epic | Identify the work required to deliver a product state | Tasks, spikes, dependencies, risks, and exit criteria |
+| Epic | Define a product state and the work required to deliver it | Capabilities, constraints, tasks, spikes, dependencies, risks, and exit criteria |
+| Task | Define one bounded piece of delivery work | Concrete purpose, questions or operations, observable end state, dependencies, and acceptance criteria |
 
-Do not use a higher-level document to substitute for a lower-level one. A product plan should not become a catalog of feature requirements; a PRD should not become a task list.
+Do not use a higher-level document to substitute for a lower-level one. A product plan should not become a catalog of detailed requirements, and an Epic should not become a repository-level implementation plan.
 
 ## Treat examples as evidence, not the product definition
 

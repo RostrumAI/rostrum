@@ -129,21 +129,56 @@ Findings must appear in a consistent order.
 
 The work is ordered by dependency. SPIKEs answer decisions that would otherwise become accidental public or architectural commitments. Their results may add or split implementation tasks as the Epic is decomposed.
 
-| ID | Work | Outcome and proof | Depends on |
-| --- | --- | --- | --- |
-| [E1-S0](../tasks/epic-01/e1-s0-select-implementation-stack.md) | **SPIKE: Select the initial implementation stack and repository structure.** Compare suitable languages, frameworks, build tools, API tooling, persistence options, migration tools, and testing approaches. Account for a standalone Control API now and a separate daemon process in Epic 02. | A reviewed decision record and thin proof of concept show how shared workflow code, the Control API, and the future daemon can be developed and released without duplicating workflow rules. | None |
-| [E1-S1](../tasks/epic-01/e1-s1-define-workflow-interface-v1.md) | **SPIKE: Define workflow interface v1 and its evolution rules.** Define the authored JSON, the interface-version field, workflow and step IDs, the initial step-extension model, and the sequential, branching, and terminal concepts needed by Epic 02. Decide how validation selects rules by interface version and how future releases will preserve v1 compatibility. | A specification outline and representative valid and invalid examples answer the open interface and compatibility questions in terms an implementing engineer can follow. | None |
-| [E1-S2](../tasks/epic-01/e1-s2-define-validation-behavior.md) | **SPIKE: Define validation behavior and findings.** Specify the order of checks, graph rules, branch rules, input/output reference checks, unknown-field behavior, stable finding codes, source locations, and result ordering. Investigate how much input/output compatibility Rostrum can reliably determine before execution. | A validation contract and test matrix state what each check proves and the finding expected when it fails. | E1-S1 |
-| [E1-S3](../tasks/epic-01/e1-s3-define-draft-publication-lifecycle.md) | **SPIKE: Define the draft and publication lifecycle.** Define workflow IDs, draft IDs and revisions, revision checks, published versions, stored JSON, digests, repeated publication, and the transition from a selected draft revision to an immutable version. | A decision record and shared test vectors define how incomplete work is saved and how an accepted workflow is retrieved and verified. | E1-S1 |
-| [E1-01](../tasks/epic-01/e1-01-create-project-foundation.md) | Create the project foundation selected by E1-S0. Add the repository layout, dependency management, local development commands, formatting, linting, unit and integration test harnesses, and continuous integration. | A new contributor can build and test every initial package or application with documented commands, and the same checks run in continuous integration. | E1-S0 |
-| [E1-02](../tasks/epic-01/e1-02-build-control-api-foundation.md) | Build the standalone Control API foundation. Add process startup and shutdown, configuration, logging, health and version reporting, versioned API routing, a consistent error format, API documentation generation, and an integration-test harness. | The Control API runs independently, reports its health and version, serves documented routes, and can be exercised through automated integration tests. | E1-01 |
-| [E1-03](../tasks/epic-01/e1-03-write-workflow-interface-v1-specification.md) | Write the workflow interface v1 specification and JSON Schema. Document each field, the initial step-extension mechanism, interface compatibility, validation findings, and the draft and published workflow envelopes. | A new engineer can understand a workflow and its lifecycle, and ordinary document-shape errors can be detected from the schema. | E1-S1, E1-S2, E1-S3 |
-| [E1-04](../tasks/epic-01/e1-04-implement-workflow-library-and-validator.md) | Implement the shared workflow library and validator. Keep JSON reading, schema checks, workflow checks, publication preparation, and validation findings behind one shared interface. | Unit tests cover every documented check and return stable results without API-specific rules. | E1-01, E1-03 |
-| [E1-05](../tasks/epic-01/e1-05-build-workflow-example-validation-suite.md) | Build the workflow example and validation test suite. Include minimum, sequential, branching, incomplete, and invalid workflows, interface-version cases, and digest test vectors. | The same examples prove the shared library and Control API behavior and can be extended when the workflow interface grows. | E1-03, E1-04 |
-| [E1-06](../tasks/epic-01/e1-06-add-control-api-workflow-operations.md) | Add Control API operations to validate JSON, create and revise drafts, retrieve draft revisions, publish a selected revision, and retrieve published workflows. Use the shared validator for every validation and publication decision. | An incomplete draft can be saved and revised, while only a valid selected revision can become an immutable published version. | E1-02, E1-04, E1-05 |
-| [E1-07](../tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) | Add persistent storage for drafts, draft revisions, and immutable workflow versions. Store the accepted JSON, identifiers, interface version, validation result, digest, and creation metadata according to E1-S3. | Restarting the Control API preserves drafts and published workflows without allowing a published version or newer draft revision to be overwritten. | E1-S3, E1-06 |
-| [E1-08](../tasks/epic-01/e1-08-publish-workflow-authoring-guidance.md) | Publish workflow authoring guidance and a first Rostrum authoring skill or equivalent instructions. Base both on the v1 specification, draft lifecycle, Control API, and tested examples. | A human and an automated coding agent can save, validate, repair, and publish a workflow without relying on undocumented behavior. | E1-05, E1-06 |
-| [E1-09](../tasks/epic-01/e1-09-add-end-to-end-epic-demonstration.md) | Add the end-to-end Epic demonstration and release gate. Exercise an incomplete draft, validation findings, revision, publication, process restart, immutable retrieval, and digest verification. | One repeatable test or script proves the complete product state and runs in continuous integration. | E1-06, E1-07, E1-08 |
+| ID | Outcome | Depends on |
+| --- | --- | --- |
+| [E1-S0](../tasks/epic-01/e1-s0-select-implementation-stack.md) | Select the stack, repository structure, and process boundaries. | None |
+| [E1-S1](../tasks/epic-01/e1-s1-define-workflow-interface-v1.md) | Define workflow interface v1 and its evolution rules. | None |
+| [E1-S2](../tasks/epic-01/e1-s2-define-validation-behavior.md) | Define validation behavior, findings, and test cases. | E1-S1 |
+| [E1-S3](../tasks/epic-01/e1-s3-define-draft-publication-lifecycle.md) | Define draft revisions, publication, identity, and digests. | E1-S1 |
+| [E1-01](../tasks/epic-01/e1-01-create-project-foundation.md) | Create the buildable, tested project foundation. | E1-S0 |
+| [E1-02](../tasks/epic-01/e1-02-build-control-api-foundation.md) | Build the standalone Control API foundation. | E1-01 |
+| [E1-03](../tasks/epic-01/e1-03-write-workflow-interface-v1-specification.md) | Publish the workflow specification, JSON Schema, and examples. | E1-S1, E1-S2, E1-S3 |
+| [E1-04](../tasks/epic-01/e1-04-implement-workflow-library-and-validator.md) | Implement the shared workflow library and validator. | E1-01, E1-03 |
+| [E1-05](../tasks/epic-01/e1-05-build-workflow-example-validation-suite.md) | Build the shared workflow example and validation suite. | E1-03, E1-04 |
+| [E1-06](../tasks/epic-01/e1-06-add-control-api-workflow-operations.md) | Add validation, draft, publication, and retrieval operations. | E1-02, E1-04, E1-05 |
+| [E1-07](../tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) | Persist draft revisions and immutable workflow versions. | E1-S3, E1-06 |
+| [E1-08](../tasks/epic-01/e1-08-publish-workflow-authoring-guidance.md) | Publish tested guidance for human and automated authors. | E1-05, E1-06 |
+| [E1-09](../tasks/epic-01/e1-09-add-end-to-end-epic-demonstration.md) | Prove the complete Epic state as a continuous-integration gate. | E1-06, E1-07, E1-08 |
+
+## Delivery sequence
+
+```mermaid
+flowchart LR
+    S0["E1-S0<br/>Stack"] --> E01["E1-01<br/>Project foundation"]
+    S1["E1-S1<br/>Workflow interface"] --> S2["E1-S2<br/>Validation behavior"]
+    S1 --> S3["E1-S3<br/>Draft lifecycle"]
+    S2 --> E03["E1-03<br/>Specification"]
+    S3 --> E03
+    E01 --> E02["E1-02<br/>API foundation"]
+    E01 --> E04["E1-04<br/>Library and validator"]
+    E03 --> E04
+    E03 --> E05["E1-05<br/>Examples and tests"]
+    E04 --> E05
+    E02 --> E06["E1-06<br/>Workflow operations"]
+    E04 --> E06
+    E05 --> E06
+    S3 --> E07["E1-07<br/>Storage"]
+    E06 --> E07
+    E05 --> E08["E1-08<br/>Authoring guidance"]
+    E06 --> E08
+    E06 --> E09["E1-09<br/>Release gate"]
+    E07 --> E09
+    E08 --> E09
+```
+
+The task table is the source of truth for exact dependencies. E1-S0 and E1-S1 can begin immediately; later work opens as their required decisions and foundations are completed.
+
+## Decisions required before implementation
+
+- E1-S0 must approve the implementation stack, repository structure, shared-library boundary, Control API process boundary, persistence approach, and test approach before E1-01 begins.
+- E1-S1 must approve workflow interface v1, identity fields, step extension, graph concepts, and compatibility rules before E1-S2 and E1-S3 begin.
+- E1-S2 and E1-S3 must approve validation findings, draft revisions, publication behavior, version identity, and digest rules before E1-03 finalizes the public contract.
+- E1-03 must produce an internally consistent specification, JSON Schema, and examples before the validator and example suite become implementation contracts.
 
 ## Dependencies and sequencing constraints
 

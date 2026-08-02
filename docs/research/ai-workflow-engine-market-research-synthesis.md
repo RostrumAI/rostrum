@@ -61,7 +61,7 @@ The product implication is that Rostrum's workflow system should encode permissi
 
 The report explicitly separates the interface from execution. It proposed a TUI that could visualize graph state, tool calls, artifacts, approvals, and blockers while reconnecting to remote runs.
 
-The backend or local daemon must own state and orchestration. Rostrum's initial product applies that finding through a shared web application, an Electron or equivalent desktop application, mobile-responsive views, the workflow CLI, SDKs, and integrations. A TUI is deferred.
+The backend or local daemon must own state and orchestration. Rostrum applies that finding through a shared web application, an Electron or equivalent desktop application, mobile-responsive views, SDKs, integrations, and a workflow CLI. The CLI is a late-stage client added after the workflow and Control API contracts stabilize. A TUI is deferred.
 
 ### 6. Execution target is a policy decision
 
@@ -100,7 +100,7 @@ These references are market context, not implementation commitments. They help i
 
 ## Strategic implications
 
-The research supports the following initial architecture decisions:
+The research supports the following architecture decisions:
 
 1. Build the workflow definition and execution core before building any optional conversational or prompt-routing experience.
 2. Treat workflows as versioned workflow graphs with typed state and explicit side effects.
@@ -114,13 +114,13 @@ The research supports the following initial architecture decisions:
 
 ## Open questions carried into the next documents
 
-The source establishes direction but does not settle implementation choices. The PRDs and SPIKEs should resolve:
+The source establishes direction but does not settle implementation choices. The delivery Epics and their SPIKEs should resolve:
 
 - workflow JSON schema evolution and semantic identity;
 - revisioned co-authoring, Git review, and per-node simulation/mock semantics;
 - whether code-based and declarative workflow authoring coexist;
 - local daemon versus embedded runtime boundaries;
-- workflow CLI validation/upload semantics and separate SDK run-lifecycle semantics;
+- late-stage workflow CLI validation/upload semantics and separate SDK run-lifecycle semantics;
 - checkpointing and tool-execution delivery guarantees;
 - the policy model for approvals and side effects;
 - Docker workspace lifecycle and Rostrum Cloud microVM operations;
