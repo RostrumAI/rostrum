@@ -1,4 +1,4 @@
-# E1-05: Build the workflow example and validation suite
+# E1-05: Create validation fixtures and expected findings
 
 | Tracking | Value |
 | --- | --- |
@@ -10,17 +10,27 @@
 
 ## Task
 
-- Create shared valid, incomplete, and invalid workflows, interface-version cases, and digest test vectors.
-- Make the suite reusable by the workflow library and Control API tests.
+This task turns the specification examples into shared test fixtures. The suite contains:
+
+- minimum, sequential, and branching valid workflows;
+- incomplete drafts;
+- one focused invalid workflow for each validation rule;
+- supported and unsupported interface versions;
+- digest test vectors;
+- expected findings and normalized results.
+
+## End state
+
+- The workflow library and Control API can prove their behavior against the same input files and expected results.
 
 ## Why
 
-- Shared examples prove that draft validation, explicit validation, and publication interpret the workflow interface the same way.
+- Workflow validation and publication need reusable evidence that they interpret the specification consistently.
 
 ## Blocks
 
-- [E1-06: Add Control API workflow operations](e1-06-add-control-api-workflow-operations.md)
-- [E1-08: Publish workflow authoring guidance](e1-08-publish-workflow-authoring-guidance.md)
+- [E1-06: Expose workflow authoring through the Control API](e1-06-add-control-api-workflow-operations.md)
+- [E1-08: Document workflow authoring for humans and agents](e1-08-publish-workflow-authoring-guidance.md)
 
 ## Acceptance criteria
 
@@ -30,4 +40,3 @@
 - Supported and unsupported interface-version cases are present.
 - Digest vectors cover formatting and property-order differences selected by E1-S3.
 - The workflow library and API tests consume the same files and expected results.
-

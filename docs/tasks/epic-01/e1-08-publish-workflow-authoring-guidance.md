@@ -1,4 +1,4 @@
-# E1-08: Publish workflow authoring guidance
+# E1-08: Document workflow authoring for humans and agents
 
 | Tracking | Value |
 | --- | --- |
@@ -10,17 +10,27 @@
 
 ## Task
 
-- Publish concise workflow interface v1 authoring guidance.
-- Create a first Rostrum authoring skill or equivalent instructions for automated coding agents.
-- Teach the Control API draft, validate, revise, publish, and retrieve flow using tested examples.
+This task creates tested workflow-authoring instructions. They explain how to:
+
+- create minimum, sequential, and branching workflow JSON;
+- save and retrieve an incomplete draft;
+- interpret structured validation findings;
+- revise and publish a selected draft revision;
+- retrieve and verify the published version.
+
+The task also creates a first Rostrum authoring skill or equivalent instructions for automated coding agents.
+
+## End state
+
+- A human or automated author can turn an incomplete draft into a published workflow using only documented behavior and tested examples.
 
 ## Why
 
-- Humans and automated authors need a documented way to build complex workflows over several draft revisions.
+- Authors need instructions that exercise the same specification, API, and validation results implemented by Rostrum.
 
 ## Blocks
 
-- [E1-09: Add the end-to-end Epic demonstration](e1-09-add-end-to-end-epic-demonstration.md)
+- [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
 
 ## Acceptance criteria
 
@@ -30,4 +40,3 @@
 - The automated-author instructions use structured validation results.
 - A human and an automated coding agent can each revise an incomplete draft into a published workflow by following the guidance.
 - Examples used by the guidance run as part of the shared validation suite.
-

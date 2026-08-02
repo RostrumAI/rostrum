@@ -1,4 +1,4 @@
-# E1-03: Write the workflow interface v1 specification
+# E1-03: Specify workflow JSON and its lifecycle
 
 | Tracking | Value |
 | --- | --- |
@@ -10,18 +10,28 @@
 
 ## Task
 
-- Write the public workflow interface v1 specification.
-- Create its JSON Schema and representative examples.
-- Document interface compatibility, step extensions, validation findings, and the draft and published workflow envelopes.
+This task combines E1-S1, E1-S2, and E1-S3 into one public specification and fixture set. It answers:
+
+- What does valid workflow JSON v1 contain?
+- How do interface versions and step extensions work?
+- What findings can validation return?
+- What do draft, revision, and published-version records contain?
+- Which examples demonstrate valid, incomplete, and invalid workflows?
+
+It also creates the workflow JSON Schema.
+
+## End state
+
+- Authors and implementers can use one specification, schema, and example set to create and interpret workflow JSON.
 
 ## Why
 
-- Authors and implementers need one readable contract before validation and workflow lifecycle behavior become public.
+- Workflow JSON, validation, and publication need one reviewed public contract.
 
 ## Blocks
 
 - [E1-04: Implement the workflow library and validator](e1-04-implement-workflow-library-and-validator.md)
-- [E1-05: Build the workflow example and validation suite](e1-05-build-workflow-example-validation-suite.md)
+- [E1-05: Create validation fixtures and expected findings](e1-05-build-workflow-example-validation-suite.md)
 
 ## Acceptance criteria
 
@@ -31,4 +41,3 @@
 - The JSON Schema represents the documented v1 structure and step-extension mechanism.
 - Valid examples pass schema validation and invalid shape examples fail for the expected reason.
 - The specification and schema use the decisions from E1-S1, E1-S2, and E1-S3 consistently.
-

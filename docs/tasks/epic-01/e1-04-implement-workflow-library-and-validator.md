@@ -10,17 +10,26 @@
 
 ## Task
 
-- Implement the shared workflow types, JSON reader, schema checks, workflow checks, publication preparation, and validation findings.
-- Expose one shared interface for the Control API and future daemon.
+This task creates the shared library that reads and validates workflow JSON. It performs these operations:
+
+- parse workflow JSON according to the selected duplicate-key rule;
+- select validation rules from the interface version;
+- run schema and workflow checks in the documented order;
+- return stable validation findings;
+- prepare a valid revision for publication using the approved identity and digest rules.
+
+## End state
+
+- The Control API and future daemon can use one library to read, validate, and prepare workflow JSON for publication.
 
 ## Why
 
-- One implementation prevents draft saves, explicit validation, publication, and future execution from applying different workflow rules.
+- Every workflow operation needs the same implementation of the public specification.
 
 ## Blocks
 
-- [E1-05: Build the workflow example and validation suite](e1-05-build-workflow-example-validation-suite.md)
-- [E1-06: Add Control API workflow operations](e1-06-add-control-api-workflow-operations.md)
+- [E1-05: Create validation fixtures and expected findings](e1-05-build-workflow-example-validation-suite.md)
+- [E1-06: Expose workflow authoring through the Control API](e1-06-add-control-api-workflow-operations.md)
 
 ## Acceptance criteria
 
@@ -30,4 +39,3 @@
 - Publication preparation follows the identity and digest rules from E1-S3.
 - API-specific behavior stays outside the shared library.
 - Unit tests cover every public operation and validation stage.
-

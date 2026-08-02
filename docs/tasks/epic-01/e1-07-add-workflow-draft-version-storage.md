@@ -1,4 +1,4 @@
-# E1-07: Add workflow draft and version storage
+# E1-07: Persist workflow drafts and published versions
 
 | Tracking | Value |
 | --- | --- |
@@ -6,21 +6,29 @@
 | Last updated | 2026-08-02 |
 | Picked up | No |
 | Owner | Unassigned |
-| Blocked by | [E1-S3](e1-s3-define-draft-publication-lifecycle.md), [E1-06](e1-06-add-control-api-workflow-operations.md) |
+| Blocked by | [E1-S0](e1-s0-select-implementation-stack.md), [E1-S3](e1-s3-define-draft-publication-lifecycle.md), [E1-06](e1-06-add-control-api-workflow-operations.md) |
 
 ## Task
 
-- Add persistent storage and migrations for drafts, draft revisions, validation results, and published workflow versions.
-- Store the JSON, workflow and draft identifiers, interface version, revision or published version, digest, and creation metadata.
-- Enforce draft revision checks and immutable published versions.
+This task implements the database or equivalent store selected by E1-S0. It adds:
+
+- schemas and migrations for drafts, revisions, validation results, and published versions;
+- storage for workflow JSON, identifiers, interface versions, digests, and creation metadata;
+- transactional revision checks that prevent silent overwrites;
+- immutable published-version records;
+- data access used by the Control API to retrieve drafts, revisions, and published versions.
+
+## End state
+
+- Drafts and published workflow versions remain retrievable and correct after the Control API restarts.
 
 ## Why
 
-- Authors must be able to resume incomplete work, and callers must be able to retrieve the exact workflow Rostrum published after the Control API restarts.
+- Workflow authoring and execution require durable definitions with enforced revision and immutability rules.
 
 ## Blocks
 
-- [E1-09: Add the end-to-end Epic demonstration](e1-09-add-end-to-end-epic-demonstration.md)
+- [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
 
 ## Acceptance criteria
 
@@ -31,4 +39,3 @@
 - Published versions cannot be changed or deleted through draft operations.
 - Editing a draft after publication leaves the published version unchanged.
 - Integration tests cover persistence, revision conflicts, publication, immutability, and digest reproduction.
-

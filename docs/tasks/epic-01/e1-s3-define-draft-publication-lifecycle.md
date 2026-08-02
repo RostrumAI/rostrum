@@ -1,4 +1,4 @@
-# E1-S3: Define the draft and publication lifecycle
+# E1-S3: Decide how drafts become published versions
 
 | Tracking | Value |
 | --- | --- |
@@ -10,19 +10,28 @@
 
 ## Task
 
-- Define workflow IDs, draft IDs, draft revisions, revision checks, published versions, stored JSON, and digests.
-- Define how incomplete JSON is saved, retrieved, revised, and selected for publication.
-- Define publication idempotency, immutable-version conflicts, and editing a draft after publication.
-- Select how published JSON is normalized and hashed.
+This SPIKE decides how workflow JSON moves from incomplete work to an immutable version. It answers:
+
+- Which workflow, draft, revision, and published-version identifiers exist?
+- When does each identifier change?
+- How is incomplete JSON saved, retrieved, and revised safely?
+- How does an author select a revision for publication?
+- What happens on repeated publication or a version conflict?
+- How is published JSON normalized and hashed?
+- What happens to a draft after publication?
+
+## End state
+
+- One lifecycle decision record and digest fixture set define draft revision and publication behavior.
 
 ## Why
 
-- Authors need to save incomplete work safely, while callers need to retrieve and verify the exact workflow Rostrum published.
+- Authors need resumable drafts, and callers need an exact published version they can retrieve and verify.
 
 ## Blocks
 
-- [E1-03: Write the workflow interface v1 specification](e1-03-write-workflow-interface-v1-specification.md)
-- [E1-07: Add workflow draft and version storage](e1-07-add-workflow-draft-version-storage.md)
+- [E1-03: Specify workflow JSON and its lifecycle](e1-03-write-workflow-interface-v1-specification.md)
+- [E1-07: Persist workflow drafts and published versions](e1-07-add-workflow-draft-version-storage.md)
 
 ## Acceptance criteria
 
@@ -32,4 +41,3 @@
 - Publishing a selected valid revision creates an immutable version without removing the draft.
 - Repeated publication and version conflicts have defined results.
 - Shared test vectors reproduce the same published digest across intended implementations.
-

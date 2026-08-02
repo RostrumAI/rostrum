@@ -1,4 +1,4 @@
-# E1-06: Add Control API workflow operations
+# E1-06: Expose workflow authoring through the Control API
 
 | Tracking | Value |
 | --- | --- |
@@ -10,20 +10,29 @@
 
 ## Task
 
-- Add operations to validate workflow JSON without saving it.
-- Add operations to create a draft, save a new draft revision, and retrieve saved revisions.
-- Add operations to publish a selected valid revision and retrieve published versions.
-- Use the shared workflow library for every validation and publication decision.
+This task gives authors Control API operations to:
+
+- validate workflow JSON without saving it;
+- create a draft;
+- save and retrieve draft revisions;
+- publish a selected valid revision;
+- retrieve an exact published workflow version.
+
+Every validation and publication decision uses the shared workflow library.
+
+## End state
+
+- A caller can complete the draft, validation, revision, publication, and retrieval lifecycle through the Control API.
 
 ## Why
 
-- Authors need to save and revise incomplete workflows through the same service that later publishes them.
+- Human and automated authors need one API for the complete workflow-authoring lifecycle.
 
 ## Blocks
 
-- [E1-07: Add workflow draft and version storage](e1-07-add-workflow-draft-version-storage.md)
-- [E1-08: Publish workflow authoring guidance](e1-08-publish-workflow-authoring-guidance.md)
-- [E1-09: Add the end-to-end Epic demonstration](e1-09-add-end-to-end-epic-demonstration.md)
+- [E1-07: Persist workflow drafts and published versions](e1-07-add-workflow-draft-version-storage.md)
+- [E1-08: Document workflow authoring for humans and agents](e1-08-publish-workflow-authoring-guidance.md)
+- [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
 
 ## Acceptance criteria
 
@@ -34,4 +43,3 @@
 - Publishing reruns validation and rejects a selected revision with blocking findings.
 - A successful publish returns the workflow ID, published version, interface version, and digest.
 - The generated API contract and integration tests cover the complete lifecycle.
-

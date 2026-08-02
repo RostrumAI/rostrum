@@ -1,4 +1,4 @@
-# E1-09: Add the end-to-end Epic demonstration
+# E1-09: Prove draft-to-publication behavior end to end
 
 | Tracking | Value |
 | --- | --- |
@@ -10,13 +10,24 @@
 
 ## Task
 
-- Create one repeatable demonstration of the complete Epic 01 product state.
-- Exercise incomplete draft storage, validation findings, revision, revision conflicts, publication, Control API restart, retrieval, and digest verification.
-- Run the demonstration as a release gate in continuous integration.
+This task creates one repeatable proof of the complete Epic 1 product state. It:
+
+- saves and retrieves an incomplete draft;
+- revises the draft from validation findings;
+- proves that a stale revision cannot overwrite newer work;
+- publishes a valid selected revision;
+- restarts the Control API;
+- retrieves the unchanged draft and published version;
+- reproduces the published digest;
+- runs from one command in continuous integration.
+
+## End state
+
+- One release gate proves that workflow JSON can move from an incomplete draft to a durable, immutable published version.
 
 ## Why
 
-- The Epic needs one proof that authors can move from incomplete work to an immutable published workflow through the documented Control API.
+- Individual tests need one end-to-end counterpart that proves the assembled product state.
 
 ## Blocks
 
@@ -31,4 +42,3 @@
 - Editing the draft after publication leaves the published version unchanged.
 - The retrieved published JSON produces the stored digest using the documented rules.
 - The demonstration runs from one documented command and passes in continuous integration.
-

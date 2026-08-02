@@ -1,4 +1,4 @@
-# E1-S2: Define validation behavior
+# E1-S2: Decide validation checks and findings
 
 | Tracking | Value |
 | --- | --- |
@@ -10,18 +10,26 @@
 
 ## Task
 
-- Define the order and prerequisites of workflow validation checks.
-- Define rules for document structure, steps, connections, branches, data references, unknown fields, and publication readiness.
-- Define stable finding codes, blocking decisions, locations, related locations, and ordering.
-- Determine how much input/output compatibility v1 can reliably check before execution.
+This SPIKE decides how Rostrum reports problems in workflow JSON. It answers:
+
+- Which checks run, and in what order?
+- Which earlier checks must pass before a later check can run?
+- Which document, step, connection, branch, and data-reference problems are detected?
+- Which findings prevent publication?
+- What code, location, related locations, and structured details does each finding contain?
+- How much input/output compatibility can v1 check before execution?
+
+## End state
+
+- One validation contract and test matrix define every v1 check and its expected finding.
 
 ## Why
 
-- Draft saves, explicit validation, and publication must agree on the problems in a workflow and which problems prevent publication.
+- Draft saves, explicit validation, and publication need the same findings for the same workflow JSON.
 
 ## Blocks
 
-- [E1-03: Write the workflow interface v1 specification](e1-03-write-workflow-interface-v1-specification.md)
+- [E1-03: Specify workflow JSON and its lifecycle](e1-03-write-workflow-interface-v1-specification.md)
 
 ## Acceptance criteria
 
@@ -30,4 +38,3 @@
 - The finding shape covers stable codes, publication impact, source locations, related locations, and structured details.
 - A test matrix includes one representative case for every rule.
 - The contract states the supported limits of static input/output compatibility checks.
-
