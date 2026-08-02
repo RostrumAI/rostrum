@@ -1,15 +1,15 @@
-# Prewalk-Style Model Handoff Notes
+# Prewalk-style model handoff notes
 
 Status: Research input for model-node execution design  
 Source: [Stencil: You only need the frontier model for one single edit](https://stencil.so/blog/prewalk)
 
 ## Summary
 
-Stencil’s `/prewalk` describes a model-execution pattern rather than a workflow-intake feature. A stronger or more capable model begins the task, explores the relevant code and context, establishes a plan and task checklist, and makes the first valid edit. Once a declared transition point is reached, execution transfers to a cheaper or faster model while preserving the trajectory in the active context.
+Stencil's `/prewalk` describes a model-execution pattern rather than a workflow-intake feature. A stronger or more capable model begins the task, explores the relevant code and context, establishes a plan and task checklist, and makes the first valid edit. Once a declared transition point is reached, execution transfers to a cheaper or faster model while preserving the trajectory in the active context.
 
-The important handoff is not a prose plan. A prose plan forces the second model to reread the repository and reconstruct the first model’s understanding. The valuable state is the grounded execution trajectory: context already read, hypotheses tested, tool calls, structured task state, first valid action, and remaining checklist.
+The handoff is not just a prose plan. A prose plan forces the second model to reread the repository and reconstruct the first model's understanding. The useful state is the grounded execution trajectory: context already read, hypotheses tested, tool calls, structured task state, first valid action, and remaining checklist.
 
-The article reports benchmark results from the authors’ harness, including lower cost and faster completion for the prewalk arrangement in the tested tasks. Rostrum should treat those results as an implementation hypothesis, not as a product guarantee.
+The article reports benchmark results from the authors' harness, including lower cost and faster completion for the prewalk arrangement in the tested tasks. Rostrum should treat those results as an implementation hypothesis, not a product guarantee.
 
 ## Rostrum interpretation: the transfer node
 
@@ -42,7 +42,7 @@ The node should expose explicit options for:
 
 The transfer node must report what was retained, pruned, summarized, or rejected. The resulting transfer packet is an auditable artifact or event, not an opaque provider-side mutation.
 
-The handoff condition must be explicit and observable. A fixed turn count is likely too coarse because the model may be lost or finished at different points. A first edit alone is also insufficient; the workflow should require a bounded checklist and a validation condition so the executor does not lose the task’s completion criteria.
+The handoff condition must be explicit and observable. A fixed turn count is likely too coarse because the model may be lost or finished at different points. A first edit alone is also insufficient. The workflow should require a bounded checklist and a validation condition so the executor does not lose the task's completion criteria.
 
 ## Required boundaries
 
@@ -64,4 +64,4 @@ The handoff condition must be explicit and observable. A fixed turn count is lik
 
 ## Initial decision
 
-Rostrum should implement a first-class transfer node with prewalk-style configuration as one supported strategy. It should not make a two-model transfer mandatory, and it should not treat the original article’s benchmark numbers as acceptance criteria. The first implementation should preserve a provider-neutral transfer packet, test model swaps with a local/mock provider, and make pruning/failure behavior visible before optimizing for specific model APIs.
+Rostrum should implement a first-class transfer node with prewalk-style configuration as one supported strategy. A two-model transfer should remain optional, and the original article's benchmark numbers should not become acceptance criteria. The first implementation should preserve a provider-neutral transfer packet, test model swaps with a local/mock provider, and make pruning and failure behavior visible before optimizing for specific model APIs.

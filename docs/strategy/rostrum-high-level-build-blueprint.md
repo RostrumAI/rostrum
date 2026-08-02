@@ -1,4 +1,4 @@
-# Rostrum: High-Level Build Blueprint
+# Rostrum: High-level build blueprint
 
 Status: Draft for architecture and product discussion  
 Source: [AI Workflow Engine Market Research - synthesis](../research/ai-workflow-engine-market-research-synthesis.md)  
@@ -19,14 +19,14 @@ Audience: Founders, product, engineering, and design
 
 ## 1. Executive summary
 
-Rostrum should be a generic platform for defining and executing reliable automation and AI workflows. A Rostrum "workflow" is a reusable, versioned workflow graph rather than a system prompt or an open-ended chat session. The graph combines specialized reasoning nodes with deterministic nodes for operations that must be literal, inspectable, and repeatable. Natural-language intake is not a core Rostrum responsibility: callers provide structured workflow inputs, while a domain-specific workflow may itself accept a prompt or route a request to another workflow.
+Rostrum is a platform for defining and executing reliable automation and AI workflows. A Rostrum "workflow" is a reusable, versioned workflow graph, not a system prompt or an open-ended chat session. The graph combines reasoning nodes with deterministic nodes for operations that must be literal, inspectable, and repeatable. Natural-language intake is outside Rostrum's core responsibility: callers provide structured workflow inputs, while a domain-specific workflow may accept a prompt or route a request to another workflow.
 
-The product should make it possible to define a workflow once and invoke it from several places: the web/desktop control application, a mobile-friendly surface, an SDK or API, or an external event such as a pull request, CI failure, data arrival, or production alert. The CLI focuses initially on validating and uploading workflow JSON. Every invocation supplies a workflow identifier and structured inputs. A workflow may contain a prompt-taking node or decider, but that is workflow behavior rather than implicit Rostrum intake.
+Users can define a workflow once and invoke it from several places: the web/desktop control application, a mobile-friendly surface, an SDK or API, or an external event such as a pull request, CI failure, data arrival, or production alert. The CLI initially validates and uploads workflow JSON. Every invocation supplies a workflow identifier and structured inputs. A workflow may contain a prompt-taking node or decider, but that is workflow behavior rather than implicit Rostrum intake.
 
-The core product is therefore the execution lifecycle:
+The product centers on the execution lifecycle:
 
 1. Receive a workflow invocation or event.
-2. Validate and bind the workflow’s declared inputs.
+2. Validate and bind the workflow's declared inputs.
 3. Build or load the workflow graph.
 4. Execute the graph durably across bounded loops and isolated runtimes.
 5. Persist state, logs, decisions, and artifacts.
@@ -34,7 +34,7 @@ The core product is therefore the execution lifecycle:
 7. Expose progress and controls to users.
 8. Produce a verifiable result, with the evidence to back it, rather than just a final answer.
 
-The market research strongly supports this direction: reliability comes from graph constraints, typed handoffs, deterministic verification, durable checkpoints, isolated execution, and a clear separation between orchestration and user interface.
+The market research points to graph constraints, typed handoffs, deterministic verification, durable checkpoints, isolated execution, and a clear separation between orchestration and user interface as the main sources of reliability.
 
 ## 2. The problem Rostrum solves
 
@@ -105,7 +105,7 @@ This is the central product capability. Interfaces, triggers, and execution targ
 
 Rostrum needs a Model Provider Layer that is separate from both workflow execution and the Context Layer. It should own provider authentication, model/capability discovery, request and response normalization, routing, fallback, and usage accounting. The model runtime consumes that layer to execute reasoning nodes under structured contracts and context boundaries. The Context Layer supplies approved information; it does not broker model calls.
 
-The runtime should support fresh contexts for separate roles and a first-class transfer node. A workflow may deliberately begin a conversation with a stronger model for repository/context exploration, planning, or an initial edit, then transfer the execution trajectory to a cheaper or faster model once a declared condition is reached. The transfer node should configure target selection, context pruning, continuation state, and failure behavior. It should preserve the relevant context, tool history, structured task state, and first valid action rather than reducing the transfer to a prose plan that forces the next model to reread the same material. A verifier should still be able to evaluate an artifact against an original contract without inheriting the implementer’s assumptions.
+The runtime should support fresh contexts for separate roles and a first-class transfer node. A workflow may begin a conversation with a stronger model for repository or context exploration, planning, or an initial edit, then transfer the execution trajectory to a cheaper or faster model after a declared condition. The transfer node should configure target selection, context pruning, continuation state, and failure behavior. It should preserve the relevant context, tool history, structured task state, and first valid action. A prose-only handoff would force the next model to reread the same material. A verifier should still evaluate an artifact against the original contract without inheriting the implementer's assumptions.
 
 ### 4.4 Context layer
 
@@ -135,7 +135,7 @@ Deterministic nodes are first-class workflow components. They should cover the o
 - approval and notification actions;
 - external API calls through controlled integrations.
 
-Sandboxed scripts should also be first-class deterministic nodes. A script author supplies an OCI image, Dockerfile/build context, or equivalent runnable definition and therefore owns the language runtime, dependencies, command behavior, and output production. Rostrum delivers declared inputs, runs the container in an isolated target, captures stdout, stderr, exit status, files, artifacts, and resource usage, and applies author-defined output bindings to downstream node inputs. Rostrum validates a declared output schema when one exists, but it does not infer the script's output contract or manage its dependencies.
+Sandboxed scripts should also be deterministic nodes. A script author supplies an OCI image, Dockerfile/build context, or equivalent runnable definition and owns the language runtime, dependencies, command behavior, and output format. Rostrum delivers declared inputs, runs the container in an isolated target, captures stdout, stderr, exit status, files, artifacts, and resource usage, and applies author-defined output bindings to downstream node inputs. Rostrum validates a declared output schema when one exists, but it does not infer the script's output contract or manage its dependencies.
 
 Every tool invocation needs an explicit boundary: allowed inputs, side effects, credentials, runtime target, timeout, and approval policy. This is also where Rostrum turns raw command output into structured observations for later nodes.
 
@@ -306,7 +306,7 @@ The boundary should be an implementation boundary, not a different product model
 
 The canonical priority order lives in the [Platform Product Plan delivery milestones](rostrum-end-to-end-product-plan.md#3-delivery-milestones), where each milestone maps one-to-one to a delivery Epic. At the architecture level, the dependency order is:
 
-1. trust workflow JSON, execute its basic graph locally, make runs durable, then add side-effecting Docker tools/scripts;
+1. define the shape of a workflow and validate its JSON, execute its basic graph locally, make runs durable, then add side-effecting Docker tools/scripts;
 2. add model providers and model nodes, then add read-only project context;
 3. add per-node simulation before investing in the full web/desktop operating experience;
 4. add the SDK and external integrations after the execution and client contracts stabilize;

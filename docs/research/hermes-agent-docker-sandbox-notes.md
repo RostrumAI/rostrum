@@ -1,6 +1,6 @@
-# Hermes Agent Docker Sandbox Notes
+# Hermes Agent Docker sandbox notes
 
-Status: Research input for Rostrum’s Docker execution design  
+Status: Research input for Rostrum's Docker execution design
 Purpose: Capture useful patterns from Hermes Agent without treating its implementation as a Rostrum commitment.
 
 ## Sources
@@ -29,7 +29,7 @@ Useful patterns to investigate for Rostrum:
 
 Rostrum should default to one isolated Docker workspace per workflow run or implementation task. Parallel tasks should not share a mutable container or workspace. They should exchange branches, artifacts, and structured task outputs through the daemon and Control API.
 
-Rostrum should avoid broad host-directory mounts. A run should receive a source snapshot and explicit mounts, then return a branch/commit, diff, artifacts, and evidence. The user’s host repository is not the execution workspace.
+Rostrum should avoid broad host-directory mounts. A run should receive a source snapshot and explicit mounts, then return a branch or commit, diff, artifacts, and evidence. The user's host repository is not the execution workspace.
 
 Rostrum should not expose arbitrary Docker flags to workflow authors. Resource, network, capability, mount, and privilege settings should be represented as validated target/policy fields so a workflow cannot silently weaken its own sandbox.
 
@@ -44,4 +44,3 @@ Persistent containers may be useful for long-running development servers or deli
 - Benchmark ephemeral versus persistent containers for development-server workflows.
 - Verify resource and network enforcement across Docker Desktop and Linux Docker Engine.
 - Define the minimum hardening profile Rostrum can enforce without making common builds unusable.
-

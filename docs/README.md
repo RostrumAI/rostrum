@@ -1,13 +1,13 @@
 # Rostrum documentation
 
-This directory is organized to move from evidence, to product decisions, to implementation work.
+This directory moves from evidence to product decisions and then to implementation work.
 
 ## Document flow
 
-1. **Research** establishes the market context, architectural patterns, and source material.
-2. **Strategy** defines what Rostrum is, why it exists, and how the end-to-end product should work.
+1. **Research** records market context, architectural patterns, and source material.
+2. **Strategy** defines Rostrum, its purpose, and the shape of the product.
 3. **PRDs** define use cases, requirements, product boundaries, and open decisions for each product area.
-4. **Epics** combine the required parts of the PRDs into priority-ordered, demonstrable delivery milestones, including SPIKEs where the design is not yet settled.
+4. **Epics** turn the PRDs into ordered delivery milestones. They also contain SPIKEs for decisions that are not settled yet.
 
 ## Current documents
 
@@ -23,7 +23,7 @@ This directory is organized to move from evidence, to product decisions, to impl
 - [Rostrum High-Level Build Blueprint](strategy/rostrum-high-level-build-blueprint.md)
 - [Rostrum Platform Product Plan](strategy/rostrum-end-to-end-product-plan.md)
 
-The product plan now organizes Rostrum around delivery milestones and a showcase suite: workflow JSON and collaborative authoring, durable execution, a separate Model Provider Layer and read-only Context Layer, Docker/self-hosted execution, and Rostrum Cloud microVMs.
+The product plan organizes Rostrum around delivery milestones and a showcase suite. It covers workflow JSON and collaborative authoring, durable execution, a separate Model Provider Layer and read-only Context Layer, Docker/self-hosted execution, and Rostrum Cloud microVMs.
 
 ### Product requirements
 
@@ -31,8 +31,8 @@ The product plan now organizes Rostrum around delivery milestones and a showcase
 
 ### Implementation planning
 
-- [Epics and SPIKEs](epics/)
+- [Epic 01: Shape of a Workflow](epics/epic-01-shape-of-a-workflow.md)
 
 ## How to use this documentation
 
-The strategy blueprint defines Rostrum's shape. PRDs describe requirements by product area. The product plan then orders those requirements into milestones, with Milestone M1 mapping to Epic-01, M2 to Epic-02, and so on. Keep unresolved architecture questions as explicit SPIKEs inside the Epic that needs the decision.
+The strategy blueprint defines Rostrum's shape. PRDs describe requirements by product area. The product plan orders those requirements into milestones, with Milestone M1 mapping to Epic-01, M2 to Epic-02, and so on. Keep unresolved architecture questions as explicit SPIKEs inside the Epic that needs the decision.

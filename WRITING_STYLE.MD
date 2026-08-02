@@ -6,7 +6,7 @@ Use this style for Rostrum strategy, product, PRD, and Epic documentation.
 
 - State what the document or section establishes before explaining it.
 - Describe the product as a platform for defining and executing workflows. Do not imply that prompt intake, workflow selection, or AI authorship are inherent platform behavior; they are capabilities a workflow may implement.
-- Make scope boundaries explicit when they prevent a likely misunderstanding.
+- Define scope primarily by stating what the document delivers. Do not enumerate obvious exclusions. State a boundary only when a reasonable reader might otherwise infer a materially different product or body of work.
 
 ## Make the structure do the explaining
 
