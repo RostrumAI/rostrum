@@ -2,9 +2,9 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Decided — pending proof-of-concept verification |
+| Status | Decided — proof of concept verified |
 | Source | [E1-S0: Select the implementation stack and workflow database](../../tasks/epic-01/e1-s0-select-implementation-stack.md) |
-| Last updated | 2026-08-10 |
+| Last updated | 2026-08-11 |
 
 ## Decision
 

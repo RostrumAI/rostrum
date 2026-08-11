@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | In progress |
-| Last updated | 2026-08-10 |
+| Status | Done |
+| Last updated | 2026-08-11 |
 | Picked up | Yes |
 | Owner | Unassigned |
 | Blocked by | None |

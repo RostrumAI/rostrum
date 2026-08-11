@@ -1,0 +1,27 @@
+# Local development database for the Rostrum proof of concept.
+# One documented command starts a reproducible Postgres with no machine-local install:
+#
+#   docker compose up -d --wait postgres
+#
+# Default connection: postgres://rostrum:rostrum@localhost:5432/rostrum
+# Override the target with a custom DATABASE_URL (e.g. a different database
+# created with: docker compose exec postgres createdb -U rostrum <name>).
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rostrum
+      POSTGRES_PASSWORD: rostrum
+      POSTGRES_DB: rostrum
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rostrum -d rostrum"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - rostrum-pgdata:/var/lib/postgresql/data
+
+volumes:
+  rostrum-pgdata:
