@@ -13,5 +13,8 @@
     "erasableSyntaxOnly": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true
-  }
+  },
+  // Base configuration for workspace packages. `files: []` keeps the root
+  // program empty until workspace packages extend this config (E1-01).
+  "files": []
 }

@@ -8,6 +8,8 @@
 | Branch | `epic-1/e1-s0-proof-of-concept` |
 
 > Update 2026-08-11: the toolchain moved from TypeScript 6.0.3 to TypeScript 7.0.2 (native compiler) after this record was verified. The swap was one pin change with zero source or configuration edits; the full check surface (typecheck, tests, lint, peer check) was re-run green on 7.0.2, and the workspace typecheck is roughly 4.5× faster. The decision record now lists TypeScript 7 as the toolchain.
+>
+> Update 2026-08-11: the proof-of-concept scaffold (`apps/control-api`, `packages/workflow-lib`, `packages/api-client`, `scripts/check-typescript-peers.ts`, and the CI workflow) was removed after verification — it existed to prove the stack, not to become product code, and will be re-implemented by E1-01/E1-02/E1-04. The generic toolchain (Bun workspaces root, TypeScript 7, Biome, dev-Postgres compose service) and the `apps/`/`packages/`/`scripts/` layout skeletons remain. The complete scaffold is preserved in the git history of branch `epic-1/e1-s0-proof-of-concept` (commits `c6b6449` and `7c72d27`).
 
 ## Proof of concept
 
@@ -22,6 +24,8 @@ The POC code is deliberately thin and lives at:
 - `.github/workflows/ci.yml` — install, typecheck, peer check, lint, tests with a Postgres service container
 
 ## Verification runbook
+
+> The scaffold this runbook exercises was removed after verification (see the update note above); the commands are preserved as the verification record and as the acceptance recipe for re-implementation in E1-01/E1-02.
 
 Run the steps below in order on branch `epic-1/e1-s0-proof-of-concept`. Each step lists the command and the expected result; the `#` column maps to the checklist row being verified. Steps that need no database are marked `(no DB)`.
 

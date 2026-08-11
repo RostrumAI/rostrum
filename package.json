@@ -7,16 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "bun run --filter '*' typecheck",
-    "check:peers": "bun scripts/check-typescript-peers.ts",
+    "check": "echo 'no workspace packages yet — per-package typecheck (bun run --filter \"*\" typecheck) arrives with E1-01'",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "db:up": "docker compose up -d --wait postgres",
-    "db:down": "docker compose down",
-    "migrate": "bun run --filter @rostrum/control-api migrate",
-    "gen:client": "openapi-typescript apps/control-api/openapi.json -o packages/api-client/src/generated.ts"
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",
