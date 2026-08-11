@@ -7,6 +7,8 @@
 | Last updated | 2026-08-11 |
 | Branch | `epic-1/e1-s0-proof-of-concept` |
 
+> Update 2026-08-11: the toolchain moved from TypeScript 6.0.3 to TypeScript 7.0.2 (native compiler) after this record was verified. The swap was one pin change with zero source or configuration edits; the full check surface (typecheck, tests, lint, peer check) was re-run green on 7.0.2, and the workspace typecheck is roughly 4.5× faster. The decision record now lists TypeScript 7 as the toolchain.
+
 ## Proof of concept
 
 The thin proof of concept proves the package, process, and persistence boundaries selected by [Decision e1-s0](../../decisions/epic-01/e1-s0-implementation-stack.md). Each row lists what it verifies, how, and the pass criterion; rows move from Open to Done with an outcome note as the POC runs. Driver transaction support is verified by row 5; revision-check race and publication atomicity *semantics* are not POC material — they are designed by E1-S3 and tested by E1-07.
@@ -36,9 +38,9 @@ bun install
 bun run check:peers
 ```
 
-Expected: `resolved typescript: typescript@6.0.3` and `OK: no installed package requires TypeScript 5.x or 7.x`. A warning about `openapi-typescript`'s declared `^5.x` peer range is the known finding below — it has no TypeScript runtime dependency, and its generated output typechecks under 6.0.3.
+Expected: `resolved typescript: typescript@7.0.2` and `OK: no installed package requires TypeScript 5.x or 7.x`. A warning about `openapi-typescript`'s declared `^5.x` peer range is the known finding below — it has no TypeScript runtime dependency, and its generated output typechecks under 7.0.2.
 
-### 2. TypeScript 6 + TypeBox 1.x under Bun — rows 1 and 8 `(no DB)`
+### 2. TypeScript 7 + TypeBox 1.x under Bun — rows 1 and 8 `(no DB)`
 
 ```bash
 bun run check          # tsc --noEmit across all workspaces
@@ -168,8 +170,8 @@ docker compose down     # keeps the named volume; add -v to remove data
 
 | # | Verify | How | Pass criterion | Status |
 | --- | --- | --- | --- | --- |
-| 1 | TypeBox 1.x and TypeScript 6.x under Bun | Pin `typescript@6.x` and `typebox@^1.3`; run `bun run` and `bun test`; run `tsc --noEmit`; validate one TypeBox type and one native JSON Schema with `Schema.Compile` | Build, tests, and typecheck pass; both validations succeed without TypeScript 5.x fallbacks | Done — typescript@6.0.3 + typebox@1.3.12; `bun run check` clean across all workspaces; `Schema.Compile` validates a `Type.Object` and a hand-written JSON Schema in workflow-lib tests; `typebox/schema` accepts both, `date-time` format enforced |
-| 2 | Stack toolchain under TypeScript 6 | Install `hono-openapi@1.3` with its Standard Schema peers, `openapi-typescript`, and Biome | No package in the stack requires TypeScript 5.x or 7.x | Done — `bun run check:peers` reports no package requiring 5.x/7.x. Finding: `openapi-typescript@7.13.0` declares peer `typescript ^5.x` but has no TypeScript runtime dependency; its generated output typechecks under 6.0.3 (rows 8/12). Kysely 0.29 requires `kysely/migration` imports and the `kysely-postgres-js` bridge for postgres.js |
+| 1 | TypeBox 1.x and TypeScript 6.x under Bun | Pin `typescript@6.x` and `typebox@^1.3`; run `bun run` and `bun test`; run `tsc --noEmit`; validate one TypeBox type and one native JSON Schema with `Schema.Compile` | Build, tests, and typecheck pass; both validations succeed without TypeScript 5.x fallbacks | Done — typescript@7.0.2 + typebox@1.3.12 (moved from 6.0.3 after verification; see update note); `bun run check` clean across all workspaces; `Schema.Compile` validates a `Type.Object` and a hand-written JSON Schema in workflow-lib tests; `typebox/schema` accepts both, `date-time` format enforced |
+| 2 | Stack toolchain under TypeScript 6 | Install `hono-openapi@1.3` with its Standard Schema peers, `openapi-typescript`, and Biome | No package in the stack requires TypeScript 5.x or 7.x | Done — `bun run check:peers` reports no package requiring 5.x/7.x. Finding: `openapi-typescript@7.13.0` declares peer `typescript ^5.x` but has no TypeScript runtime dependency; its generated output typechecks under 7.0.2 (rows 8/12). Kysely 0.29 requires `kysely/migration` imports and the `kysely-postgres-js` bridge for postgres.js |
 | 3 | OpenAPI generation from TypeBox schemas | Describe one route with `hono-openapi` and a TypeBox schema; fetch the generated document | Document is OpenAPI 3.1; `additionalProperties: false`, `format: date-time`, and unions survive; the schema round-trips unchanged | Done — document is 3.1.0; components carry the TypeBox schemas verbatim (round-trip test compares deep equality); unions render as `anyOf`; served document equals the checked-in dump (parity test) |
 | 4 | Test harness patterns | Integration test via `app.fetch()` without a socket; second test boots the real process over HTTP | Both patterns run in CI and pass the same assertions | Done — `test/app.test.ts` (socket-free, in-memory repo) and `test/server.test.ts` (spawned process, Postgres repo) share the same assertions; both run in the CI workflow |
 | 5 | Postgres driver on Bun | Connect, run prepared statements, and commit and roll back a transaction with `postgres` (postgres.js) | Connection and transaction control work cleanly under Bun | Done — driver tests connect, prepared-insert into a temp table, `sql.begin` commit and rollback |
@@ -185,7 +187,7 @@ docker compose down     # keeps the named volume; add -v to remove data
 
 ## Findings recorded
 
-- **`openapi-typescript` peer range is stale** (`typescript ^5.x`): declared only; no TypeScript runtime dependency; generated output typechecks under 6.0.3. Revisit when the package updates its peer range.
+- **`openapi-typescript` peer range is stale** (`typescript ^5.x`): declared only; no TypeScript runtime dependency; generated output typechecks under 7.0.2. Revisit when the package updates its peer range.
 - **PostgreSQL cannot store NUL bytes**: workflow strings with `\u0000` are valid JSON but not storable in `jsonb`. The workflow schema now carries `pattern: "^[^\\u0000]*$"`, so the constraint is part of the public contract and returns `typebox.pattern` findings.
 - **Kysely 0.29 migration APIs moved** to `kysely/migration`; postgres.js integration requires the `kysely-postgres-js` dialect. Both are pinned in the workspace manifest; the POC provider wraps SQL files with `-- UP` / `-- DOWN` sections.
 - **SSE schema shape**: conformance tooling validates each event's `event:` name and raw `data:` string against the documented schema, so the media-type schema describes the wire shape, not a parsed payload.

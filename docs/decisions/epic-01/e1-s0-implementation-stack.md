@@ -26,6 +26,7 @@ E1-S0 must select the stack before product code exists. The blueprint and epics 
 | Decision | Choice | Reason |
 | --- | --- | --- |
 | Language and runtime | Bun + TypeScript | Chosen architecture; Bun provides runtime, package management, test runner, and native HTTP in one toolchain. |
+| TypeScript toolchain | TypeScript 7 (`typescript@^7.0.2`) | Native compiler with a stable CLI surface; verified by the POC with zero source changes. The unstable programmatic API is a deferred caveat for future API-consuming tooling, not for the current stack. |
 | Database | Postgres | Chosen database; durable store for drafts, revisions, findings, and published versions. |
 | Database driver | `postgres` (postgres.js) | Proven, Bun-first-class, and portable to non-Bun runtimes for the Cloud control plane; built-in connection pooling and `sql.begin(...)` transactions. |
 | Query and migration layer | Kysely + Kysely `Migrator` with SQL-file migrations | Typed queries without ORM magic for the persistence contract the Control API and daemon share; SQL files are the migration source of truth and run programmatically in tests. |
@@ -54,7 +55,7 @@ E1-S0 must select the stack before product code exists. The blueprint and epics 
 ## Assumptions to confirm in the proof of concept
 
 - `bun test` serves as the test runner and `bun` as the package manager.
-- TypeBox 1.x (the `typebox` package) is used with a TypeScript 6.x toolchain. TypeBox 1.x requires TypeScript 6.0–7.0+ and is ESM-only; the 0.x LTS line (`@sinclair/typebox`) is only for a repository pinned to TypeScript 5.x. TypeScript 7.0 (stable August 2026) is not yet adopted for the foundation because it lacks a stable programmatic API; revisit when ecosystem tooling supports it.
+- TypeBox 1.x (the `typebox` package) is used with a TypeScript 7.x toolchain (`typescript@^7.0.2`, the native compiler). TypeBox 1.x requires TypeScript 6.0–7.0+ and is ESM-only; the 0.x LTS line (`@sinclair/typebox`) is only for a repository pinned to TypeScript 5.x. TypeScript 7 was adopted after the proof of concept verified the swap: zero source or configuration changes, the full check surface green, and the workspace typecheck roughly 4.5× faster. TypeScript 7's programmatic API is not yet stable, but no stack tooling uses it today (the stack only runs `tsc --noEmit`; `openapi-typescript` and Biome have their own pipelines). Revisit the API-stability caveat before adopting tooling that consumes the TypeScript API (typedoc, API extractor, custom transformers).
 - `hono-openapi` (third-party, schema-agnostic) generates the OpenAPI document from TypeBox schemas; its lack of runtime response type-checking is closed by contract-checked response assertions in the test and conformance harnesses.
 
 ## Deferred decisions
