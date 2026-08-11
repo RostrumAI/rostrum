@@ -10,7 +10,7 @@
 
 ## Task
 
-Decisions made so far are recorded in [Decision 0001: Implementation stack, Control API contract, and workflow persistence](../../decisions/0001-implementation-stack.md): Bun, Postgres, Hono, OpenAPI 3.1 generated from TypeBox schemas.
+Decisions made so far are recorded in [Decision e1-s0: Implementation stack, Control API contract, and workflow persistence](../../decisions/epic-01/e1-s0-implementation-stack.md): Bun, Postgres, Hono, OpenAPI 3.1 generated from TypeBox schemas, postgres.js with Kysely, a Docker Compose development database, a Bun-workspace monorepo, Biome, and GitHub Actions.
 
 This SPIKE selects the technical foundation for Epic 1. It answers:
 
@@ -44,3 +44,7 @@ The recommendation must be proven with a thin implementation.
 - The decision covers builds, dependency management, API development, testing, and release boundaries.
 - The Control API and future daemon are independently runnable applications that can share workflow code.
 - A thin proof of concept demonstrates the key package, process, and persistence boundaries.
+
+## Proof of concept verification
+
+The verification checklist and its outcomes are recorded in the [E1-S0 result: Proof-of-concept verification](../../results/epic-01/e1-s0-proof-of-concept.md).

@@ -8,7 +8,10 @@ This directory moves from evidence to product decisions and then to implementati
 2. **Strategy** defines Rostrum, its purpose, and the shape of the product.
 3. **Epics** define each delivery milestone, its requirements, its boundaries, and the decisions still needed.
 4. **Decisions** record approved SPIKE outcomes that later implementation work depends on.
-5. **Tasks** contain the bounded implementation work and acceptance criteria for each Epic.
+5. **Results** record spike proof-of-concept and verification outcomes.
+6. **Tasks** contain the bounded implementation work and acceptance criteria for each Epic.
+
+Files under `decisions/`, `results/`, and `tasks/` follow the same naming scheme: an epic folder (`epic-01/`) plus a file named `<epic>-<task>-<slug>.md`, so the folder and file name identify the exact epic task a decision or result belongs to.
 
 ## Current documents
 
@@ -34,7 +37,11 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 
 ### Decisions
 
-- [0001: Implementation stack, Control API contract, and workflow persistence](decisions/0001-implementation-stack.md)
+- [E1-S0: Implementation stack, Control API contract, and workflow persistence](decisions/epic-01/e1-s0-implementation-stack.md)
+
+### Results
+
+- [E1-S0: Proof-of-concept verification](results/epic-01/e1-s0-proof-of-concept.md)
 
 ## How to use this documentation
 
