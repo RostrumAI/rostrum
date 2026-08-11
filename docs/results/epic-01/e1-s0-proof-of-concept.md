@@ -47,10 +47,10 @@ bun run check          # tsc --noEmit across all workspaces
 bun test packages/workflow-lib
 ```
 
-Expected: typecheck clean; workflow-lib tests pass (TypeBox type and native JSON Schema both validate through `Schema.Compile`, union/format/additionalProperties behavior, digest known vector). One `typebox` version in the lockfile:
+Expected: typecheck clean; workflow-lib tests pass (TypeBox type and native JSON Schema both validate through `Schema.Compile`, union/format/additionalProperties behavior, digest known vector). One resolved TypeBox version in the lockfile (the string also appears in peer-dependency declarations of `@standard-community/*`, which is expected):
 
 ```bash
-grep -c '"typebox"' bun.lock   # exactly 1
+bun pm ls --all | grep typebox   # exactly one line: typebox@1.3.12
 ```
 
 ### 3. Local database — rows 5–7
