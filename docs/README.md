@@ -7,7 +7,8 @@ This directory moves from evidence to product decisions and then to implementati
 1. **Research** records market context, architectural patterns, and source material.
 2. **Strategy** defines Rostrum, its purpose, and the shape of the product.
 3. **Epics** define each delivery milestone, its requirements, its boundaries, and the decisions still needed.
-4. **Tasks** contain the bounded implementation work and acceptance criteria for each Epic.
+4. **Decisions** record approved SPIKE outcomes that later implementation work depends on.
+5. **Tasks** contain the bounded implementation work and acceptance criteria for each Epic.
 
 ## Current documents
 
@@ -29,6 +30,11 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 
 - [Epic 01: Shape of a Workflow](epics/epic-01-shape-of-a-workflow.md)
 - [Epic 02: Local Workflow Execution](epics/epic-02-local-workflow-execution.md)
+- [Epic 03: Durable Runs and Human Control](epics/epic-03-durable-runs-and-human-control.md)
+
+### Decisions
+
+- [0001: Implementation stack, Control API contract, and workflow persistence](decisions/0001-implementation-stack.md)
 
 ## How to use this documentation
 

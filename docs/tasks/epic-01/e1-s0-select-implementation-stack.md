@@ -2,13 +2,15 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-02 |
-| Picked up | No |
+| Status | In progress |
+| Last updated | 2026-08-10 |
+| Picked up | Yes |
 | Owner | Unassigned |
 | Blocked by | None |
 
 ## Task
+
+Decisions made so far are recorded in [Decision 0001: Implementation stack, Control API contract, and workflow persistence](../../decisions/0001-implementation-stack.md): Bun, Postgres, Hono, OpenAPI 3.1 generated from TypeBox schemas.
 
 This SPIKE selects the technical foundation for Epic 1. It answers:
 
