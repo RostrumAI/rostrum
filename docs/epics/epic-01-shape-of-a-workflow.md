@@ -47,7 +47,7 @@ The Control API starts as its own process. Epic 02 adds the daemon as a separate
 | Capability | What exists at the end of the Epic | What it accomplishes |
 | --- | --- | --- |
 | Repository and service foundation | Reproducible builds, quality checks, continuous integration, shared workflow code, and a standalone Control API process | Gives implementation work one repository and service structure |
-| Workflow interface v1 | One specification, JSON Schema, and example set covering sequential steps, branches, data references, and terminal results | Gives authors and Rostrum the same versioned definition of a workflow |
+| Workflow interface v1 | One specification, JSON Schema, and example set covering sequential steps, fan-out, fan-in, dependencies, bounded loops, conditionals, data references, and terminal results | Gives authors and Rostrum the same versioned definition of a workflow |
 | Workflow validator | One shared implementation that reads JSON and returns stable findings for every documented v1 rule | Identifies repairable problems and prevents invalid publication |
 | Workflow database | The selected database or equivalent store, with schemas and migrations for drafts, revisions, findings, and published versions | Preserves workflow definitions across Control API restarts |
 | Draft and publication operations | Control API operations to validate, save, revise, publish, and retrieve workflows | Gives human and automated authors one workflow-authoring boundary |
@@ -56,7 +56,7 @@ The Control API starts as its own process. Epic 02 adds the daemon as a separate
 
 ## Workflow interface v1 is a starting point
 
-The first workflow interface should be small enough to implement and test before local execution begins. Version 1 needs to describe sequential steps, branches, and terminal results. Later versions can add more control-flow and node capabilities as their Epics define them.
+The first workflow interface should be small enough to implement and test before local execution begins. Version 1 needs to describe sequential steps, fan-out, fan-in, dependencies, bounded loops, conditionals, and terminal results. Later versions can add unbounded loops, nested loops, relaxed merge-after-branch restrictions, and more control-flow capabilities as their Epics define them.
 
 Three kinds of version must remain distinct:
 
@@ -87,12 +87,14 @@ The workflow specification produced by this Epic will choose the final property 
 | Question | Information the workflow provides |
 | --- | --- |
 | What code understands this workflow? | The workflow interface version |
-| Which workflow is this? | A stable workflow ID, name, description, and other basic details |
+| Which workflow is this? | A stable UUID v7 ID, name, description, and other basic details |
 | What information does it accept? | Named inputs and the shape of each value |
-| What work does it describe? | Steps with unique IDs, step types, settings, inputs, and outputs |
-| Where does work begin and continue? | A starting step and connections to the next steps |
-| How does it choose a path? | Branches whose outcomes lead to named next steps |
-| How does information move? | References that pass workflow inputs and earlier step outputs into later steps |
+| What work does it describe? | Steps with unique UUID v7 IDs, step types, settings, inputs, and outputs |
+| Where does work begin and continue? | A first node and successors that fan out to next steps |
+| How does work converge? | Dependencies — step IDs that must complete before a step starts |
+| How does it choose a path? | Conditionals with branch rules (label, priority, condition) that lead to named next steps |
+| How does it iterate? | Bounded loops over a collection with a required maxIterations cap |
+| How does information move? | References that pass workflow inputs, earlier step outputs, and loop variables into later steps |
 | How does it finish? | Terminal results and the workflow outputs they produce |
 
 Unknown fields and unsupported step types should produce clear validation errors instead of being ignored.
@@ -135,9 +137,10 @@ The SPIKEs select the technical foundation, workflow shape, validation rules, an
 | [E1-S1](../tasks/epic-01/e1-s1-define-workflow-interface-v1.md) | Decide what workflow JSON v1 contains and how it evolves. | None |
 | [E1-S2](../tasks/epic-01/e1-s2-define-validation-behavior.md) | Decide which validation checks run and what findings they return. | E1-S1 |
 | [E1-S3](../tasks/epic-01/e1-s3-define-draft-publication-lifecycle.md) | Decide how drafts, revisions, publication, identity, and digests work. | E1-S1 |
+| [E1-S4](../tasks/epic-01/e1-s4-define-versioning-methodology.md) | Decide versioning methodology and how version changes affect running workflows. | E1-S1, E1-S3 |
 | [E1-01](../tasks/epic-01/e1-01-create-project-foundation.md) | Create the repository, build commands, tests, and continuous integration. | E1-S0 |
 | [E1-02](../tasks/epic-01/e1-02-build-control-api-foundation.md) | Create the separately runnable Control API process. | E1-01 |
-| [E1-03](../tasks/epic-01/e1-03-write-workflow-interface-v1-specification.md) | Combine the workflow decisions into one specification, schema, and example set. | E1-S1, E1-S2, E1-S3 |
+| [E1-03](../tasks/epic-01/e1-03-write-workflow-interface-v1-specification.md) | Combine the workflow decisions into one specification, schema, and example set. | E1-S1, E1-S2, E1-S3, E1-S4 |
 | [E1-04](../tasks/epic-01/e1-04-implement-workflow-library-and-validator.md) | Create the shared workflow reader, validator, findings, and publication preparation. | E1-01, E1-03 |
 | [E1-05](../tasks/epic-01/e1-05-build-workflow-example-validation-suite.md) | Turn specification examples into reusable validation fixtures and expected results. | E1-03, E1-04 |
 | [E1-06](../tasks/epic-01/e1-06-add-control-api-workflow-operations.md) | Expose validation, draft, publication, and retrieval through the Control API. | E1-02, E1-04, E1-05 |
@@ -152,8 +155,11 @@ flowchart LR
     S0["E1-S0<br/>Stack + database"] --> E01["E1-01<br/>Repository foundation"]
     S1["E1-S1<br/>Workflow interface"] --> S2["E1-S2<br/>Validation behavior"]
     S1 --> S3["E1-S3<br/>Draft lifecycle"]
+    S3 --> S4["E1-S4<br/>Versioning methodology"]
+    S1 --> S4
     S2 --> E03["E1-03<br/>Specification"]
     S3 --> E03
+    S4 --> E03
     E01 --> E02["E1-02<br/>Control API process"]
     E01 --> E04["E1-04<br/>Library and validator"]
     E03 --> E04
@@ -177,8 +183,9 @@ The task table is the source of truth for exact dependencies. E1-S0 and E1-S1 ca
 ## Decisions required before implementation
 
 - E1-S0 must approve the implementation stack, repository structure, process boundaries, test approach, and database or equivalent workflow store before E1-01 begins.
-- E1-S1 must approve workflow interface v1, identity fields, step extension, graph concepts, and compatibility rules before E1-S2 and E1-S3 begin.
+- E1-S1 must approve workflow interface v1, identity fields, step extension, DAG topology (fan-out, fan-in, dependencies), conditionals, bounded loops, UUID v7 identifiers, and compatibility rules before E1-S2, E1-S3, and E1-S4 begin.
 - E1-S2 and E1-S3 must approve validation findings, draft revisions, publication behavior, version identity, and digest rules before E1-03 finalizes the public contract.
+- E1-S4 must approve versioning methodology — operational vs metadata change classification, what triggers a version bump, and how version changes affect running workflows — before E1-03 finalizes the public contract.
 - E1-03 must produce an internally consistent specification, JSON Schema, and examples before the validator and example suite become implementation contracts.
 
 ## Dependencies and sequencing constraints
@@ -202,7 +209,7 @@ Epic 01 is complete when all of the following are true:
 
 ### Workflow interface v1 is defined
 
-- The specification explains the interface version, workflow details, inputs, steps, connections, branches, data references, and terminal results.
+- The specification explains the interface version, workflow details, inputs, steps, DAG topology (successors, dependencies), conditionals, loops, data references, and terminal results.
 - The JSON Schema and examples cover the complete v1 shape.
 - The evolution rules explain how future releases continue to recognize v1.
 
