@@ -2,13 +2,15 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-02 |
-| Picked up | No |
-| Owner | Unassigned |
-| Blocked by | [E1-S1](e1-s1-define-workflow-interface-v1.md) |
+| Status | Proposed — awaiting approval |
+| Last updated | 2026-08-16 |
+| Picked up | Yes |
+| Owner | Thomas |
+| Blocked by | None |
 
 ## Task
+
+Decisions made so far are recorded in [Decision e1-s3: Draft revision and publication lifecycle](../../decisions/epic-01/e1-s3-draft-publication-lifecycle.md).
 
 This SPIKE decides how workflow JSON moves from incomplete work to an immutable version. It answers:
 
