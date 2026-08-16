@@ -21,10 +21,10 @@ Specific DAG and topology checks to cover:
 
 - Cycle detection (no step may transitively depend on itself).
 - Dependency reachability (every dependency must be reachable on all paths from `firstNode` to the step — merge-after-branch restriction).
-- Fan-out and branch target validation (all `successors`, `branches[].next`, `default.next`, and `loop.body` reference existing steps).
+- Fan-out and branch target validation (every `successors`, `branches[].next`, `default.next`, and `loop.body` entry that is present references an existing step; a branch or default may omit `next` to end the workflow).
 - Loop bound enforcement (`maxIterations` is a positive integer; body subgraph is acyclic; no nested loops).
 - Conditional validation (all steps referenced in branch conditions are listed in the conditional's `dependencies`; at least one branch exists; `default` is present).
-- Terminal step validation (every reachable path leads to at least one terminal `result` step).
+- Terminal step validation (every reachable path leads to a valid ending: a terminal `result` step or a conditional branch/default whose `next` is omitted).
 
 What code, location, related locations, and structured details does each finding contain?
 How much input/output compatibility can v1 check before execution?

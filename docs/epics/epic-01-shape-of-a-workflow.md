@@ -92,10 +92,10 @@ The workflow specification produced by this Epic will choose the final property 
 | What work does it describe? | Steps with unique UUID v7 IDs, step types, settings, inputs, and outputs |
 | Where does work begin and continue? | A first node and successors that fan out to next steps |
 | How does work converge? | Dependencies — step IDs that must complete before a step starts |
-| How does it choose a path? | Conditionals with branch rules (label, priority, condition) that lead to named next steps |
-| How does it iterate? | Bounded loops over a collection with a required maxIterations cap |
+| How does it choose a path? | Conditionals with branch rules (label, priority, condition) that lead to named next steps or end the workflow |
+| How does it iterate? | Bounded loops over a collection (a workflow input or an earlier step output) with a required maxIterations cap |
 | How does information move? | References that pass workflow inputs, earlier step outputs, and loop variables into later steps |
-| How does it finish? | Terminal results and the workflow outputs they produce |
+| How does it finish? | Terminal results and the workflow outputs they produce, or a conditional branch/default that ends the workflow |
 
 Unknown fields and unsupported step types should produce clear validation errors instead of being ignored.
 
@@ -109,7 +109,7 @@ Validation runs when JSON is submitted for validation, saved as a draft, or sele
 | Select the interface rules | Rostrum supports the declared workflow interface version | The workflow declares an unknown interface version |
 | Check the document shape | Required fields exist and values have the expected types | A step is missing its ID |
 | Check steps and connections | Step IDs are unique, connections point to existing steps, and the starting step is valid | A branch points to a step that does not exist |
-| Check paths and endings | Every declared branch is complete and reachable paths can lead to a valid terminal result | One branch has no destination |
+| Check paths and endings | Every reachable path leads to a valid ending — a terminal result step or a conditional branch/default with no `next` | A reachable path ends at a step that is neither a result step nor an end-workflow branch |
 | Check information passed between steps | References resolve and required step inputs receive compatible values under the supported v1 rules | A step refers to an output that its source step does not declare |
 | Prepare publication | Rostrum can assign and store the published version and digest without ambiguity | The request conflicts with an existing immutable version |
 

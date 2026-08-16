@@ -10,7 +10,7 @@
 
 Workflow JSON v1 is a single JSON object in camelCase. Its top level declares the interface version, workflow identity, named inputs, an unordered list of steps, and a list of conditionals. The primary authoring surface is a visual editor (to be built); the JSON shape is optimized for machine generation and parsing, not human readability.
 
-The step graph is a directed acyclic graph (DAG). Each step declares `successors` (unconditional fan-out to one or more next steps), `conditional` (references a conditional for evaluated routing), `loop` (bounded iteration over a collection), or neither (terminal). Steps declare `dependencies` — step IDs that must complete before the step starts — enabling fan-in. All successors of a step run in parallel with no ordering guarantee. A step that is a dependency of another step must be reachable on all paths from `firstNode` to that step; this prevents a step from requiring results from a predecessor that may not have executed on every branch path.
+The step graph is a directed acyclic graph (DAG). Each step declares `successors` (unconditional fan-out to one or more next steps), `conditional` (references a conditional for evaluated routing), `loop` (bounded iteration over a collection), or neither (terminal). A conditional's branches and default fallback may end the workflow instead of routing to a next step. Steps declare `dependencies` — step IDs that must complete before the step starts — enabling fan-in. All successors of a step run in parallel with no ordering guarantee. A step that is a dependency of another step must be reachable on all paths from `firstNode` to that step; this prevents a step from requiring results from a predecessor that may not have executed on every branch path.
 
 Conditionals are a separate top-level shape. Each conditional declares which step outputs it depends on, a list of branch rules (each with a label, priority, boolean condition, and target step), and a default fallback. Conditions support `all` (AND) and `any` (OR) composition with leaf predicates that reference step outputs.
 
@@ -52,6 +52,7 @@ Unknown fields and unknown step types must produce clear validation errors, not 
 | Conditionals | Separate top-level `conditionals` array; steps reference by UUID | Separates routing logic from step definitions, making conditions inspectable by the visual editor and validator. Each branch has a priority (lowest wins) and a boolean condition supporting `all`/`any` groups. |
 | Loops | `loop` field on steps: bounded `forEach` over a collection | `maxIterations` is required, preventing infinite loops. Only bounded iteration over a finite collection; no `while`/`until` in v1. |
 | Terminal results | A step with neither `successors` nor `conditional`, typed `result`, whose `inputs` are the workflow outputs | Makes "where the workflow finishes and what it produces" a concrete, branchable step instead of a detached global output block. |
+| Conditional endings | A branch rule or the default branch may omit `next`, ending the workflow with the conditional step's outputs as the terminal result | Covers the common "end workflow" default scenario without forcing a `result` step on a path that produces nothing new. |
 | Lifecycle fields | Excluded from authored JSON | `createdAt`, revision, version number, and digest are server-assigned; mixing them into authored JSON couples the document to a specific save or publish event. E1-S3 defines them. |
 
 ## Specification outline
@@ -87,7 +88,7 @@ Every step shares the same base shape; `config` is the step-type-specific part.
 | `conditional` | string (UUID v7) | optional | The `id` of a conditional object that evaluates this step's routing. Mutually exclusive with `successors`. |
 | `loop` | object | optional | Bounded iteration configuration. See "Loop shape" below. Can coexist with `successors` (body runs per iteration, successors run after all iterations complete) or with neither (terminal loop). Mutually exclusive with `conditional`. |
 
-Control-flow rule: a step has exactly one of `successors` or `conditional`, or neither (terminal). A step may additionally have `loop`. A step with neither `successors` nor `conditional` is terminal and must be typed `result`.
+Control-flow rule: a step has exactly one of `successors` or `conditional`, or neither (terminal). A step may additionally have `loop`. A step with neither `successors` nor `conditional` is terminal. A terminal step outside a loop body must be typed `result`; within a loop body, the terminal step may be any type, and its outputs are collected as that iteration's result (Loop rule 7). A conditional branch or default without `next` is also an ending: the workflow ends on that path, and the run's terminal result is the conditional step's resolved outputs.
 
 ### DAG topology rules
 
@@ -98,14 +99,15 @@ The step graph is a directed acyclic graph (DAG). The following rules are enforc
 3. **Dependency reachability:** Every step listed in a step's `dependencies` must be reachable on all paths from `firstNode` to that step. This prevents a step from waiting on a predecessor that may not execute on every branch path (merge-after-branch restriction). This is a v1 limitation that a future interface version may relax.
 4. **Fan-out parallelism:** When a step has multiple `successors`, all successors start in parallel when the step completes. There is no ordering guarantee among parallel successors.
 5. **Fan-in via dependencies:** A step with multiple `dependencies` starts only after all dependencies have completed. This enables join points where parallel branches converge.
-6. **Terminal steps:** A step with neither `successors` nor `conditional` is terminal. A terminal step must be typed `result`.
+6. **Terminal steps:** A step with neither `successors` nor `conditional` is terminal. A terminal step outside a loop body must be typed `result`; a loop body's terminal step may be any type, and its outputs are collected per iteration (Loop rule 7).
+7. **Path endings:** Every reachable path must end at a terminal `result` step or at a conditional branch/default whose `next` is omitted. An end-workflow branch ends the run with the conditional step's outputs as the terminal result.
 
 ### Data references
 
 A binding value is either a JSON literal (string, number, boolean, object, array, or null) or a reference object with the exact shape `{ "ref": "<path>" }`. A path is one of:
 
 - `inputs.<name>` — a workflow input;
-- `step.<stepId>.<outputName>` — an output declared by an upstream step;
+- `step.<stepId>.<outputName>` — an output declared by a step that completes before this reference resolves;
 - `loop.<variable>` — the current element in a loop iteration (available only within loop body steps).
 
 A reference resolves to the referenced value at execution time. The terminal result's workflow outputs are written the same way: a `result` step binds its `inputs`, and the resolved object is the run's terminal result.
@@ -130,14 +132,16 @@ Conditionals are a separate top-level shape. A step that uses conditional routin
 | `label` | string | **required** | Visual-editor-facing name for the branch. |
 | `priority` | integer (≥ 0) | **required** | Branch priority. Lower number = higher precedence. Among branches whose conditions evaluate to true, the branch with the lowest priority number is selected. |
 | `condition` | object | **required** | Boolean condition expression. See "Condition expressions" below. |
-| `next` | string (UUID v7) | **required** | Step ID to execute if this branch is selected. |
+| `next` | string (UUID v7) | optional | Step ID to execute if this branch is selected. Omitted: the workflow ends on this branch (see "Ending the workflow from a conditional"). |
 
 #### Default branch object
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `label` | string | **required** | Visual-editor-facing name for the default branch. |
-| `next` | string (UUID v7) | **required** | Step ID to execute when no branch condition matches. |
+| `next` | string (UUID v7) | optional | Step ID to execute when no branch condition matches. Omitted: the workflow ends when the default is selected (see "Ending the workflow from a conditional"). |
+
+**Ending the workflow from a conditional:** A branch rule or the default branch may omit `next`, making that outcome end the workflow instead of routing to another step. This covers the common "end workflow" default scenario — for example, a fallback when no branch condition matches — without requiring a `result` step on that path. When the workflow ends this way, the run's terminal result is the resolved outputs of the step that owns the conditional.
 
 #### Condition expressions
 
@@ -177,7 +181,7 @@ A step with a `loop` field performs bounded `forEach` iteration over a collectio
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `collection` | object (ref) | **required** | Reference to an array value to iterate over. Must resolve to a finite array at execution time. |
+| `collection` | object (ref) | **required** | Reference to the array value to iterate over, following the data-reference paths: a workflow input (`inputs.<name>`) or a step output (`step.<stepId>.<outputName>`) from a step that completes before iteration begins — including the loop step's own output (Loop rule 8). Must resolve to a finite array at execution time. |
 | `maxIterations` | integer (≥ 1) | **required** | Hard cap on the number of iterations. If the collection length exceeds this value, the run fails with a structured error. |
 | `variable` | string | **required** | Name under which the current element is accessible in body step inputs via `loop.<variable>`. |
 | `body` | string (UUID v7) | **required** | Step ID of the body subgraph's first step. The body subgraph is validated as a separate DAG within the same `steps` array. |
@@ -191,6 +195,7 @@ A step with a `loop` field performs bounded `forEach` iteration over a collectio
 5. `loop` can coexist with `successors`: the body runs per iteration, and `successors` fire after all iterations complete.
 6. `loop` is mutually exclusive with `conditional`.
 7. Body terminal steps' outputs are collected into an array, available as the loop step's output.
+8. The loop step's own handler (per its step type) runs before iteration begins, so `collection` may reference the loop step's own outputs in addition to any workflow input or upstream step output.
 
 ### Built-in step types
 
@@ -635,9 +640,9 @@ Fails validation because no rule set exists for `v2` in a release that ships onl
 This record is complete when a reviewer can confirm, by reading it, that:
 
 - the specification outline names every v1 field and covers inputs, steps, connections, branches, data references, terminal results, conditionals, and loops;
-- the DAG topology rules are explicit: acyclic requirement, dependency reachability, fan-out parallelism, fan-in via dependencies, and terminal step definition;
-- the conditional shape is defined as a separate top-level concept with branch rules (label, priority, condition, next), default fallback, `all`/`any` condition composition, and leaf predicate operators;
-- the loop shape is defined with `collection`, `maxIterations`, `variable`, and `body`, and its limitations (no while/until, no nested loops, bounded collections only) are stated;
+- the DAG topology rules are explicit: acyclic requirement, dependency reachability, fan-out parallelism, fan-in via dependencies, terminal step definition, and path endings (every path ends at a `result` step or an end-workflow branch/default);
+- the conditional shape is defined as a separate top-level concept with branch rules (label, priority, condition, optional next), default fallback, `all`/`any` condition composition, and leaf predicate operators;
+- the loop shape is defined with `collection`, `maxIterations`, `variable`, and `body`; its limitations (no while/until, no nested loops, bounded collections only) and collection sources (workflow inputs or step outputs) are stated;
 - all identifiers are UUID v7;
 - the interface-version and step-extension rules are explicit;
 - the examples include valid workflows demonstrating sequential, conditional, fan-out/fan-in, loop, and grouped conditional logic, plus incomplete and invalid workflows;
