@@ -4,11 +4,11 @@
 | --- | --- |
 | Status | Proposed — awaiting approval |
 | Source | [E1-S3: Decide how drafts become published versions](../../tasks/epic-01/e1-s3-define-draft-publication-lifecycle.md) |
-| Last updated | 2026-08-16 |
+| Last updated | 2026-08-17 |
 
 ## Decision
 
-Rostrum identifies each workflow by the UUID v7 `id` inside the authored document; the author supplies it and the server validates it. A workflow has exactly one draft in Epic 1 — the draft is the workflow's working copy, identified by the same `id`. Draft revisions are per-workflow monotonic integers (1, 2, 3, …) assigned by the server on each successful save. Published versions are per-workflow monotonic integers assigned on each successful publish. The digest is SHA-256 (lowercase hex) over the RFC 8785 canonical form of the document.
+Rostrum identifies each workflow by the UUID v7 `id` inside the authored document; the author supplies it and the server validates it. A workflow has exactly one draft in Epic 1 — the draft is the workflow's working copy, identified by the same `id`. Draft revisions are per-workflow monotonic integers (1, 2, 3, …) assigned by the server on each successful save. Published versions are per-workflow monotonic integers assigned on each successful publish. The digest is SHA-256 (lowercase hex) over the RFC 8785 canonical form of the document's definitional content: the metadata fields classified by E1-S4 (`name` and `description` in v1) are removed from the document before canonicalization, so display-only edits never change the digest.
 
 Any syntactically valid JSON saves as a draft even when validation reports blocking findings; parse failures (invalid JSON, duplicate keys, `NaN`/`Infinity`, invalid UTF-8) are errors, not drafts. Saves use an optimistic revision check: the client sends the revision it last saw (`baseRevision`), and the server commits only if it equals the current latest; otherwise the save fails with a 409 and the current revision and findings. Drafts are stored as the exact bytes submitted and retrieved unchanged.
 
@@ -36,6 +36,8 @@ The consumers of these rules are the Control API (E1-06), the shared workflow li
 
 Full option analysis with per-option pros and cons is recorded in the research doc [E1-S3 lifecycle options](../../research/e1-s3-draft-publication-lifecycle-options.md).
 
+**Amendment (2026-08-17):** per E1-S4 decision 4a, the digest scope excludes metadata. The metadata fields classified by E1-S4 (`name`, `description` in v1) are removed from the document before canonicalization, so a name- or description-only edit never changes the digest — a display-only edit must not masquerade as a definition change in version history. The "Exclude metadata from digest" row that appeared in Alternatives considered under the earlier whole-document scope is removed; it is now the adopted rule.
+
 ## Why these choices
 
 | Aspect | Choice | Reason |
@@ -51,7 +53,7 @@ Full option analysis with per-option pros and cons is recorded in the research d
 | Repeated publication | At most once per revision; repeat returns the existing version | Idempotent and conflict-free by construction (unique `(workflow_id, revision)`); rollback stays expressible by saving old content as a new revision |
 | Normalization | RFC 8785 (JCS) | The only standard canonical JSON; every target implementation (Bun runtime, Cloud control plane, conformance harness) has a JCS implementation; digests are reproducible across languages |
 | Hash | SHA-256, lowercase hex | Ubiquitous, FIPS, hardware-accelerated; hex is the content-digest convention (git, Docker) |
-| Digest scope | The entire canonical document | "Exact version retrieved and verified" without exclusion rules; identical documents hash identically even across workflows |
+| Digest scope | Canonical document minus metadata members (`name`, `description` per E1-S4's field classification) | The digest identifies the workflow definition; a display-only edit must not change it, otherwise a renamed workflow looks like a changed definition in version history (E1-S4 decision 4a); identical definitions hash identically even across workflows |
 | Draft after publication | Remains editable; publication is a copy, never a move/delete | Epic 01 mandates the draft stays available; immutable version rows make later edits trivially safe |
 
 ## Specification outline
@@ -79,7 +81,7 @@ Full option analysis with per-option pros and cons is recorded in the research d
 ### Publish contract
 
 - The author selects a revision by number. The server reads the stored revision and re-runs validation on its content.
-- Nonexistent revision ⇒ 404. Blocking findings ⇒ 422 with findings; nothing is created. Valid ⇒ canonicalize (RFC 8785), store the canonical text and `digest = sha256(canonical text)` as an immutable version row.
+- Nonexistent revision ⇒ 404. Blocking findings ⇒ 422 with findings; nothing is created. Valid ⇒ canonicalize (RFC 8785), store the canonical text and `digest = sha256(canonical text with metadata members removed)` as an immutable version row. The stored content is the full canonical document, including `name` and `description`; only the digest excludes them.
 - The response carries the workflow `id`, published version number, `interfaceVersion`, and digest (E1-06 contract).
 - Unique `(workflow_id, revision)` in `published_versions`: a revision publishes at most once. A repeated publish of the same revision returns the existing version (idempotent). Concurrent publishes of the same revision both return the same single version: the loser of the unique-index race re-reads and returns the winner's row.
 
@@ -99,28 +101,28 @@ Full option analysis with per-option pros and cons is recorded in the research d
 
 - Canonicalization is **RFC 8785 (JSON Canonicalization Scheme)**, pinned by reference: member names sorted lexicographically by UTF-16 code units; numbers serialized as the shortest IEEE-754 round-trip (ES `Number::toString`: `1.0`→`1`, `-0`→`0`); strings minimally escaped (`"`, `\`, control characters; `\u0041` and `A` both canonicalize to `A`); no whitespace; `NaN`/`Infinity` rejected.
 - Input must be duplicate-key-free (see Save contract). Unicode is **not** normalized: NFC and NFD forms of the same text produce different digests — defined behavior, stated for fixture authors.
-- **Digest = SHA-256 (lowercase hex) over the entire canonical document**, including `interfaceVersion`, `id`, `name`, `description`, `inputs`, `steps`, and `conditionals`. Server context (version number, timestamps) is never hashed; the digest is computable from the document alone, which is what makes standalone test vectors possible.
+- **Digest = SHA-256 (lowercase hex) over the canonical document with the metadata members removed**: the top-level `name` and `description` members are dropped from the parsed document before canonicalization (the metadata fields classified by E1-S4's field-classification rule; v1 has exactly these two). The digest therefore covers `interfaceVersion`, `id`, `inputs`, `steps`, and `conditionals` — the definitional content. A metadata-only edit leaves the digest unchanged. Server context (version number, timestamps) is never hashed; the digest is computable from the document alone, which is what makes standalone test vectors possible.
 - The digest is computed at publish; implementations may compute and cache it at save (deterministic either way). E1-07's stored-digest verification recomputes from the stored canonical bytes and compares.
 
 ### Digest fixtures
 
-The vectors reproduce the digest of the E1-S1 representative examples under these rules. Digests below were produced by one implementation and **must be reproduced independently in E1-05** before they ship as fixtures; edge-case vectors (key order, number edges, escapes, Unicode, `-0`, duplicate-key rejection) are added there. The vector input is the canonical form of each example, not its pretty-printed source text.
+The vectors reproduce the digest of the E1-S1 representative examples under these rules: canonical form with the `name` and `description` members removed (amendment of 2026-08-17). The pre-amendment whole-document digests were reproduced independently during the amendment as a check of the canonicalizer; the updated digests below must **be reproduced independently in E1-05** before they ship as fixtures. Edge-case vectors (key order, number edges, escapes, Unicode, `-0`, duplicate-key rejection) are added there. The vector input is the canonical form of each example minus its metadata members, not its pretty-printed source text.
 
-| Example | SHA-256 (hex) of canonical form |
+| Example | SHA-256 (hex) of canonical form (metadata removed) |
 | --- | --- |
-| Valid — sequential with terminal result ("Greet and summarize") | `c8a45f670c9d6f1a5b8f301f811a7c8f8eb43f8d702f7e71c5e7d3b823a45fd6` |
-| Valid — conditional branching with two terminal results ("Classify a score") | `f46b00d2cf46e5fd3518adb1ef204d9c1bcd8cd0d5fe0711601e7a2ba4d3cb37` |
-| Valid — fan-out and fan-in (PR review workflow) | `c10f3606831484d93397e7defed440af377b5bc2d6642dbc74b8889183c1cd63` |
-| Valid — bounded loop over a collection ("Batch file analysis") | `2847480d466765aae20465218595d2bbb42c8af1c5a28e5e68067bf023efcc8b` |
-| Valid — conditional with AND/OR groups | `7a73d37619e09b00d2346df51b45d21e8eade8706abdd6aedc1c49ef34bba71d` |
+| Valid — sequential with terminal result ("Greet and summarize") | `e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368` |
+| Valid — conditional branching with two terminal results ("Classify a score") | `62060162c41188816562fcca6c75899f212f46fbda8ab41ebe458bfd93f8698a` |
+| Valid — fan-out and fan-in (PR review workflow) | `c1083c2c9e495374be8d33950fd46d2e3bcae12d19848d794f71a08c9b47293e` |
+| Valid — bounded loop over a collection ("Batch file analysis") | `2521dc9ea3c0c26a4b1784eafadee1b2546d15954e487b65e8c4801b76462737` |
+| Valid — conditional with AND/OR groups | `5793efea91c0206dc646b845b5656162906c70f2cf6ce88f8fb0e59bda4ea04b` |
 
-Worked example — "Greet and summarize" canonicalizes to:
+Worked example — "Greet and summarize" (metadata removed) canonicalizes to:
 
 ```json
-{"description":"Bind a name, produce a greeting, return it.","firstNode":"0192b0a0-7e1d-7000-8000-000000000002","id":"0192b0a0-7e1d-7000-8000-000000000001","inputs":{"name":{"type":"string"}},"interfaceVersion":"v1","name":"Greet and summarize","steps":[{"config":{"operation":"greet"},"id":"0192b0a0-7e1d-7000-8000-000000000002","inputs":{"name":{"ref":"inputs.name"}},"outputs":{"greeting":{"type":"string"}},"successors":["0192b0a0-7e1d-7000-8000-000000000003"],"type":"task"},{"id":"0192b0a0-7e1d-7000-8000-000000000003","inputs":{"greeting":{"ref":"step.0192b0a0-7e1d-7000-8000-000000000002.greeting"}},"type":"result"}]}
+{"firstNode":"0192b0a0-7e1d-7000-8000-000000000002","id":"0192b0a0-7e1d-7000-8000-000000000001","inputs":{"name":{"type":"string"}},"interfaceVersion":"v1","steps":[{"config":{"operation":"greet"},"id":"0192b0a0-7e1d-7000-8000-000000000002","inputs":{"name":{"ref":"inputs.name"}},"outputs":{"greeting":{"type":"string"}},"successors":["0192b0a0-7e1d-7000-8000-000000000003"],"type":"task"},{"id":"0192b0a0-7e1d-7000-8000-000000000003","inputs":{"greeting":{"ref":"step.0192b0a0-7e1d-7000-8000-000000000002.greeting"}},"type":"result"}]}
 ```
 
-whose SHA-256 is `c8a45f670c9d6f1a5b8f301f811a7c8f8eb43f8d702f7e71c5e7d3b823a45fd6`.
+whose SHA-256 is `e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368`. Renaming the workflow (changing `name` or `description`) does not change this digest.
 
 ### Draft after publication
 
@@ -142,7 +144,6 @@ The draft remains editable; further saves create new revisions and further publi
 | Custom canonicalization (sorted keys + stringify) | Number formatting and escaping are runtime-dependent; cross-implementation digests would be fragile |
 | Raw-bytes digest | Formatting- and key-order-sensitive; not a content fingerprint; fails the "normalized and hashed" requirement |
 | Postgres `jsonb` round-trip as canonical form | Postgres-specific serialization; meaningless to other implementations |
-| Exclude metadata (`name`/`description`) from digest | Partial-hash rule is harder to specify and verify; name changes are real definition changes |
 | Read-only draft after publication, or delete draft on publish | Contradicts Epic 01: "the draft remains available for later revisions after publication" |
 
 ## Deferred decisions
@@ -151,7 +152,7 @@ The draft remains editable; further saves create new revisions and further publi
 - Draft deletion semantics are not required by any Epic 1 acceptance criterion and are deferred.
 - Maximum JSON depth/size limits for saves are set with the API limits (E1-02/E1-03), not the lifecycle contract.
 - Exposing the revision as an HTTP ETag (If-Match saves) is optional API polish for E1-06; the contract field is `baseRevision`.
-- Interface-version methodology — what triggers an `interfaceVersion` bump and how version changes affect running workflows — is E1-S4's scope. This record's "published version" is a per-workflow publish counter, distinct from `interfaceVersion`, which is an authored field that selects the frozen rule set.
+- Interface-version methodology — what triggers an `interfaceVersion` bump and how version changes affect running workflows — is E1-S4's scope. This record's "published version" is a per-workflow publish counter, distinct from `interfaceVersion`, which is an authored field that selects the frozen rule set. The metadata members excluded from the digest are named by E1-S4's field-classification rule (`name`, `description` in v1).
 
 ## Verification
 
@@ -161,8 +162,8 @@ This record is complete when a reviewer can confirm, by reading it, that:
 - save semantics are explicit: syntactically valid JSON saves despite blocking findings, parse failures are errors, the identity rule, the `baseRevision` check, atomicity, and byte-exact draft storage;
 - publish semantics are explicit: revision selection, re-validation, blocking-finding rejection, canonicalization, immutability, and response content;
 - repeated publication and every version-conflict case have defined results;
-- the digest rules pin the canonicalization standard, hash algorithm, encoding, digest scope, and the duplicate-key constraint, with fixture vectors from the E1-S1 examples and a stated requirement for independent reproduction;
+- the digest rules pin the canonicalization standard, hash algorithm, encoding, digest scope (definitional content — metadata excluded per E1-S4's field classification), and the duplicate-key constraint, with fixture vectors from the E1-S1 examples and a stated requirement for independent reproduction;
 - draft-after-publication behavior is stated;
-- the E1-S2 duplicate-key dependency and the E1-S4 interface-version boundary are explicit.
+- the E1-S2 duplicate-key dependency and the E1-S4 interface-version and metadata-classification boundaries are explicit.
 
 The product owner and implementing engineer approve this decision before E1-03, E1-04, E1-06, and E1-07 build on it.
