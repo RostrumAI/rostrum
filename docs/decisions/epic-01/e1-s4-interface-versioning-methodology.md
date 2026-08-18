@@ -4,9 +4,11 @@
 | --- | --- |
 | Status | Proposed — awaiting approval |
 | Source | [E1-S4: Decide versioning methodology and runtime impact](../../tasks/epic-01/e1-s4-define-versioning-methodology.md) |
-| Last updated | 2026-08-17 |
+| Last updated | 2026-08-18 |
 
 ## Decision
+
+**Two version axes.** Two independent versions matter here, and this record keeps them separate. The **platform (engine) version** names a Rostrum release — the implementation of the validator, the daemon, and the Control API. The platform changes it, and one engine runs at a time: an upgrade ships a new release and applies its migrations. An engine upgrade must never change how any supported interface version reads or runs documents — the v1 rule set is frozen and shipped forward (E1-S1). If a change would alter v1 behavior, it is an interface-version breaking change and ships as a new rule set, never as a mutation of v1. The **workflow version** is what authors and callers interact with; it has two parts (E1-S3): the authored `interfaceVersion` token that selects the frozen rule set, and the per-publish published-version number. Authors change it by editing `interfaceVersion` in a draft and publishing. Everything below governs the workflow axis; the platform axis exists to make one guarantee — an engine release implements every supported interface version's rule set, so a v1 document validates and runs identically on any engine that supports v1.
 
 **Change classification.** The public specification (E1-03) carries a field-classification table assigning every document field a class: **identity** (`id`), **metadata** (`name`, `description` in v1), **version selector** (`interfaceVersion`), or **operational** (everything else — `firstNode`, `inputs`, `steps`, `conditionals`, and step-internal fields). The table is in force from v1. A metadata change is an edit touching only metadata-class fields and cannot alter any run's behavior; an operational change can. v1 has exactly two metadata fields.
 
@@ -20,7 +22,7 @@ The current v1 exact-match token contract (`"v1"`, exact match, no fallback) is 
 
 ## Context
 
-E1-S1 fixed the versioning mechanism and explicitly deferred the methodology: `interfaceVersion` is an exact-match capability token; Rostrum retains one immutable rule set per version (document schema plus step-type registry) and ships every version's rule set forward; additive change within a version is allowed only if every previously valid v1 document remains valid; breaking change requires a new interface version; there is no automatic upgrade or rewriting — a v1 document stays v1.
+E1-S1 fixed the versioning mechanism and explicitly deferred the methodology: `interfaceVersion` is an exact-match capability token; Rostrum retains one immutable rule set per version (document schema plus step-type registry) and ships every version's rule set forward; additive change within a version is allowed only if every previously valid v1 document remains valid; breaking change requires a new interface version; there is no automatic upgrade or rewriting — a v1 document stays v1. Shipping every rule set forward is what makes the engine axis safe: any engine release can validate and execute every supported interface version with that version's own rules, so an engine upgrade never changes document semantics.
 
 E1-S3 fixed the published-version axis: per-workflow monotonic integers, canonical storage, immutable version rows, and a digest computed at publish. Its digest scope is amended by decision 4a below; the amendment is recorded in the E1-S3 record. Epic 01 requires the three version kinds (interface version, draft revision, published version) to remain distinct and requires validation to select its rules from the declared `interfaceVersion` so a future release continues to recognize v1.
 
@@ -43,8 +45,19 @@ Full option analysis with per-option pros and cons is recorded in the research d
 | In-flight auto-upgrade | Not in v1; deferred to Epic 03 | Requires replay-safe state migration (Temporal's model with `patch` markers); nothing in v1 provides it; adopting it now would trade run determinism for fix reach before the durable-state work exists |
 | Metadata interaction | Metadata excluded from the digest (E1-S3 amended); metadata never bumps `interfaceVersion`; metadata-only republish yields an unchanged digest | A name-only change is not a definition change; a changed digest for a display-only edit misleads callers and version-history tooling (E1-S3 decision 4a) |
 | v1 token | Exact-match `"v1"`, no fallback | Task constraint; the methodology for future transitions does not alter the v1 contract |
+| Platform (engine) version | Rostrum release, platform-managed; one engine at a time; migrations applied at upgrade | An interface version is a contract, an engine version is an implementation; conflating them would let a release silently change v1 behavior. "One engine at a time" is an operational fact of shipping a daemon; the guarantee that makes it safe is that the engine implements every supported rule set and never mutates a frozen one |
 
 ## Specification outline
+
+### 0. The two version axes
+
+| Axis | What it identifies | Who changes it | How it changes | Impact of a change |
+| --- | --- | --- | --- | --- |
+| Platform (engine) version | A Rostrum release: the validator/daemon/Control API implementation and the rule sets it supports | The platform, per release | A new release ships; migrations run; one engine version at a time | No document or run changes; every supported interface version keeps validating and executing with its own rules |
+| Interface version (`interfaceVersion`) | The frozen rule set (document schema + step-type registry) for reading a document | The platform ships new rule sets; the author chooses by editing the field | A new rule set is released; the author migrates by editing `interfaceVersion` and republishing | Breaking changes only; additive changes stay within the version; no document moves; unknown versions are a blocking finding |
+| Published version (E1-S3) | One immutable published artifact of one workflow | The server, per successful publish | +1 per successful publish | Callers address it exactly; runs bind to it at start |
+
+The engine axis and the interface axis meet in one rule: shipping a new engine release may add or retire interface-version support (retirement is the deprecation window in §3), but it never changes the semantics of a supported rule set.
 
 ### 1. Change classification (operational vs metadata)
 
@@ -75,11 +88,12 @@ Breaking changes (bump required):
 
 Additive changes (never bump): new optional top-level field, new step type, relaxed `config` schema, new conditional operator, relaxed DAG rule.
 
-Process: the platform ships the new rule set (`"v2"`, `"v3"`, …) when a breaking change is needed; no document moves. The author migrates by editing `interfaceVersion` in a draft, resolving blocking findings, and publishing — a new published version with a new digest (E1-S3). Unknown versions remain a blocking finding (E1-S1). Deprecating a step type: keep it registered and documented as deprecated, steer authors to the replacement; removal is breaking.
+Process: the platform ships the new rule set (`"v2"`, `"v3"`, …) when a breaking change is needed — a new rule set ships inside an engine release, but the release's own version number is the platform axis and carries no document semantics; no document moves. The author migrates by editing `interfaceVersion` in a draft, resolving blocking findings, and publishing — a new published version with a new digest (E1-S3). Unknown versions remain a blocking finding (E1-S1). Deprecating a step type: keep it registered and documented as deprecated, steer authors to the replacement; removal is breaking.
 
 ### 3. Runtime impact
 
 - **Bind-on-start:** a run binds to the exact published version selected at invocation (Epic 02) and executes it to completion with that version's rule set. Later publishes, interface versions, or deprecations do not alter it. This holds for in-flight runs at every future transition.
+- **Engine upgrades:** a new engine release may add or retire interface-version support (retirement runs through the deprecation window below); it never changes the semantics of a supported rule set. In-flight runs and future invocations of a supported version are therefore unaffected by an engine upgrade — only rule-set support changes, never behavior.
 - **Future invocations:** the version named at invocation determines behavior. Epic 1/2 define no "latest published version" alias; if one is introduced later it must be explicit and documented (E2-S2 decision).
 - **No in-flight auto-upgrade in v1.** Any future mechanism (revisited when Epic 03 designs durable run state) must be additive to bind-on-start — opt-in per run or per workflow — never a silent switch of a started run's version.
 - **Deprecation windows:** the platform may announce an EOL date for an interface version. During the deprecation period the version stays fully supported. At EOL: new invocations of that version are refused with a documented error; in-flight runs continue; drafts and validation of that version's documents remain available — authoring never breaks, only new execution. Administering EOL (announce, schedule, list) is a future Control API surface, deferred.
@@ -89,7 +103,7 @@ Process: the platform ships the new rule set (`"v2"`, `"v3"`, …) when a breaki
 
 - Never bump `interfaceVersion`.
 - Never change the digest: the digest is SHA-256 (lowercase hex) over the RFC 8785 canonical form **with the metadata members (`name`, `description` in v1) removed from the parsed document before canonicalization** (E1-S3 amendment). The digest identifies the definitional content; metadata edits leave it unchanged.
-- A metadata-only republish is permitted under the E1-S3 publish contract (publish by revision; unique `(workflow_id, revision)`) and produces a new version row whose digest equals the prior version's digest — callers comparing digests see "definition unchanged". The published version's stored content is the full canonical document including the metadata, so retrieval still returns the exact published artifact.
+- A metadata-only republish is permitted under the E1-S3 publish contract (publish the draft's current revision; unique `(workflow_id, revision)`) and produces a new version row whose digest equals the prior version's digest — callers comparing digests see "definition unchanged". The published version's stored content is the full canonical document including the metadata, so retrieval still returns the exact published artifact.
 - Optional polish (deferred to E1-06/E1-07): mark metadata-only versions on the version row so tooling can filter cosmetic entries.
 
 ### Interaction summary
@@ -140,6 +154,7 @@ This record is complete when a reviewer can confirm, by reading it, that:
 - the field-classification table names every v1 field with its class, and v1 metadata = `name`, `description`;
 - the breaking definition is explicit and checkable, and additive changes never bump the interface version;
 - runtime impact is explicit: bind-on-start for in-flight runs, future-invocation behavior, deprecation windows with EOL semantics (new invocations refused, in-flight runs continue), and no in-flight auto-upgrade in v1;
+- the platform (engine) version axis is distinguished from the workflow version axis — who changes each, and the guarantee that an engine upgrade never alters a supported interface version's semantics;
 - metadata-only changes never bump `interfaceVersion` and never change the digest, and the E1-S3 amendment (digest scope excludes metadata) is recorded there with recomputed fixture vectors;
 - the comparative research on Zapier, Temporal, n8n, and similar platforms is referenced (research doc §5);
 - the v1 exact-match token contract is preserved.
