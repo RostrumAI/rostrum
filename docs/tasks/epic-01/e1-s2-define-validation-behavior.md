@@ -2,36 +2,32 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-15 |
-| Picked up | No |
+| Status | Done |
+| Last updated | 2026-08-16 |
+| Picked up | Yes |
 | Owner | Unassigned |
-| Blocked by | [E1-S1](e1-s1-define-workflow-interface-v1.md) |
+| Blocked by | None |
 
 ## Task
 
-This SPIKE decides how Rostrum reports problems in workflow JSON. It answers:
+Define the validation contract for workflow JSON v1. The contract specifies the checks Rostrum runs, their order and prerequisites, the findings each check returns, and whether a finding blocks publication.
 
-- Which checks run, and in what order?
-- Which earlier checks must pass before a later check can run?
-- Which document, step, connection, branch, conditional, loop, and data-reference problems are detected?
-- Which findings prevent publication?
+The checks cover:
 
-Specific DAG and topology checks to cover:
+- Workflow document shape.
+- Step identity and references.
+- Graph cycles, dependency reachability, fan-out, and branch targets.
+- Loop bounds, loop-body cycles, and nested loops.
+- Conditional branches, defaults, and condition dependencies.
+- Valid terminal paths.
+- Data-reference resolution and ordering.
 
-- Cycle detection (no step may transitively depend on itself).
-- Dependency reachability (every dependency must be reachable on all paths from `firstNode` to the step — merge-after-branch restriction).
-- Fan-out and branch target validation (every `successors`, `branches[].next`, `default.next`, and `loop.body` entry that is present references an existing step; a branch or default may omit `next` to end the workflow).
-- Loop bound enforcement (`maxIterations` is a positive integer; body subgraph is acyclic; no nested loops).
-- Conditional validation (all steps referenced in branch conditions are listed in the conditional's `dependencies`; at least one branch exists; `default` is present).
-- Terminal step validation (every reachable path leads to a valid ending: a terminal `result` step or a conditional branch/default whose `next` is omitted).
-
-What code, location, related locations, and structured details does each finding contain?
-How much input/output compatibility can v1 check before execution?
+The contract also states which input and output compatibility checks v1 performs before execution.
 
 ## End state
 
-- One validation contract and test matrix define every v1 check and its expected finding.
+- A validation contract lists every v1 check in execution order, with its prerequisites, passing condition, and finding for a failed check.
+- A test matrix contains one representative case for each rule.
 
 ## Why
 
@@ -43,8 +39,8 @@ How much input/output compatibility can v1 check before execution?
 
 ## Acceptance criteria
 
-- A validation contract lists every v1 check in execution order.
-- Each check defines its prerequisites, passing condition, and finding when it fails.
-- The finding shape covers stable codes, publication impact, source locations, related locations, and structured details.
-- A test matrix includes one representative case for every rule.
-- The contract states the supported limits of static input/output compatibility checks.
+- The validation contract lists every v1 check in execution order.
+- Each check states its prerequisites, passing condition, and failure finding.
+- Each finding includes a stable code, publication impact, source location, related locations, and structured details.
+- The test matrix includes one representative case for each rule.
+- The contract states the supported limits of static input and output compatibility checks.
