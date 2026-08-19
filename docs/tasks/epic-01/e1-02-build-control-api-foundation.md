@@ -4,8 +4,8 @@
 | --- | --- |
 | Status | Not started |
 | Last updated | 2026-08-19 |
-| Picked up | No |
-| Owner | Unassigned |
+| Picked up | Yes |
+| Owner | Thomas |
 | Blocked by | [E1-01](e1-01-create-project-foundation.md) |
 
 ## Task

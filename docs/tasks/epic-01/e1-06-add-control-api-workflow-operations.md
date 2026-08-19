@@ -4,9 +4,9 @@
 | --- | --- |
 | Status | Not started |
 | Last updated | 2026-08-19 |
-| Picked up | No |
-| Owner | Unassigned |
-| Blocked by | [E1-02](e1-02-build-control-api-foundation.md), [E1-04](e1-04-implement-workflow-library-and-validator.md), [E1-05](e1-05-build-workflow-example-validation-suite.md) |
+| Picked up | Yes |
+| Owner | Thomas |
+| Blocked by | [E1-02](e1-02-build-control-api-foundation.md), [E1-04](e1-04-implement-workflow-library-and-validator.md), [E1-05](e1-05-build-workflow-example-validation-suite.md), [E1-07](e1-07-add-workflow-draft-version-storage.md) |
 
 ## Task
 
@@ -31,7 +31,6 @@ Every validation and publication decision uses the shared workflow library. Publ
 
 ## Blocks
 
-- [E1-07: Persist workflow drafts and published versions](e1-07-add-workflow-draft-version-storage.md)
 - [E1-08: Document workflow authoring for humans and agents](e1-08-publish-workflow-authoring-guidance.md)
 - [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
 

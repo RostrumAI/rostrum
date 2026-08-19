@@ -4,8 +4,8 @@
 | --- | --- |
 | Status | Not started |
 | Last updated | 2026-08-19 |
-| Picked up | No |
-| Owner | Unassigned |
+| Picked up | Yes |
+| Owner | Stephen |
 | Blocked by | [E1-S1](e1-s1-define-workflow-interface-v1.md), [E1-S2](e1-s2-define-validation-behavior.md), [E1-S3](e1-s3-define-draft-publication-lifecycle.md), [E1-S4](e1-s4-define-versioning-methodology.md) |
 
 ## Task

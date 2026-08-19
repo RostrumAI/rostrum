@@ -4,9 +4,9 @@
 | --- | --- |
 | Status | Not started |
 | Last updated | 2026-08-19 |
-| Picked up | No |
-| Owner | Unassigned |
-| Blocked by | [E1-S0](e1-s0-select-implementation-stack.md), [E1-S3](e1-s3-define-draft-publication-lifecycle.md), [E1-06](e1-06-add-control-api-workflow-operations.md) |
+| Picked up | Yes |
+| Owner | Thomas |
+| Blocked by | [E1-03](e1-03-write-workflow-interface-v1-specification.md) |
 
 ## Task
 
@@ -32,6 +32,7 @@ Local development uses the Docker Compose Postgres service via `DATABASE_URL`. M
 
 ## Blocks
 
+- [E1-06: Expose workflow authoring through the Control API](e1-06-add-control-api-workflow-operations.md)
 - [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
 
 ## Acceptance criteria
