@@ -2,13 +2,15 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-15 |
-| Picked up | No |
-| Owner | Unassigned |
+| Status | Proposed — awaiting approval |
+| Last updated | 2026-08-17 |
+| Picked up | Yes |
+| Owner | Thomas |
 | Blocked by | [E1-S1](e1-s1-define-workflow-interface-v1.md), [E1-S3](e1-s3-define-draft-publication-lifecycle.md) |
 
 ## Task
+
+Decisions made so far are recorded in [Decision e1-s4: Interface versioning methodology and runtime impact](../../decisions/epic-01/e1-s4-interface-versioning-methodology.md).
 
 This SPIKE decides when Rostrum's workflow interface version bumps and how version changes affect running workflows. It answers:
 
