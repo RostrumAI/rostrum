@@ -5,3 +5,4 @@ coverage/
 .env
 *.dump
 .DS_Store
+.omp/

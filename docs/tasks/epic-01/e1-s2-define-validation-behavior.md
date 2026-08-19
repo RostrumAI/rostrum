@@ -2,15 +2,17 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Done |
-| Last updated | 2026-08-16 |
+| Status | Decided — approved |
+| Last updated | 2026-08-19 |
 | Picked up | Yes |
-| Owner | Unassigned |
+| Owner | Thomas |
 | Blocked by | None |
 
 ## Task
 
-Define the validation contract for workflow JSON v1. The contract specifies the checks Rostrum runs, their order and prerequisites, the findings each check returns, and whether a finding blocks publication.
+Decisions made so far are recorded in [Decision e1-s2: Validation checks, finding shape, and execution order](../../decisions/epic-01/e1-s2-validation-behavior.md).
+
+This SPIKE defines the validation contract for workflow JSON v1. It specifies the checks Rostrum runs, their order and prerequisites, the findings each check returns, and whether a finding blocks publication.
 
 The checks cover:
 

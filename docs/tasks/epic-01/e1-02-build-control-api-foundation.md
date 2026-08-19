@@ -3,25 +3,27 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-02 |
+| Last updated | 2026-08-19 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [E1-01](e1-01-create-project-foundation.md) |
 
 ## Task
 
-This task creates the Control API as a separately runnable process. It adds:
+This task creates the Control API as a separately runnable process using the stack selected by [E1-S0](../../decisions/epic-01/e1-s0-implementation-stack.md). It adds:
 
-- startup and graceful shutdown;
-- configuration and structured logging;
-- health and version reporting;
-- versioned routing and one error shape;
-- generated or contract-checked API documentation;
-- an integration-test harness for the running service.
+- Startup and graceful shutdown using `Bun.serve` with a Hono application as the request handler.
+- Configuration via environment variables (`DATABASE_URL`) and structured logging following E1-S0 conventions.
+- Health and version reporting.
+- Versioned routing and one error shape.
+- OpenAPI 3.1 contract generated code-first from TypeBox schemas (JSON Schema 2020-12 as the single schema language for the workflow specification and the API contract), and API documentation generated from or checked against the implemented contract.
+- An integration-test harness that exercises the running service via `app.fetch()` without sockets, and that will later host the conformance suites.
+
+The Control API and future daemon are independently runnable applications that share workflow code via the workspace packages.
 
 ## End state
 
-- A developer can start the Control API independently and verify its configuration, health, version, routing, errors, and shutdown behavior.
+- A developer can start the Control API independently and verify its configuration, health, version, routing, errors, and shutdown behavior, including Server-Sent Events readiness for future subscriptions.
 
 ## Why
 
@@ -33,9 +35,9 @@ This task creates the Control API as a separately runnable process. It adds:
 
 ## Acceptance criteria
 
-- The Control API starts and stops cleanly as an independent process.
-- Configuration and logs follow the conventions selected by E1-S0.
+- The Control API starts and stops cleanly as an independent process using Hono for routing on Bun's native HTTP server (`Bun.serve`).
+- Configuration and logs follow the conventions selected by E1-S0 (environment overrides, structured logging).
 - Health and version routes return documented responses.
 - API routes use a documented versioning convention and consistent error shape.
-- API documentation is generated from the implemented contract or checked against it.
-- Integration tests start the service and exercise its foundation routes.
+- API documentation is generated from the implemented TypeBox/OpenAPI 3.1 contract or checked against it.
+- Integration tests start the service via `app.fetch()` and exercise its foundation routes.

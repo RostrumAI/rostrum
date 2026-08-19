@@ -2,10 +2,10 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Done |
-| Last updated | 2026-08-11 |
+| Status | Decided — proof of concept verified |
+| Last updated | 2026-08-19 |
 | Picked up | Yes |
-| Owner | Unassigned |
+| Owner | Thomas |
 | Blocked by | None |
 
 ## Task

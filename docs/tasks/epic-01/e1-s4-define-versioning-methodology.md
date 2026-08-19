@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Proposed — awaiting approval |
-| Last updated | 2026-08-17 |
+| Status | Decided — approved |
+| Last updated | 2026-08-19 |
 | Picked up | Yes |
 | Owner | Thomas |
 | Blocked by | [E1-S1](e1-s1-define-workflow-interface-v1.md), [E1-S3](e1-s3-define-draft-publication-lifecycle.md) |

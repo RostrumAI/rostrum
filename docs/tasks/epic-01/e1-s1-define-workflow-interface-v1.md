@@ -2,13 +2,15 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-15 |
-| Picked up | No |
-| Owner | Unassigned |
+| Status | Decided — approved |
+| Last updated | 2026-08-19 |
+| Picked up | Yes |
+| Owner | Thomas |
 | Blocked by | None |
 
 ## Task
+
+Decisions made so far are recorded in [Decision e1-s1: Workflow JSON v1 shape and interface evolution](../../decisions/epic-01/e1-s1-workflow-interface-v1.md).
 
 This SPIKE decides what workflow JSON v1 contains. It answers:
 
@@ -24,7 +26,7 @@ The primary authoring surface is a visual editor (to be built); the JSON shape i
 
 ## End state
 
-- A specification outline and representative examples define the complete proposed v1 shape — including DAG topology (fan-out, fan-in, dependencies), conditionals as a separate shape, bounded loops, UUID v7 identifiers, and its evolution rules.
+- A specification outline and representative examples define the complete approved v1 shape — including DAG topology (fan-out, fan-in, dependencies), conditionals as a separate shape, bounded loops, UUID v7 identifiers, and its evolution rules.
 
 ## Why
 

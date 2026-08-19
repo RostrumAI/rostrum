@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Proposed — awaiting approval |
-| Last updated | 2026-08-16 |
+| Status | Decided — approved |
+| Last updated | 2026-08-19 |
 | Picked up | Yes |
 | Owner | Thomas |
 | Blocked by | None |
