@@ -5,6 +5,7 @@
       "**",
       "!node_modules",
       "!dist",
+      "!tmp",
       "!*.dump",
       "!bun.lock",
       "!apps/control-api/openapi.json",
