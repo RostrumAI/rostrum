@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import postgres from "postgres";
-import { createApp } from "../src/app.ts";
+import { createApp } from "./app.ts";
 
 const app = createApp();
 
