@@ -2,7 +2,7 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
+| Status | Done |
 | Last updated | 2026-08-19 |
 | Picked up | Yes |
 | Owner | Thomas |
