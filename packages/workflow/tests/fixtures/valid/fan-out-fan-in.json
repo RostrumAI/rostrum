@@ -1,0 +1,91 @@
+{
+  "interfaceVersion": "v1",
+  "id": "0192b0a0-7e1d-7000-8000-000000000020",
+  "name": "PR review fan-out",
+  "description": "Spawn 5 review agents, summarize, comment on PR.",
+  "firstNode": "0192b0a0-7e1d-7000-8000-000000000021",
+  "inputs": {
+    "prNumber": { "type": "number" },
+    "repository": { "type": "string" }
+  },
+  "steps": [
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000021",
+      "type": "task",
+      "config": { "operation": "pr-trigger" },
+      "inputs": {
+        "prNumber": { "ref": "inputs.prNumber" },
+        "repository": { "ref": "inputs.repository" }
+      },
+      "outputs": { "diff": { "type": "string" } },
+      "successors": [
+        "0192b0a0-7e1d-7000-8000-000000000022",
+        "0192b0a0-7e1d-7000-8000-000000000023",
+        "0192b0a0-7e1d-7000-8000-000000000024",
+        "0192b0a0-7e1d-7000-8000-000000000025",
+        "0192b0a0-7e1d-7000-8000-000000000026"
+      ]
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000022",
+      "type": "task",
+      "config": { "operation": "security-review" },
+      "inputs": { "diff": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000021.diff" } },
+      "outputs": { "findings": { "type": "string" } }
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000023",
+      "type": "task",
+      "config": { "operation": "performance-review" },
+      "inputs": { "diff": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000021.diff" } },
+      "outputs": { "findings": { "type": "string" } }
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000024",
+      "type": "task",
+      "config": { "operation": "style-review" },
+      "inputs": { "diff": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000021.diff" } },
+      "outputs": { "findings": { "type": "string" } }
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000025",
+      "type": "task",
+      "config": { "operation": "test-review" },
+      "inputs": { "diff": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000021.diff" } },
+      "outputs": { "findings": { "type": "string" } }
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000026",
+      "type": "task",
+      "config": { "operation": "docs-review" },
+      "inputs": { "diff": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000021.diff" } },
+      "outputs": { "findings": { "type": "string" } }
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000027",
+      "type": "task",
+      "config": { "operation": "summarize" },
+      "inputs": {
+        "security": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000022.findings" },
+        "performance": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000023.findings" },
+        "style": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000024.findings" },
+        "test": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000025.findings" },
+        "docs": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000026.findings" }
+      },
+      "outputs": { "summary": { "type": "string" } },
+      "dependencies": [
+        "0192b0a0-7e1d-7000-8000-000000000022",
+        "0192b0a0-7e1d-7000-8000-000000000023",
+        "0192b0a0-7e1d-7000-8000-000000000024",
+        "0192b0a0-7e1d-7000-8000-000000000025",
+        "0192b0a0-7e1d-7000-8000-000000000026"
+      ],
+      "successors": ["0192b0a0-7e1d-7000-8000-000000000028"]
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000028",
+      "type": "result",
+      "inputs": { "summary": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000027.summary" } }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "interfaceVersion": "v1",
+  "id": "0192b0a0-7e1d-7000-8000-000000000050",
+  "name": "Unfinished workflow",
+  "firstNode": "0192b0a0-7e1d-7000-8000-000000000051",
+  "steps": [
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000051",
+      "type": "task",
+      "successors": ["0192b0a0-7e1d-7000-8000-000000000099"]
+    }
+  ]
+}

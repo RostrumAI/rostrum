@@ -1,0 +1,7 @@
+{
+  "interfaceVersion": "v1",
+  "id": "0192b0a0-7e1d-7000-8000-0000000000c1",
+  "name": "Workflow id is not UUID v7",
+  "firstNode": "not-a-uuid",
+  "steps": [{ "id": "0192b0a0-7e1d-7000-8000-0000000000c2", "type": "result", "inputs": {} }]
+}

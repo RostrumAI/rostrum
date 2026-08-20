@@ -1,0 +1,25 @@
+{
+  "interfaceVersion": "v1",
+  "id": "0192b0a0-7e1d-7000-8000-000000000001",
+  "name": "Greet and summarize",
+  "description": "Bind a name, produce a greeting, return it.",
+  "firstNode": "0192b0a0-7e1d-7000-8000-000000000002",
+  "inputs": {
+    "name": { "type": "string" }
+  },
+  "steps": [
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000002",
+      "type": "task",
+      "config": { "operation": "greet" },
+      "inputs": { "name": { "ref": "inputs.name" } },
+      "outputs": { "greeting": { "type": "string" } },
+      "successors": ["0192b0a0-7e1d-7000-8000-000000000003"]
+    },
+    {
+      "id": "0192b0a0-7e1d-7000-8000-000000000003",
+      "type": "result",
+      "inputs": { "greeting": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000002.greeting" } }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "interfaceVersion": "v1",
+  "id": "0192b0a0-7e1d-7000-8000-000000000060",
+  "name": "Unknown step type",
+  "firstNode": "0192b0a0-7e1d-7000-8000-000000000061",
+  "steps": [{ "id": "0192b0a0-7e1d-7000-8000-000000000061", "type": "no-such-type" }]
+}
