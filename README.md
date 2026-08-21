@@ -67,17 +67,30 @@ logs `shutdown started` and `shutdown complete` before exiting 0.
 
 ### Configuration
 
-The process reads configuration from environment variables:
+Configuration is validated against a schema at startup; an invalid value
+stops the process and names the offending key. Values come from two layers,
+per variable: environment variables override the YAML config file, and keys
+absent from both fall back to the documented defaults. Bun loads `.env`
+files into the environment automatically.
 
-| Variable | Default | Meaning |
+The YAML file is optional. Set `CONTROL_API_CONFIG` to its path, or place
+`apps/control-api/config.yaml` and leave the variable unset. The file is a
+flat mapping keyed like the configuration:
+
+```yaml
+host: 0.0.0.0
+port: 8080
+```
+
+| Variable or key | Default | Meaning |
 | --- | --- | --- |
-| `PORT` | `3000` | TCP port to bind; use `0` for an ephemeral port |
-| `HOST` | `127.0.0.1` | Address to bind |
-| `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error` |
-| `DATABASE_URL` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the Control API does not open a connection until storage arrives in [E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) |
+| `PORT` / `port` | `3000` | TCP port to bind; use `0` for an ephemeral port |
+| `HOST` / `host` | `127.0.0.1` | Address to bind |
+| `LOG_LEVEL` / `logLevel` | `info` | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
+| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the Control API does not open a connection until storage arrives in [E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) |
 
-Logs are one JSON object per line with `time`, `level`, `msg`, and any extra
-fields.
+Logging uses [LogTape](https://logtape.org/). Records are one JSON object
+per line on the console with `time`, `level`, `msg`, and any extra fields.
 
 ### Routes
 
@@ -85,7 +98,6 @@ fields.
 | --- | --- |
 | `GET /api/v1/health` | `{"status":"ok"}` |
 | `GET /api/v1/version` | Service name, package version, and the served workflow interface version (`v1`) |
-| `GET /api/v1/events` | Server-Sent Events stream, the transport for future subscriptions |
 | `GET /openapi.json` | The generated OpenAPI 3.1 document |
 
 Routes live under the `/api/v1` path prefix. A breaking change to the API or
@@ -112,7 +124,7 @@ and is OpenAPI 3.1, the same dialect as the workflow interface JSON Schema.
 The checked-in copy at `apps/control-api/openapi.json` is regenerated with:
 
 ```bash
-bun run --filter @rostrum/control-api dump-openapi
+bun run --filter @rostrum/control-api generate-openapi
 ```
 
 A test asserts that the served document matches the checked-in copy.

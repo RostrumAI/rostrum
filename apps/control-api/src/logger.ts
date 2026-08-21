@@ -1,28 +1,41 @@
-export type LogLevel = "debug" | "info" | "warn" | "error";
+import { configure, type LogLevel, type LogRecord } from "@logtape/logtape";
 
-const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
-
-export interface Logger {
-  debug(msg: string, fields?: Record<string, unknown>): void;
-  info(msg: string, fields?: Record<string, unknown>): void;
-  warn(msg: string, fields?: Record<string, unknown>): void;
-  error(msg: string, fields?: Record<string, unknown>): void;
+/**
+ * Formats one log record as a single JSON line: `time`, `level`, `msg`, and
+ * the record's fields. Keeps process logs machine-readable for tests and log
+ * collectors.
+ */
+export function formatJsonLine(record: LogRecord): string {
+  return JSON.stringify({
+    time: new Date(record.timestamp).toISOString(),
+    level: record.level,
+    msg: record.rawMessage,
+    ...record.properties,
+  });
 }
 
-/** Structured JSON-line logger selected by Decision e1-s0. */
-export function createLogger(
+/** Writes each formatted record to the console without blocking the caller. */
+export function consoleSink(record: LogRecord): void {
+  console.log(formatJsonLine(record));
+}
+
+/**
+ * Configures LogTape for the process: the `control-api` logger writes JSON
+ * lines through `sink`, filtered at `level`. Call once at startup before the
+ * first log call; tests can inject a sink.
+ */
+export async function configureLogging(
   level: LogLevel,
-  sink: (line: string) => void = (line) => console.log(line),
-): Logger {
-  const enabled = (candidate: LogLevel) => LEVEL_ORDER[candidate] >= LEVEL_ORDER[level];
-  const emit = (candidate: LogLevel, msg: string, fields?: Record<string, unknown>) => {
-    if (!enabled(candidate)) return;
-    sink(JSON.stringify({ time: new Date().toISOString(), level: candidate, msg, ...fields }));
-  };
-  return {
-    debug: (msg, fields) => emit("debug", msg, fields),
-    info: (msg, fields) => emit("info", msg, fields),
-    warn: (msg, fields) => emit("warn", msg, fields),
-    error: (msg, fields) => emit("error", msg, fields),
-  };
+  sink: (record: LogRecord) => void = consoleSink,
+): Promise<void> {
+  await configure({
+    sinks: { app: sink },
+    loggers: [
+      { category: "control-api", sinks: ["app"], lowestLevel: level },
+      // LogTape reports its own diagnostics on this category; surface only
+      // failures so the info-level setup notice stays out of the output.
+      { category: ["logtape", "meta"], sinks: ["app"], lowestLevel: "error" },
+    ],
+    reset: true,
+  });
 }

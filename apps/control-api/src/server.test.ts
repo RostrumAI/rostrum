@@ -108,11 +108,6 @@ describe("real process over HTTP", () => {
     expect(versionBody.service).toBe("rostrum-control-api");
     expect(versionBody.interfaceVersion).toBe("v1");
 
-    const events = await fetch(`${server.baseUrl}/api/v1/events`);
-    expect(events.status).toBe(200);
-    expect(events.headers.get("content-type")).toContain("text/event-stream");
-    expect(await events.text()).toContain("event: complete");
-
     const missing = await fetch(`${server.baseUrl}/api/v1/nope`);
     expect(missing.status).toBe(404);
     expect(((await missing.json()) as { code: string }).code).toBe("not_found");

@@ -1,17 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { LogRecord } from "@logtape/logtape";
+import type { Hono } from "hono";
 import postgres from "postgres";
-import { createApp } from "./app";
-import { loadConfig } from "./config";
-import { createLogger } from "./logger";
-import { ErrorResponseSchema, HealthSchema, Schemas, VersionSchema } from "./schemas";
+import { ControlApiApp } from "./app";
+import { HealthSchema, VersionSchema } from "./features/system/system.schema";
+import { configureLogging } from "./logger";
+import { ErrorResponseSchema } from "./schemas";
 
 function makeApp() {
-  return createApp({
-    logger: createLogger("error"),
-    config: loadConfig({}),
-  });
+  return new ControlApiApp().routes;
 }
 
 /** Narrow view of the generated OpenAPI document (hono-openapi output). */
@@ -28,7 +27,7 @@ interface ErrorBody {
   findings: unknown[];
 }
 
-async function fetchJson(app: ReturnType<typeof makeApp>, path: string, init?: RequestInit) {
+async function fetchJson(app: Hono, path: string, init?: RequestInit) {
   const res = await app.fetch(new Request(`http://localhost${path}`, init));
   return { res, body: (await res.json()) as Record<string, unknown> };
 }
@@ -67,14 +66,24 @@ describe("socket-free app.fetch() harness (E1-02)", () => {
     expect(body.findings).toEqual([]);
   });
 
-  test("event-stream route streams events with the documented media type", async () => {
-    const res = await makeApp().fetch(new Request("http://localhost/api/v1/events"));
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-    const text = await res.text();
-    expect(text).toContain("event: started");
-    expect(text).toContain("event: heartbeat");
-    expect(text).toContain("event: complete");
+  test("handler failures return 500 with the error shape and are logged", async () => {
+    const records: LogRecord[] = [];
+    await configureLogging("info", (r) => records.push(r));
+    const hono = new ControlApiApp();
+    hono.routes.get("/boom", () => {
+      throw new Error("boom");
+    });
+    const res = await hono.routes.fetch(new Request("http://localhost/boom"));
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as ErrorBody;
+    expect(body.code).toBe("internal_error");
+    expect(body.message).toBe("Internal Server Error");
+    expect(body.findings).toEqual([]);
+
+    const entry = records.find((r) => r.rawMessage === "handler failed");
+    expect(entry).toBeDefined();
+    expect(String(entry?.properties.error)).toContain("boom");
+    expect(entry?.properties.path).toBe("/boom");
   });
 });
 
@@ -86,16 +95,6 @@ describe("OpenAPI document", () => {
     expect(doc.openapi).toBe("3.1.0");
     expect(doc.paths["/api/v1/health"]).toBeDefined();
     expect(doc.paths["/api/v1/version"]).toBeDefined();
-    expect(doc.paths["/api/v1/events"]).toBeDefined();
-  });
-
-  test("renders the SSE media type under /api/v1/events", async () => {
-    const { body } = await fetchJson(makeApp(), "/openapi.json");
-    const doc = body as unknown as OpenApiDoc;
-    const events = doc.paths["/api/v1/events"] as
-      | { get?: { responses?: Record<string, { content?: Record<string, unknown> }> } }
-      | undefined;
-    expect(events?.get?.responses?.["200"]?.content?.["text/event-stream"]).toBeDefined();
   });
 
   test("TypeBox schemas round-trip unchanged into the components", async () => {
@@ -106,15 +105,20 @@ describe("OpenAPI document", () => {
     expect(doc.components.schemas.ErrorResponse).toEqual(
       JSON.parse(JSON.stringify(ErrorResponseSchema)),
     );
-    expect(Object.keys(doc.components.schemas).sort()).toEqual(Object.keys(Schemas).sort());
+    expect(Object.keys(doc.components.schemas).sort()).toEqual([
+      "ErrorResponse",
+      "Finding",
+      "Health",
+      "Version",
+    ]);
   });
 
-  test("served document matches the checked-in dump", async () => {
+  test("served document matches the checked-in copy", async () => {
     const { body } = await fetchJson(makeApp(), "/openapi.json");
-    const dumped = JSON.parse(
+    const checkedIn = JSON.parse(
       readFileSync(join(import.meta.dir, "../openapi.json"), "utf8"),
     ) as Record<string, unknown>;
-    expect(body).toEqual(dumped);
+    expect(body).toEqual(checkedIn);
   });
 });
 

@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Done |
-| Last updated | 2026-08-19 |
+| Last updated | 2026-08-21 |
 | Picked up | Yes |
 | Owner | Thomas |
 | Blocked by | [E1-01](e1-01-create-project-foundation.md) |
@@ -23,7 +23,7 @@ The Control API and future daemon are independently runnable applications that s
 
 ## End state
 
-- A developer can start the Control API independently and verify its configuration, health, version, routing, errors, and shutdown behavior, including Server-Sent Events readiness for future subscriptions.
+- A developer can start the Control API independently and verify its configuration, health, version, routing, errors, and shutdown behavior.
 
 ## Why
 

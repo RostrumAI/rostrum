@@ -8,9 +8,6 @@
   "tags": [
     {
       "name": "system"
-    },
-    {
-      "name": "events"
     }
   ],
   "components": {
@@ -153,39 +150,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Version"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/events": {
-      "get": {
-        "operationId": "getApiV1Events",
-        "tags": [
-          "events"
-        ],
-        "responses": {
-          "200": {
-            "description": "Server-sent event stream",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "event",
-                    "data"
-                  ],
-                  "properties": {
-                    "event": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "string"
-                    }
-                  },
-                  "additionalProperties": false
                 }
               }
             }

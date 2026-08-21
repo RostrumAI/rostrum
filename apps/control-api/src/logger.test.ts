@@ -1,49 +1,54 @@
 import { describe, expect, test } from "bun:test";
-import { createLogger } from "./logger";
+import { getLogger, type LogRecord } from "@logtape/logtape";
+import { configureLogging, formatJsonLine } from "./logger";
 
-function collectLogger(level: Parameters<typeof createLogger>[0]) {
-  const lines: string[] = [];
-  const logger = createLogger(level, (line) => lines.push(line));
-  return { lines, logger };
+function record(partial: Partial<LogRecord>): LogRecord {
+  return {
+    category: ["control-api"],
+    level: "info",
+    message: [],
+    rawMessage: "",
+    timestamp: 0,
+    properties: {},
+    ...partial,
+  };
 }
 
-function parsed(lines: string[]): Array<Record<string, unknown>> {
-  expect(lines.length).toBeGreaterThan(0);
-  return lines.map((line) => JSON.parse(line) as Record<string, unknown>);
-}
-
-describe("createLogger", () => {
-  test("emits one JSON line per call with time, level, and message", () => {
-    const { lines, logger } = collectLogger("debug");
-    logger.info("listening", { port: 3000 });
-    const [entry] = parsed(lines);
-    expect(entry).toBeDefined();
-    expect(entry?.level).toBe("info");
-    expect(entry?.msg).toBe("listening");
-    expect(entry?.port).toBe(3000);
-    expect(typeof entry?.time).toBe("string");
-    expect(new Date(entry?.time as string).getTime()).not.toBeNaN();
+describe("logging", () => {
+  test("formats one JSON line per record with time, level, msg, and fields", () => {
+    const line = formatJsonLine(
+      record({
+        level: "info",
+        rawMessage: "listening",
+        timestamp: Date.UTC(2026, 0, 1),
+        properties: { port: 3000 },
+      }),
+    );
+    const entry = JSON.parse(line) as Record<string, unknown>;
+    expect(entry).toEqual({
+      time: "2026-01-01T00:00:00.000Z",
+      level: "info",
+      msg: "listening",
+      port: 3000,
+    });
   });
 
-  test("merges fields into the line", () => {
-    const { lines, logger } = collectLogger("debug");
-    logger.warn("handler failed", { error: "boom", path: "/api/v1/health" });
-    const [entry] = parsed(lines);
-    expect(entry).toBeDefined();
-    expect(entry?.error).toBe("boom");
-    expect(entry?.path).toBe("/api/v1/health");
-  });
-
-  test("filters out levels below the configured threshold", () => {
-    const { lines, logger } = collectLogger("warn");
+  test("configureLogging filters levels below the threshold", async () => {
+    const records: LogRecord[] = [];
+    await configureLogging("warning", (r) => records.push(r));
+    const logger = getLogger("control-api");
     logger.debug("hidden");
     logger.info("hidden");
     logger.warn("shown");
     logger.error("also shown");
-    const entries = parsed(lines);
-    expect(entries).toHaveLength(2);
-    const [warnEntry, errorEntry] = entries;
-    expect(warnEntry?.level).toBe("warn");
-    expect(errorEntry?.level).toBe("error");
+    expect(records.map((r) => r.level)).toEqual(["warning", "error"]);
+  });
+
+  test("configureLogging passes fields through to the sink", async () => {
+    const records: LogRecord[] = [];
+    await configureLogging("info", (r) => records.push(r));
+    getLogger("control-api").warn("handler failed", { error: "boom", path: "/api/v1/health" });
+    expect(records).toHaveLength(1);
+    expect(records[0]?.properties).toEqual({ error: "boom", path: "/api/v1/health" });
   });
 });

@@ -1,15 +1,17 @@
-import { createApp } from "./app";
-import { loadConfig } from "./config";
-import { createLogger } from "./logger";
+import { getLogger } from "@logtape/logtape";
+import { ControlApiApp } from "./app";
+import { loadConfig } from "./env";
+import { configureLogging } from "./logger";
 
 const config = loadConfig();
-const logger = createLogger(config.logLevel);
-const app = createApp({ logger, config });
+await configureLogging(config.logLevel);
+const logger = getLogger("control-api");
+const app = new ControlApiApp();
 
 const server = Bun.serve({
   hostname: config.host,
   port: config.port,
-  fetch: app.fetch,
+  fetch: app.routes.fetch,
   error(error) {
     logger.error("request failed", { error: String(error) });
     return new Response("Internal Server Error", { status: 500 });

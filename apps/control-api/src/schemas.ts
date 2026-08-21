@@ -9,8 +9,8 @@ export const INTERFACE_VERSION = "v1";
 
 /**
  * A single validation finding. The element shape is provisional until E1-S2
- * defines the full findings contract; E1-02 only carries the array in the
- * error shape, always empty.
+ * defines the full findings contract; error responses carry the array empty
+ * until workflow operations report findings (E1-06).
  */
 export const FindingSchema = Type.Object(
   {
@@ -22,7 +22,7 @@ export const FindingSchema = Type.Object(
   { additionalProperties: false },
 );
 
-/** The single error shape for the Control API (E1-02 contract). */
+/** The single error shape for every Control API error response (E1-02 contract). */
 export const ErrorResponseSchema = Type.Object(
   {
     code: Type.String(),
@@ -31,28 +31,3 @@ export const ErrorResponseSchema = Type.Object(
   },
   { additionalProperties: false },
 );
-
-export const HealthSchema = Type.Object(
-  { status: Type.Literal("ok") },
-  { additionalProperties: false },
-);
-
-export const VersionSchema = Type.Object(
-  {
-    service: Type.String(),
-    version: Type.String(),
-    interfaceVersion: Type.Literal(INTERFACE_VERSION),
-  },
-  { additionalProperties: false },
-);
-
-/**
- * OpenAPI components. The TypeBox schemas are embedded verbatim, so the
- * generated document round-trips the schemas unchanged (E1-S0 row 3).
- */
-export const Schemas = {
-  Health: HealthSchema,
-  Version: VersionSchema,
-  ErrorResponse: ErrorResponseSchema,
-  Finding: FindingSchema,
-} as const;
