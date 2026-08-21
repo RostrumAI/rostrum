@@ -30,7 +30,9 @@ export class IdentityStage implements ValidationStage {
     this.stepTypes = stepTypes;
     for (const type of stepTypes.types()) {
       const schema = stepTypes.registrationFor(type)?.configSchema;
-      if (schema) this.configValidators.set(type, Compile(schema));
+      if (schema) {
+        this.configValidators.set(type, Compile(schema));
+      }
     }
   }
 
@@ -42,7 +44,9 @@ export class IdentityStage implements ValidationStage {
     // forward references to later steps resolve.
     const firstStepIndexById = new Map<string, number>();
     document.steps.forEach((step, index) => {
-      if (!firstStepIndexById.has(step.id)) firstStepIndexById.set(step.id, index);
+      if (!firstStepIndexById.has(step.id)) {
+        firstStepIndexById.set(step.id, index);
+      }
     });
     const firstConditionalIndexById = new Map<string, number>();
     (document.conditionals ?? []).forEach((conditional, index) => {
@@ -209,9 +213,13 @@ export class IdentityStage implements ValidationStage {
     index: number,
     findings: Finding[],
   ): void {
-    if (step.config === undefined) return;
+    if (step.config === undefined) {
+      return;
+    }
     const compiled = this.configValidators.get(step.type);
-    if (!compiled) return;
+    if (!compiled) {
+      return;
+    }
     for (const error of compiled.Errors(step.config)) {
       findings.push(
         context.findings.create({

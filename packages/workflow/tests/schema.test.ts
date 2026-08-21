@@ -134,7 +134,9 @@ describe("digest vectors match the E1-S3 fixture table", () => {
       description: "Different description.",
     };
     const expected = expectedDigests["sequential.json"];
-    if (expected === undefined) throw new Error("missing sequential digest vector");
+    if (expected === undefined) {
+      throw new Error("missing sequential digest vector");
+    }
     expect(await digestWorkflow(renamed as Record<string, unknown>)).toBe(expected);
   });
 });

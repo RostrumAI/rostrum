@@ -18,6 +18,8 @@ export interface ConditionalNode {
  * cycle reads as a closed loop.
  */
 function findCycleIn(edges: Map<string, string[]>, startNodes: Iterable<string>): string[] | null {
+  // White/grey/black coloring: IN_PROGRESS marks the current DFS path, so
+  // an edge back into it closes a cycle.
   const IN_PROGRESS = 1;
   const DONE = 2;
   const color = new Map<string, number>();
@@ -32,14 +34,18 @@ function findCycleIn(edges: Map<string, string[]>, startNodes: Iterable<string>)
         cycle = path.slice(path.indexOf(next)).concat(next);
         return true;
       }
-      if (state === undefined && visit(next)) return true;
+      if (state === undefined && visit(next)) {
+        return true;
+      }
     }
     color.set(nodeId, DONE);
     path.pop();
     return false;
   };
   for (const start of startNodes) {
-    if (color.get(start) === undefined && visit(start)) break;
+    if (color.get(start) === undefined && visit(start)) {
+      break;
+    }
   }
   return cycle;
 }
@@ -87,7 +93,9 @@ export class WorkflowGraph {
   /** Resolves the conditional a step routes through, or undefined when the step has none. */
   conditionalForStep(stepId: string): WorkflowConditional | undefined {
     const conditionalId = this.stepsById.get(stepId)?.step.conditional;
-    if (!conditionalId) return undefined;
+    if (!conditionalId) {
+      return undefined;
+    }
     return this.conditionalsById.get(conditionalId)?.conditional;
   }
 
@@ -97,18 +105,26 @@ export class WorkflowGraph {
    * analysis run over this set.
    */
   controlEdges(): Map<string, string[]> {
-    if (this.controlEdgeCache) return this.controlEdgeCache;
+    if (this.controlEdgeCache) {
+      return this.controlEdgeCache;
+    }
     const edges = new Map<string, string[]>();
     for (const node of this.stepsById.values()) {
       const targets = [...(node.step.successors ?? [])];
       const conditional = this.conditionalForStep(node.step.id);
       if (conditional) {
         for (const branch of conditional.branches) {
-          if (branch.next) targets.push(branch.next);
+          if (branch.next) {
+            targets.push(branch.next);
+          }
         }
-        if (conditional.default.next) targets.push(conditional.default.next);
+        if (conditional.default.next) {
+          targets.push(conditional.default.next);
+        }
       }
-      if (node.step.loop) targets.push(node.step.loop.body);
+      if (node.step.loop) {
+        targets.push(node.step.loop.body);
+      }
       edges.set(node.step.id, targets);
     }
     this.controlEdgeCache = edges;
@@ -123,7 +139,9 @@ export class WorkflowGraph {
    */
   orderingEdges(includeLoopFeeds: boolean): Map<string, string[]> {
     const edges = new Map<string, string[]>();
-    for (const [stepId, targets] of this.controlEdges()) edges.set(stepId, [...targets]);
+    for (const [stepId, targets] of this.controlEdges()) {
+      edges.set(stepId, [...targets]);
+    }
     for (const node of this.stepsById.values()) {
       for (const dependency of node.step.dependencies ?? []) {
         const targets = edges.get(dependency) ?? [];
@@ -133,7 +151,9 @@ export class WorkflowGraph {
     }
     if (includeLoopFeeds) {
       for (const node of this.stepsById.values()) {
-        if (!node.step.loop) continue;
+        if (!node.step.loop) {
+          continue;
+        }
         for (const memberId of this.loopBodyMembers(node.step.id)) {
           const targets = edges.get(memberId) ?? [];
           targets.push(node.step.id);
@@ -160,7 +180,9 @@ export class WorkflowGraph {
    * seed the collection) or a causal predecessor outside the loop body.
    */
   completesBeforeIteration(producerId: string, loopStepId: string): boolean {
-    if (producerId === loopStepId) return true;
+    if (producerId === loopStepId) {
+      return true;
+    }
     return this.reachableFrom(producerId, this.orderingEdges(false)).has(loopStepId);
   }
 
@@ -172,7 +194,9 @@ export class WorkflowGraph {
   /** The body subgraph of one loop: everything control-reachable from `loop.body`. */
   loopBodyMembers(loopStepId: string): Set<string> {
     const cached = this.loopBodyCache.get(loopStepId);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const body = this.stepsById.get(loopStepId)?.step.loop?.body;
     const members = body ? this.reachableFrom(body, this.controlEdges()) : new Set<string>();
     this.loopBodyCache.set(loopStepId, members);
@@ -182,7 +206,9 @@ export class WorkflowGraph {
   /** True when the step belongs to any loop body. */
   isInAnyLoopBody(stepId: string): boolean {
     for (const node of this.stepsById.values()) {
-      if (node.step.loop && this.loopBodyMembers(node.step.id).has(stepId)) return true;
+      if (node.step.loop && this.loopBodyMembers(node.step.id).has(stepId)) {
+        return true;
+      }
     }
     return false;
   }
@@ -229,14 +255,22 @@ export class WorkflowGraph {
   dominators(): Map<string, Set<string>> {
     const reachable = this.controlReachableFromFirstNode();
     const predecessors = new Map<string, string[]>();
-    for (const stepId of reachable) predecessors.set(stepId, []);
+    for (const stepId of reachable) {
+      predecessors.set(stepId, []);
+    }
     for (const [from, targets] of this.controlEdges()) {
-      if (!reachable.has(from)) continue;
+      if (!reachable.has(from)) {
+        continue;
+      }
       for (const target of targets) {
-        if (!reachable.has(target)) continue;
+        if (!reachable.has(target)) {
+          continue;
+        }
         predecessors.get(target)?.push(from);
       }
     }
+    // Iterative dataflow: every node starts dominating everything except
+    // the entry; each pass intersects predecessor sets until nothing changes.
     const dominators = new Map<string, Set<string>>();
     for (const stepId of reachable) {
       dominators.set(
@@ -248,17 +282,25 @@ export class WorkflowGraph {
     while (changed) {
       changed = false;
       for (const stepId of reachable) {
-        if (stepId === this.document.firstNode) continue;
+        if (stepId === this.document.firstNode) {
+          continue;
+        }
         const predDominatorSets: Set<string>[] = [];
         for (const predecessor of predecessors.get(stepId) ?? []) {
           const set = dominators.get(predecessor);
-          if (set) predDominatorSets.push(set);
+          if (set) {
+            predDominatorSets.push(set);
+          }
         }
-        if (predDominatorSets.length === 0) continue;
+        if (predDominatorSets.length === 0) {
+          continue;
+        }
         let intersection = new Set(predDominatorSets[0]);
         for (let i = 1; i < predDominatorSets.length; i++) {
           const other = predDominatorSets[i];
-          if (!other) continue;
+          if (!other) {
+            continue;
+          }
           intersection = new Set([...intersection].filter((id) => other.has(id)));
         }
         intersection.add(stepId);
@@ -275,15 +317,23 @@ export class WorkflowGraph {
     return dominators;
   }
 
+  /**
+   * Collects every id reachable from `startId` over `edges` by iterative
+   * depth-first traversal.
+   */
   private reachableFrom(startId: string, edges: Map<string, string[]>): Set<string> {
     const seen = new Set<string>();
     const stack = [startId];
     while (stack.length > 0) {
       const current = stack.pop();
-      if (current === undefined || seen.has(current)) continue;
+      if (current === undefined || seen.has(current)) {
+        continue;
+      }
       seen.add(current);
       for (const next of edges.get(current) ?? []) {
-        if (!seen.has(next)) stack.push(next);
+        if (!seen.has(next)) {
+          stack.push(next);
+        }
       }
     }
     return seen;

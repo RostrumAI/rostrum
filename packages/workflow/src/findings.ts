@@ -78,8 +78,12 @@ export class FindingFactory {
       finding.line = pointer.value.line;
       finding.column = pointer.value.column;
     }
-    if (spec.relatedLocations) finding.relatedLocations = spec.relatedLocations;
-    if (spec.details) finding.details = spec.details;
+    if (spec.relatedLocations) {
+      finding.relatedLocations = spec.relatedLocations;
+    }
+    if (spec.details) {
+      finding.details = spec.details;
+    }
     return finding;
   }
 }
@@ -91,8 +95,12 @@ export class FindingFactory {
  * which conformance suites rely on when they compare findings by equality.
  */
 export function compareFindings(a: Finding, b: Finding): number {
-  if (a.path !== b.path) return a.path < b.path ? -1 : 1;
-  if (a.code !== b.code) return a.code < b.code ? -1 : 1;
+  if (a.path !== b.path) {
+    return a.path < b.path ? -1 : 1;
+  }
+  if (a.code !== b.code) {
+    return a.code < b.code ? -1 : 1;
+  }
   return 0;
 }
 

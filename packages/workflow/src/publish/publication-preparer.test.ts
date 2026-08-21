@@ -68,7 +68,9 @@ describe("PublicationPreparer input constraints", () => {
     const document = loadValidFixture("sequential.json");
     const steps = document.steps as Array<Record<string, unknown>>;
     const first = steps[0];
-    if (!first) throw new Error("fixture has no steps");
+    if (!first) {
+      throw new Error("fixture has no steps");
+    }
     steps[0] = { ...first, outputs: { greeting: Infinity } };
     await expect(preparer.prepare(document)).rejects.toThrow(CanonicalizationError);
   });

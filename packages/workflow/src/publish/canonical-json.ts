@@ -17,27 +17,40 @@ export class CanonicalizationError extends Error {
 
 /** Serializes a number per RFC 8785 §3.2.2.4; non-finite values are rejected. */
 function serializeNumber(value: number): string {
-  if (!Number.isFinite(value))
+  if (!Number.isFinite(value)) {
     throw new CanonicalizationError("NaN and Infinity have no canonical JSON form");
+  }
+  // String(value) is ES Number::toString: shortest round-trip form,
+  // which turns 1.0 into "1" and -0 into "0" as RFC 8785 §3.2.2.4 requires.
   return String(value);
 }
 
 /** Serializes a parsed JSON value to its RFC 8785 canonical form. */
 export function canonicalize(value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number") return serializeNumber(value);
-  if (typeof value === "string") return JSON.stringify(value);
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return serializeNumber(value);
+  }
+  if (typeof value === "string") {
+    // JSON.stringify implements exactly the escaping RFC 8785 §3.2.2.2
+    // requires: minimal escapes plus lowercase \uXXXX control forms.
+    return JSON.stringify(value);
+  }
   if (Array.isArray(value)) {
     const items = value.map((item) => canonicalize(item));
     return `[${items.join(",")}]`;
   }
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
-    // Default Array sort orders strings by UTF-16 code unit, which is the
-    // member ordering RFC 8785 §3.2.2.3 requires.
     const members = Object.keys(record)
       .sort()
+      // Default Array sort orders strings by UTF-16 code unit, the
+      // member ordering RFC 8785 §3.2.2.3 requires.
       .map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`);
     return `{${members.join(",")}}`;
   }

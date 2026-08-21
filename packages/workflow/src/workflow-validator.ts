@@ -68,7 +68,9 @@ export class WorkflowValidator {
     const declared = declaredInterfaceVersion(document);
     const stages: ValidationStage[] = [new VersionStage(this.registry)];
     const selected = typeof declared === "string" ? this.registry.select(declared) : undefined;
-    if (selected) stages.push(...selected.stages);
+    if (selected) {
+      stages.push(...selected.stages);
+    }
     return this.result(new ValidationPipeline(stages).run(context));
   }
 

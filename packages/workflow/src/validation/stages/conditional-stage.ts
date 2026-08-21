@@ -102,7 +102,9 @@ export class ConditionalStage implements ValidationStage {
     referencedStepIds: Set<string>,
     findings: Finding[],
   ): void {
-    if (typeof condition !== "object" || condition === null) return;
+    if (typeof condition !== "object" || condition === null) {
+      return;
+    }
     const record = condition as Record<string, unknown>;
     if (typeof record.ref === "string") {
       const ref = record.ref;

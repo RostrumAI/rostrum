@@ -29,7 +29,9 @@ export class TerminationStage implements ValidationStage {
       if (path.has(stepId)) return;
       path.add(stepId);
       const node = graph.stepNode(stepId);
-      if (!node) return;
+      if (!node) {
+        return;
+      }
       const conditional = graph.conditionalForStep(stepId);
       if (conditional) {
         let hasOutgoing = false;
@@ -45,7 +47,9 @@ export class TerminationStage implements ValidationStage {
         }
         const endsHere =
           conditional.branches.some((branch) => !branch.next) || !conditional.default.next;
-        if (!hasOutgoing || endsHere) leaves.add(stepId);
+        if (!hasOutgoing || endsHere) {
+          leaves.add(stepId);
+        }
         return;
       }
       const targets = edges.get(stepId) ?? [];
@@ -53,13 +57,17 @@ export class TerminationStage implements ValidationStage {
         leaves.add(stepId);
         return;
       }
-      for (const target of targets) visit(target, new Set(path));
+      for (const target of targets) {
+        visit(target, new Set(path));
+      }
     };
     visit(document.firstNode, new Set());
 
     for (const leafId of leaves) {
       const node = graph.stepNode(leafId);
-      if (!node) continue;
+      if (!node) {
+        continue;
+      }
       const isTerminal =
         (node.step.successors?.length ?? 0) === 0 && node.step.conditional === undefined;
       if (isTerminal) {

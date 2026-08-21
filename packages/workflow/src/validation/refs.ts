@@ -20,8 +20,12 @@ export const LOOP_RESULTS_OUTPUT = "results";
 
 /** True when the value is a reference object: an object whose only key is a string-valued `ref`. */
 export function isReferenceObject(value: unknown): value is { ref: string } {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
   const record = value as Record<string, unknown>;
-  if (typeof record.ref !== "string") return false;
+  if (typeof record.ref !== "string") {
+    return false;
+  }
   return Object.keys(record).length === 1;
 }

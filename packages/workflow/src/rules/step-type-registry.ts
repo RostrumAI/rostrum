@@ -34,7 +34,9 @@ export class StepTypeRegistry {
 
   /** Registers one step type; throws when the registry is sealed. */
   register(type: string, registration: StepTypeRegistration = {}): void {
-    if (this.sealed) throw new Error(`Step-type registry is sealed; cannot register '${type}'`);
+    if (this.sealed) {
+      throw new Error(`Step-type registry is sealed; cannot register '${type}'`);
+    }
     this.entries.set(type, registration);
   }
 

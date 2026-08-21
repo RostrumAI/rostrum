@@ -42,11 +42,15 @@ export class ValidationPipeline {
     const findings: Finding[] = [];
     for (const stage of this.stages) {
       const ready = stage.prerequisites.every((id) => ran.has(id) && !blocked.has(id));
-      if (!ready) continue;
+      if (!ready) {
+        continue;
+      }
       ran.add(stage.id);
       const produced = stage.run(context);
       findings.push(...produced);
-      if (produced.some((finding) => finding.blocking)) blocked.add(stage.id);
+      if (produced.some((finding) => finding.blocking)) {
+        blocked.add(stage.id);
+      }
     }
     return findings;
   }

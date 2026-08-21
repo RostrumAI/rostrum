@@ -4,6 +4,7 @@ import { createWorkflowValidator } from "./workflow-validator";
 
 const validator = createWorkflowValidator();
 
+/** Serializes a minimal valid task → result workflow for text validation. */
 function sequentialText(): string {
   const task = taskStep();
   const end = resultStep();

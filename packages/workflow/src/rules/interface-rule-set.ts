@@ -36,7 +36,9 @@ export class RuleSetRegistry {
 
   /** Constructs a registry over initial rule sets. */
   constructor(ruleSets: readonly InterfaceRuleSet[] = []) {
-    for (const ruleSet of ruleSets) this.register(ruleSet);
+    for (const ruleSet of ruleSets) {
+      this.register(ruleSet);
+    }
   }
 
   /** Adds a rule set under its version token and freezes the rule set object. */

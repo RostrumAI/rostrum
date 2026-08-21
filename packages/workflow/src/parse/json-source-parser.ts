@@ -41,28 +41,41 @@ export type JsonParseResult =
   | { ok: true; value: unknown; sourceMap: SourceMap }
   | { ok: false; issues: JsonParseIssue[] };
 
-/** A hard syntax error raised internally; `parse` converts it to a {@link JsonParseIssue}. */
-class JsonSyntaxError extends Error {
-  readonly location: SourceLocation;
+/**
+ * Aborts recursive-descent parsing at the first syntax error.
+ *
+ * The error carries the finished issue rather than raw parts, so `parse`
+ * reports it unchanged instead of converting representations.
+ */
+class JsonParseError extends Error {
+  readonly issue: JsonParseIssue;
 
-  constructor(message: string, location: SourceLocation) {
-    super(message);
-    this.name = "JsonSyntaxError";
-    this.location = location;
+  /** Builds the abort signal from the issue it carries. */
+  constructor(issue: JsonParseIssue) {
+    super(issue.message);
+    this.name = "JsonParseError";
+    this.issue = issue;
   }
 }
 
-function isSyntaxError(error: unknown): error is JsonSyntaxError {
-  return error instanceof JsonSyntaxError;
+/** Checks whether a thrown value is a parse abort rather than an unexpected failure. */
+function isParseAbort(error: unknown): error is JsonParseError {
+  return error instanceof JsonParseError;
 }
 
-/** Matches one JSON number at the parse position: no leading zeros, no bare `+`, no `NaN`. */
-const NUMBER_PATTERN = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
-
-/** Matches the four hexadecimal digits of a `\uXXXX` escape. */
-const UNICODE_ESCAPE_PATTERN = /^[0-9a-fA-F]{4}/;
-
 export class JsonSourceParser {
+  /**
+   * Matches one JSON number at the parse position: no leading zeros, no
+   * bare `+`, no `NaN`. Kept sticky so it matches at `lastIndex`.
+   */
+  private static readonly NUMBER_PATTERN = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
+
+  /** Matches the four hexadecimal digits of a `\uXXXX` escape. */
+  private static readonly UNICODE_ESCAPE_PATTERN = /^[0-9a-fA-F]{4}/;
+
+  /** JSON Pointer (RFC 6901) of the document root. */
+  private static readonly ROOT_POINTER = "";
+
   private readonly input: string | Uint8Array;
   private text = "";
   private pos = 0;
@@ -91,29 +104,29 @@ export class JsonSourceParser {
     }
 
     try {
-      const value = this.parseValue("");
+      // The whole document is one value, recorded under the root pointer.
+      const value = this.parseValue(JsonSourceParser.ROOT_POINTER);
       this.skipWhitespace();
-      if (this.pos < this.text.length) this.fail("Unexpected content after the JSON document");
-      if (this.duplicates.length > 0) return { ok: false, issues: this.duplicates };
+      if (this.pos < this.text.length) {
+        this.fail("Unexpected content after the JSON document");
+      }
+      if (this.duplicates.length > 0) {
+        return { ok: false, issues: this.duplicates };
+      }
       return { ok: true, value, sourceMap: Object.fromEntries(this.pointers) };
     } catch (error) {
-      if (!isSyntaxError(error)) throw error;
-      return {
-        ok: false,
-        issues: [
-          {
-            code: "workflow.parse.json-invalid",
-            message: error.message,
-            path: "",
-            line: error.location.line,
-            column: error.location.column,
-          },
-        ],
-      };
+      if (!isParseAbort(error)) {
+        throw error;
+      }
+      return { ok: false, issues: [error.issue] };
     }
   }
 
-  /** Decodes byte input as UTF-8; returns false when the bytes are not valid UTF-8. */
+  /**
+   * Decodes byte input as UTF-8 and returns true on success. `fatal`
+   * makes the decoder reject invalid byte sequences instead of
+   * substituting replacement characters. Text input is already decoded.
+   */
   private decode(): boolean {
     if (typeof this.input === "string") {
       this.text = this.input;
@@ -131,20 +144,53 @@ export class JsonSourceParser {
   // Values
   // -------------------------------------------------------------------------
 
+  /**
+   * Parses one value and records its source locations under `pointer`.
+   * Dispatches on the first character, which identifies the value kind.
+   */
   private parseValue(pointer: string): unknown {
     this.skipWhitespace();
     const ch = this.text[this.pos];
-    if (ch === undefined) this.fail("Unexpected end of input");
+    if (ch === undefined) {
+      this.fail("Unexpected end of input");
+    }
     const start = this.pos;
     let value: unknown;
-    if (ch === "{") value = this.parseObjectBody(pointer);
-    else if (ch === "[") value = this.parseArrayBody(pointer);
-    else if (ch === '"') value = this.parseString();
-    else if (ch === "-" || (ch >= "0" && ch <= "9")) value = this.parseNumber();
-    else if (ch === "t") value = this.parseLiteral("true", true);
-    else if (ch === "f") value = this.parseLiteral("false", false);
-    else if (ch === "n") value = this.parseLiteral("null", null);
-    else this.fail(`Unexpected character '${ch}'`);
+    switch (ch) {
+      case "{":
+        value = this.parseObjectBody(pointer);
+        break;
+      case "[":
+        value = this.parseArrayBody(pointer);
+        break;
+      case '"':
+        value = this.parseString();
+        break;
+      case "-":
+      case "0":
+      case "1":
+      case "2":
+      case "3":
+      case "4":
+      case "5":
+      case "6":
+      case "7":
+      case "8":
+      case "9":
+        value = this.parseNumber();
+        break;
+      case "t":
+        value = this.parseLiteral("true", true);
+        break;
+      case "f":
+        value = this.parseLiteral("false", false);
+        break;
+      case "n":
+        value = this.parseLiteral("null", null);
+        break;
+      default:
+        this.fail(`Unexpected character '${ch}'`);
+    }
     this.pointers.set(pointer, {
       value: this.locationAt(start),
       valueEnd: this.locationAt(this.pos),
@@ -152,6 +198,7 @@ export class JsonSourceParser {
     return value;
   }
 
+  /** Parses an object body after `{`; members extend the parent pointer by escaped key. */
   private parseObjectBody(pointer: string): Record<string, unknown> {
     this.expect("{");
     const object: Record<string, unknown> = {};
@@ -161,7 +208,7 @@ export class JsonSourceParser {
       this.pos++;
       return object;
     }
-    for (;;) {
+    while (true) {
       this.skipWhitespace();
       const keyPosition = this.pos;
       const key = this.parseString();
@@ -171,16 +218,7 @@ export class JsonSourceParser {
       const memberPointer = `${pointer}/${escapePointerToken(key)}`;
       const firstPosition = firstKeyPositions.get(key);
       if (firstPosition !== undefined) {
-        const first = this.locationAt(firstPosition);
-        const location = this.locationAt(keyPosition);
-        this.duplicates.push({
-          code: "workflow.parse.duplicate-key",
-          message: `Duplicate object key "${key}"`,
-          path: memberPointer,
-          line: location.line,
-          column: location.column,
-          details: { key, firstOccurrence: first },
-        });
+        this.recordDuplicateKey(key, keyPosition, firstPosition, memberPointer);
       } else {
         firstKeyPositions.set(key, keyPosition);
       }
@@ -198,6 +236,7 @@ export class JsonSourceParser {
     }
   }
 
+  /** Parses an array body after `[`; elements extend the parent pointer by index. */
   private parseArrayBody(pointer: string): unknown[] {
     this.expect("[");
     const array: unknown[] = [];
@@ -206,7 +245,7 @@ export class JsonSourceParser {
       this.pos++;
       return array;
     }
-    for (;;) {
+    while (true) {
       array.push(this.parseValue(`${pointer}/${array.length}`));
       this.skipWhitespace();
       if (this.text[this.pos] === ",") {
@@ -221,12 +260,15 @@ export class JsonSourceParser {
     }
   }
 
+  /** Parses a string value after the opening quote, decoding escapes as it goes. */
   private parseString(): string {
     this.expect('"');
     let out = "";
-    for (;;) {
+    while (true) {
       const ch = this.text[this.pos];
-      if (ch === undefined) this.fail("Unterminated string");
+      if (ch === undefined) {
+        this.fail("Unterminated string");
+      }
       if (ch === '"') {
         this.pos++;
         return out;
@@ -235,17 +277,24 @@ export class JsonSourceParser {
         out += this.parseEscape();
         continue;
       }
-      if (ch.charCodeAt(0) < 0x20) this.fail("Unescaped control character in string");
+      if (ch.charCodeAt(0) < 0x20) {
+        this.fail("Unescaped control character in string");
+      }
       out += ch;
       this.pos++;
     }
   }
 
-  /** Parses one escape sequence; the parse position sits on the backslash. */
+  /**
+   * Parses one escape sequence with the parse position on the backslash,
+   * returning the decoded character.
+   */
   private parseEscape(): string {
     this.pos++;
     const esc = this.text[this.pos];
-    if (esc === undefined) this.fail("Unterminated string");
+    if (esc === undefined) {
+      this.fail("Unterminated string");
+    }
     this.pos++;
     switch (esc) {
       case '"':
@@ -271,20 +320,26 @@ export class JsonSourceParser {
     }
   }
 
-  /** Parses `\uXXXX`, combining a following low-surrogate escape into one code point. */
+  /**
+   * Parses `\uXXXX` after the `u`. A high surrogate followed by a low
+   * surrogate escape combines into one code point; a lone surrogate is
+   * kept as-is because the JSON grammar permits it.
+   */
   private parseUnicodeEscape(): string {
     const hex = this.text.slice(this.pos, this.pos + 4);
-    if (!UNICODE_ESCAPE_PATTERN.test(hex)) this.fail("Invalid \\u escape sequence");
+    if (!JsonSourceParser.UNICODE_ESCAPE_PATTERN.test(hex)) {
+      this.fail("Invalid \\u escape sequence");
+    }
     this.pos += 4;
     const code = Number.parseInt(hex, 16);
-    if (
+    const nextIsLowSurrogate =
       code >= 0xd800 &&
       code <= 0xdbff &&
       this.text[this.pos] === "\\" &&
-      this.text[this.pos + 1] === "u"
-    ) {
+      this.text[this.pos + 1] === "u";
+    if (nextIsLowSurrogate) {
       const lowHex = this.text.slice(this.pos + 2, this.pos + 6);
-      if (UNICODE_ESCAPE_PATTERN.test(lowHex)) {
+      if (JsonSourceParser.UNICODE_ESCAPE_PATTERN.test(lowHex)) {
         const low = Number.parseInt(lowHex, 16);
         if (low >= 0xdc00 && low <= 0xdfff) {
           this.pos += 6;
@@ -295,43 +350,84 @@ export class JsonSourceParser {
     return String.fromCharCode(code);
   }
 
+  /** Parses a number at the parse position per the JSON number grammar. */
   private parseNumber(): number {
-    NUMBER_PATTERN.lastIndex = this.pos;
-    const match = NUMBER_PATTERN.exec(this.text);
-    if (!match || match[0] === undefined) this.fail("Invalid number");
-    this.pos = NUMBER_PATTERN.lastIndex;
+    const pattern = JsonSourceParser.NUMBER_PATTERN;
+    pattern.lastIndex = this.pos;
+    const match = pattern.exec(this.text);
+    if (!match || match[0] === undefined) {
+      this.fail("Invalid number");
+    }
+    this.pos = pattern.lastIndex;
     return Number(match[0]);
   }
 
+  /** Parses a literal word (`true`, `false`, `null`) at the parse position. */
   private parseLiteral(word: string, value: unknown): unknown {
-    if (!this.text.startsWith(word, this.pos)) this.fail(`Invalid literal; expected '${word}'`);
+    if (!this.text.startsWith(word, this.pos)) {
+      this.fail(`Invalid literal; expected '${word}'`);
+    }
     this.pos += word.length;
     return value;
+  }
+
+  /** Records a duplicated object key at its second occurrence. */
+  private recordDuplicateKey(
+    key: string,
+    keyPosition: number,
+    firstPosition: number,
+    memberPointer: string,
+  ): void {
+    const location = this.locationAt(keyPosition);
+    this.duplicates.push({
+      code: "workflow.parse.duplicate-key",
+      message: `Duplicate object key "${key}"`,
+      path: memberPointer,
+      line: location.line,
+      column: location.column,
+      details: { key, firstOccurrence: this.locationAt(firstPosition) },
+    });
   }
 
   // -------------------------------------------------------------------------
   // Positions
   // -------------------------------------------------------------------------
 
+  /** Advances past whitespace: space, tab, newline, and carriage return. */
   private skipWhitespace(): void {
-    for (;;) {
+    while (true) {
       const ch = this.text[this.pos];
-      if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") this.pos++;
-      else return;
+      if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
+        this.pos++;
+        continue;
+      }
+      return;
     }
   }
 
+  /** Consumes the expected character or raises a syntax error. */
   private expect(expected: string): void {
-    if (this.text[this.pos] !== expected) this.fail(`Expected '${expected}'`);
+    if (this.text[this.pos] !== expected) {
+      this.fail(`Expected '${expected}'`);
+    }
     this.pos++;
   }
 
   /** Raises a syntax error at the current position; `parse` converts it to an issue. */
   private fail(message: string): never {
-    throw new JsonSyntaxError(message, this.locationAt(this.pos));
+    throw new JsonParseError({
+      code: "workflow.parse.json-invalid",
+      message,
+      path: "",
+      ...this.locationAt(this.pos),
+    });
   }
 
-  /** Converts a text offset to a one-based line and column. */
+  /**
+   * Converts a text offset to a one-based line and column by binary
+   * search over the line-start index: the greatest start at or before
+   * the position is its line's first character.
+   */
   private locationAt(position: number): SourceLocation {
     const starts = this.lineStarts ?? this.computeLineStarts();
     let low = 0;
@@ -339,17 +435,23 @@ export class JsonSourceParser {
     while (low < high) {
       const mid = (low + high + 1) >> 1;
       const midStart = starts[mid];
-      if (midStart === undefined || midStart > position) high = mid - 1;
-      else low = mid;
+      if (midStart === undefined || midStart > position) {
+        high = mid - 1;
+      } else {
+        low = mid;
+      }
     }
     const lineStart = starts[low] ?? 0;
     return { line: low + 1, column: position - lineStart + 1 };
   }
 
+  /** Indexes the offset of each line's first character, caching the result. */
   private computeLineStarts(): number[] {
     const starts = [0];
     for (let i = 0; i < this.text.length; i++) {
-      if (this.text.charCodeAt(i) === 10) starts.push(i + 1);
+      if (this.text.charCodeAt(i) === 10) {
+        starts.push(i + 1);
+      }
     }
     this.lineStarts = starts;
     return starts;

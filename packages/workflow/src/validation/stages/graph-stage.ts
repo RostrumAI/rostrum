@@ -38,10 +38,14 @@ export class GraphStage implements ValidationStage {
     });
 
     graph.document.steps.forEach((step) => {
-      if (!step.loop) return;
+      if (!step.loop) {
+        return;
+      }
       for (const memberId of graph.loopBodyMembers(step.id)) {
         const member = graph.stepNode(memberId);
-        if (!member || memberId === step.id || !member.step.loop) continue;
+        if (!member || memberId === step.id || !member.step.loop) {
+          continue;
+        }
         findings.push(
           context.findings.create({
             code: "workflow.loop.nested",
@@ -54,7 +58,9 @@ export class GraphStage implements ValidationStage {
     });
 
     graph.document.steps.forEach((step, index) => {
-      if (!step.loop) return;
+      if (!step.loop) {
+        return;
+      }
       const cycle = graph.findBodyCycle(step.id);
       if (cycle) {
         findings.push(
@@ -80,7 +86,9 @@ export class GraphStage implements ValidationStage {
       );
     }
 
-    if (findings.some((finding) => finding.code === "workflow.graph.cycle")) return findings;
+    if (findings.some((finding) => finding.code === "workflow.graph.cycle")) {
+      return findings;
+    }
 
     const dominators = graph.dominators();
     const reachable = graph.controlReachableFromFirstNode();
