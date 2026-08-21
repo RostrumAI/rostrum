@@ -128,3 +128,6 @@ export const WorkflowDocument = Type.Object(
 );
 
 export type WorkflowDocument = Static<typeof WorkflowDocument>;
+
+export type WorkflowStep = Static<typeof Step>;
+export type WorkflowConditional = Static<typeof Conditional>;

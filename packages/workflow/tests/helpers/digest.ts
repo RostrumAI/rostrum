@@ -17,7 +17,10 @@ function compareKeys(a: string, b: string): number {
   const bUnits = b.split("").map((c) => c.charCodeAt(0));
   const length = Math.min(aUnits.length, bUnits.length);
   for (let i = 0; i < length; i++) {
-    if (aUnits[i] !== bUnits[i]) return aUnits[i] < bUnits[i] ? -1 : 1;
+    const aUnit = aUnits[i];
+    const bUnit = bUnits[i];
+    if (aUnit !== undefined && bUnit !== undefined && aUnit !== bUnit)
+      return aUnit < bUnit ? -1 : 1;
   }
   return aUnits.length - bUnits.length;
 }

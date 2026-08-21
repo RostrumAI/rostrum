@@ -13,7 +13,10 @@
       "type": "task",
       "config": { "operation": "list-files" },
       "inputs": { "files": { "ref": "inputs.files" } },
-      "outputs": { "fileList": { "type": "array", "items": { "type": "string" } } },
+      "outputs": {
+        "fileList": { "type": "array", "items": { "type": "string" } },
+        "results": { "type": "array", "items": { "type": "string" } }
+      },
       "loop": {
         "collection": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.fileList" },
         "maxIterations": 50,
