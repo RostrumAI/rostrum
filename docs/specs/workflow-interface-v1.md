@@ -39,6 +39,8 @@ The machine-readable schema ([workflow-interface-v1.schema.json](workflow-interf
 | `steps` | array | **required** | Unordered list of step objects. Minimum length 1. Execution order follows the graph topology, never array order; the visual editor determines display order. |
 | `conditionals` | array | optional | List of conditional objects used for evaluated routing. Defaults to `[]`. See [Conditionals](#conditionals). |
 
+"Required" in the field tables means required for a valid, publishable document. Drafts are held to a lower bar on purpose: any syntactically valid JSON saves as a draft, and a fresh workflow missing `firstNode` or `steps` saves with those missing-field findings attached (see [Saving a draft](#saving-a-draft)). The schema rules below therefore describe the publishable end state, not what the editor must show at every moment.
+
 ### Step fields
 
 Every step shares the same base shape; `config` is the step-type-specific part.
