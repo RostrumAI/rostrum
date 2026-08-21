@@ -22,11 +22,23 @@ export class TerminationStage implements ValidationStage {
     const graph = context.graph;
     const document = graph.document;
     const findings: Finding[] = [];
-    const edges = graph.orderingEdges(false);
     const leaves = new Set<string>();
 
+    // Enumerate every control path from firstNode with a depth-first
+    // walk, collecting the steps where a path ends ("leaves"):
+    // - at a step whose only outgoing route is a conditional with an
+    //   end-workflow branch (a branch or the default with no `next`), or
+    // - at a step with no outgoing ordering edges.
+    // Each recursion receives its own copy of the path, so branches that
+    // reconverge after a split are walked as separate paths instead of
+    // being treated as one merged node sequence.
+    const edges = graph.orderingEdges(false);
     const visit = (stepId: string, path: Set<string>): void => {
-      if (path.has(stepId)) return;
+      // A repeated step closes a cycle; the graph stage reports cycles,
+      // so this walk simply stops descending.
+      if (path.has(stepId)) {
+        return;
+      }
       path.add(stepId);
       const node = graph.stepNode(stepId);
       if (!node) {
@@ -63,6 +75,11 @@ export class TerminationStage implements ValidationStage {
     };
     visit(document.firstNode, new Set());
 
+    // Classify each leaf in two groups:
+    // - A step with no successors and no conditional is a terminal step;
+    //   outside a loop body it must be typed `result`.
+    // - Any other leaf must end via an end-workflow conditional branch.
+    // Leaves failing their group's rule produce a finding.
     for (const leafId of leaves) {
       const node = graph.stepNode(leafId);
       if (!node) {

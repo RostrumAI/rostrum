@@ -138,4 +138,31 @@ describe("ConditionalStage", () => {
       true,
     );
   });
+  test("reports empty all and any groups", () => {
+    const { document } = branchingDocument({
+      branches: [
+        { label: "empty-all", priority: 0, condition: { all: [] } },
+        { label: "empty-any", priority: 1, condition: { any: [] } },
+      ],
+    });
+    const findings = run(document);
+    const emptyGroups = findings.filter((finding) => finding.code === "workflow.conditional.empty-group");
+    expect(emptyGroups.map((finding) => finding.path)).toEqual([
+      "/conditionals/0/branches/0/condition/all",
+      "/conditionals/0/branches/1/condition/any",
+    ]);
+  });
+
+  test("ignores condition values that are neither leaves nor composites", () => {
+    const { owner, document } = branchingDocument({});
+    const conditionalObject = (
+      document as { conditionals: Array<{ branches: Array<{ condition: unknown }> }> }
+    ).conditionals[0];
+    const firstBranch = conditionalObject?.branches[0];
+    if (firstBranch) {
+      firstBranch.condition = "not-a-condition";
+    }
+    expect(run(document)).toEqual([]);
+    expect(owner).toBeDefined();
+  });
 });

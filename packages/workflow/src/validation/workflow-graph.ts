@@ -26,11 +26,17 @@ function findCycleIn(edges: Map<string, string[]>, startNodes: Iterable<string>)
   const path: string[] = [];
   let cycle: string[] | null = null;
   const visit = (nodeId: string): boolean => {
+    // Mark the node as on the current DFS path, then descend into
+    // unvisited successors. An edge to an IN_PROGRESS node is a back
+    // edge: the cycle is the slice of the path from that node onward,
+    // closed by repeating the entry id.
     color.set(nodeId, IN_PROGRESS);
     path.push(nodeId);
     for (const next of edges.get(nodeId) ?? []) {
       const state = color.get(next);
       if (state === IN_PROGRESS) {
+        // The cycle is the slice of the current path from the entry
+        // node onward; repeating the entry id closes the loop.
         cycle = path.slice(path.indexOf(next)).concat(next);
         return true;
       }
@@ -72,12 +78,12 @@ export class WorkflowGraph {
   /** Builds the graph over a shape-valid document. */
   constructor(document: WorkflowDocument) {
     this.document = document;
-    document.steps.forEach((step, index) => {
+    for (const [index, step] of document.steps.entries()) {
       this.stepsById.set(step.id, { step, index });
-    });
-    (document.conditionals ?? []).forEach((conditional, index) => {
+    }
+    for (const [index, conditional] of (document.conditionals ?? []).entries()) {
       this.conditionalsById.set(conditional.id, { conditional, index });
-    });
+    }
   }
 
   /** Gets a step node by step id, or undefined when absent. */
@@ -295,12 +301,11 @@ export class WorkflowGraph {
         if (predDominatorSets.length === 0) {
           continue;
         }
+        // The new dominator set is the intersection of every
+        // predecessor's set — the steps all paths share — plus the node
+        // itself, which trivially dominates itself.
         let intersection = new Set(predDominatorSets[0]);
-        for (let i = 1; i < predDominatorSets.length; i++) {
-          const other = predDominatorSets[i];
-          if (!other) {
-            continue;
-          }
+        for (const other of predDominatorSets.slice(1)) {
           intersection = new Set([...intersection].filter((id) => other.has(id)));
         }
         intersection.add(stepId);

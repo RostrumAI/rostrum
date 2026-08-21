@@ -1,6 +1,7 @@
 import type { Finding } from "../../findings";
 import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
+import type { WorkflowGraph } from "../workflow-graph";
 
 /**
  * Stage 4: graph topology.
@@ -23,7 +24,28 @@ export class GraphStage implements ValidationStage {
     const graph = context.graph;
     const findings: Finding[] = [];
 
-    graph.document.steps.forEach((step, index) => {
+    // The stage runs four checks in order:
+    // 1. Loop bounds: every maxIterations is an integer >= 1.
+    // 2. Nesting: no step inside a loop body declares its own loop.
+    // 3. Acyclicity: each loop body subgraph, then the whole graph.
+    this.checkLoopBounds(context, findings);
+    this.checkNestedLoops(graph, context, findings);
+    this.checkBodyCycles(graph, context, findings);
+    this.checkWholeGraphCycles(graph, context, findings);
+
+    // Dominator sets are only defined on acyclic graphs, so the final
+    // dependency check runs only when no cycle was reported above.
+    const foundCycle = findings.some((finding) => finding.code === "workflow.graph.cycle");
+    if (!foundCycle) {
+      this.checkDependencyDominance(graph, context, findings);
+    }
+    return findings;
+  }
+
+  /** Reports loops whose `maxIterations` is not an integer >= 1. */
+  private checkLoopBounds(context: ValidationContext, findings: Finding[]): void {
+    const steps = context.typedDocument.steps;
+    for (const [index, step] of steps.entries()) {
       const loop = step.loop;
       if (loop && (!Number.isInteger(loop.maxIterations) || loop.maxIterations < 1)) {
         findings.push(
@@ -35,14 +57,26 @@ export class GraphStage implements ValidationStage {
           }),
         );
       }
-    });
+    }
+  }
 
-    graph.document.steps.forEach((step) => {
+  /**
+   * Reports nested loops.
+   *
+   * For every declared loop, the walk visits the members of its body
+   * subgraph and reports any member that declares a loop of its own;
+   * v1 forbids nesting one level deep or deeper.
+   */
+  private checkNestedLoops(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
+    const steps = context.typedDocument.steps;
+    for (const step of steps) {
       if (!step.loop) {
-        return;
+        continue;
       }
       for (const memberId of graph.loopBodyMembers(step.id)) {
         const member = graph.stepNode(memberId);
+        // Skip the loop step itself (it is trivially in its own body)
+        // and members without a nested loop declaration.
         if (!member || memberId === step.id || !member.step.loop) {
           continue;
         }
@@ -55,11 +89,15 @@ export class GraphStage implements ValidationStage {
           }),
         );
       }
-    });
+    }
+  }
 
-    graph.document.steps.forEach((step, index) => {
+  /** Reports cycles inside individual loop body subgraphs. */
+  private checkBodyCycles(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
+    const steps = context.typedDocument.steps;
+    for (const [index, step] of steps.entries()) {
       if (!step.loop) {
-        return;
+        continue;
       }
       const cycle = graph.findBodyCycle(step.id);
       if (cycle) {
@@ -72,8 +110,11 @@ export class GraphStage implements ValidationStage {
           }),
         );
       }
-    });
+    }
+  }
 
+  /** Reports a cycle across the combined control graph of the workflow. */
+  private checkWholeGraphCycles(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
     const cycle = graph.findCycle();
     if (cycle) {
       findings.push(
@@ -85,17 +126,29 @@ export class GraphStage implements ValidationStage {
         }),
       );
     }
+  }
 
-    if (findings.some((finding) => finding.code === "workflow.graph.cycle")) {
-      return findings;
-    }
-
+  /**
+   * Reports dependencies that are not reachable on all paths from
+   * `firstNode` to their dependent.
+   *
+   * A dependency dominates its dependent exactly when every control
+   * path passes through it; that is the merge-after-branch rule of
+   * E1-S2. Steps unreachable from `firstNode` are skipped because their
+   * reachability is reported by the termination stage.
+   */
+  private checkDependencyDominance(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
     const dominators = graph.dominators();
     const reachable = graph.controlReachableFromFirstNode();
-    graph.document.steps.forEach((step, index) => {
-      if (!reachable.has(step.id)) return;
+    const steps = context.typedDocument.steps;
+    for (const [index, step] of steps.entries()) {
+      if (!reachable.has(step.id)) {
+        continue;
+      }
       for (const dependency of step.dependencies ?? []) {
-        if (dominators.get(step.id)?.has(dependency)) continue;
+        if (dominators.get(step.id)?.has(dependency)) {
+          continue;
+        }
         const dependencyNode = graph.stepNode(dependency);
         findings.push(
           context.findings.create({
@@ -109,8 +162,6 @@ export class GraphStage implements ValidationStage {
           }),
         );
       }
-    });
-
-    return findings;
+    }
   }
 }

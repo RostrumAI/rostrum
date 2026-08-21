@@ -31,9 +31,23 @@ export class ValidationContext {
   }
 
   get ruleSet(): InterfaceRuleSet {
-    if (!this.selectedRuleSet)
+    if (!this.selectedRuleSet) {
       throw new Error("No interface rule set was selected for this validation run");
+    }
     return this.selectedRuleSet;
+  }
+
+  /**
+   * The parsed document as a v1 workflow document.
+   *
+   * The pipeline gates every consumer of this accessor behind the
+   * identity stage, which guarantees the document passed schema
+   * validation; this is the one place the untyped-to-typed transition
+   * happens. Stages keep their own defensive re-checks because they are
+   * also invoked directly in tests.
+   */
+  get typedDocument(): WorkflowDocument {
+    return this.document as WorkflowDocument;
   }
 
   /** Records the rule set chosen by exact version match. */

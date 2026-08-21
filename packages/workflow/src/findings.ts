@@ -41,11 +41,17 @@ export interface Finding {
 
 /** The input to {@link FindingFactory.create}; `blocking` defaults to true. */
 export interface FindingSpec {
+  /** Stable dot-namespaced identifier, for example `workflow.graph.cycle`. */
   code: string;
+  /** Human-readable explanation of the problem. */
   message: string;
+  /** JSON Pointer (RFC 6901) of the offending value, or `""` for document-level problems. */
   path: string;
+  /** True when the finding prevents publication; defaults to true. */
   blocking?: boolean;
+  /** Additional pointers involved in a cross-reference conflict. */
   relatedLocations?: RelatedLocation[];
+  /** Structured context an automated author can repair without parsing the message. */
   details?: Record<string, unknown>;
 }
 

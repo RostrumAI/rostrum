@@ -34,18 +34,25 @@ export class PublicationPreparer {
     this.metadataMembers = ruleSet.metadataMembers;
   }
 
-  /** Canonicalizes the document and computes its publication digest.
-   * Throws `CanonicalizationError` when the document is not a JSON object
-   * or contains a non-finite number.
+  /**
+   * Canonicalizes the document and computes its publication digest.
+   *
+   * Throws `CanonicalizationError` when the document is not a JSON
+   * object or contains a value with no canonical form.
    */
   async prepare(document: object): Promise<PublicationPreparation> {
-    if (typeof document !== "object" || document === null || Array.isArray(document)) {
+    if (document === null || Array.isArray(document)) {
       throw new CanonicalizationError("The workflow document must be a JSON object");
     }
+    // The digest covers definitional content only: metadata members are
+    // copied out before canonicalization so editing them later does not
+    // change the digest.
     const record = document as Record<string, unknown>;
     const definitional: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
-      if (!this.metadataMembers.includes(key)) definitional[key] = value;
+      if (!this.metadataMembers.includes(key)) {
+        definitional[key] = value;
+      }
     }
     const canonicalText = canonicalize(record);
     const digest = await sha256Hex(canonicalize(definitional));

@@ -63,6 +63,11 @@ export class WorkflowValidator {
     return this.validateParsed(document, null);
   }
 
+  /**
+   * Runs the version stage over the rule-set registry, then the selected
+   * rule set's stages. An unknown version runs the version stage alone,
+   * so its finding is the only output.
+   */
   private validateParsed(document: unknown, sourceMap: SourceMap | null): ValidationResult {
     const context = new ValidationContext(document, sourceMap);
     const declared = declaredInterfaceVersion(document);
@@ -82,8 +87,9 @@ export class WorkflowValidator {
 
 /** Reads the declared `interfaceVersion` member when the document is a JSON object. */
 function declaredInterfaceVersion(document: unknown): unknown {
-  if (typeof document !== "object" || document === null || Array.isArray(document))
+  if (typeof document !== "object" || document === null || Array.isArray(document)) {
     return undefined;
+  }
   return (document as Record<string, unknown>).interfaceVersion;
 }
 
