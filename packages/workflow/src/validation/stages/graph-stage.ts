@@ -67,7 +67,11 @@ export class GraphStage implements ValidationStage {
    * subgraph and reports any member that declares a loop of its own;
    * v1 forbids nesting one level deep or deeper.
    */
-  private checkNestedLoops(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
+  private checkNestedLoops(
+    graph: WorkflowGraph,
+    context: ValidationContext,
+    findings: Finding[],
+  ): void {
     const steps = context.typedDocument.steps;
     for (const step of steps) {
       if (!step.loop) {
@@ -93,7 +97,11 @@ export class GraphStage implements ValidationStage {
   }
 
   /** Reports cycles inside individual loop body subgraphs. */
-  private checkBodyCycles(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
+  private checkBodyCycles(
+    graph: WorkflowGraph,
+    context: ValidationContext,
+    findings: Finding[],
+  ): void {
     const steps = context.typedDocument.steps;
     for (const [index, step] of steps.entries()) {
       if (!step.loop) {
@@ -114,7 +122,11 @@ export class GraphStage implements ValidationStage {
   }
 
   /** Reports a cycle across the combined control graph of the workflow. */
-  private checkWholeGraphCycles(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
+  private checkWholeGraphCycles(
+    graph: WorkflowGraph,
+    context: ValidationContext,
+    findings: Finding[],
+  ): void {
     const cycle = graph.findCycle();
     if (cycle) {
       findings.push(
@@ -137,7 +149,11 @@ export class GraphStage implements ValidationStage {
    * E1-S2. Steps unreachable from `firstNode` are skipped because their
    * reachability is reported by the termination stage.
    */
-  private checkDependencyDominance(graph: WorkflowGraph, context: ValidationContext, findings: Finding[]): void {
+  private checkDependencyDominance(
+    graph: WorkflowGraph,
+    context: ValidationContext,
+    findings: Finding[],
+  ): void {
     const dominators = graph.dominators();
     const reachable = graph.controlReachableFromFirstNode();
     const steps = context.typedDocument.steps;

@@ -146,7 +146,9 @@ describe("ConditionalStage", () => {
       ],
     });
     const findings = run(document);
-    const emptyGroups = findings.filter((finding) => finding.code === "workflow.conditional.empty-group");
+    const emptyGroups = findings.filter(
+      (finding) => finding.code === "workflow.conditional.empty-group",
+    );
     expect(emptyGroups.map((finding) => finding.path)).toEqual([
       "/conditionals/0/branches/0/condition/all",
       "/conditionals/0/branches/1/condition/any",

@@ -76,7 +76,14 @@ export class IdentityStage implements ValidationStage {
     }
 
     for (const [index, conditional] of (document.conditionals ?? []).entries()) {
-      this.checkConditional(context, conditional, index, firstConditionalIndexById, firstStepIndexById, findings);
+      this.checkConditional(
+        context,
+        conditional,
+        index,
+        firstConditionalIndexById,
+        firstStepIndexById,
+        findings,
+      );
     }
 
     return findings;
@@ -100,7 +107,9 @@ export class IdentityStage implements ValidationStage {
           code: "workflow.identity.duplicate-conditional-id",
           message: `Duplicate conditional id '${conditional.id}'`,
           path: `/conditionals/${index}/id`,
-          relatedLocations: [{ path: `/conditionals/${firstIndex}/id`, message: "first occurrence" }],
+          relatedLocations: [
+            { path: `/conditionals/${firstIndex}/id`, message: "first occurrence" },
+          ],
           details: { duplicateId: conditional.id },
         }),
       );

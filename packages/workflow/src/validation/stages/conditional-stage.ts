@@ -152,7 +152,16 @@ export class ConditionalStage implements ValidationStage {
     const record = condition as Record<string, unknown>;
 
     if (typeof record.ref === "string") {
-      this.checkLeaf(context, graph, conditional, record.ref, record.op, pointer, referencedStepIds, findings);
+      this.checkLeaf(
+        context,
+        graph,
+        conditional,
+        record.ref,
+        record.op,
+        pointer,
+        referencedStepIds,
+        findings,
+      );
       return;
     }
     for (const key of COMPOSITE_KEYS) {
