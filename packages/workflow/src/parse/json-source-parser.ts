@@ -1,3 +1,4 @@
+import { type AnyNode, type MemberNode, parse as parseJsonAst } from "@humanwhocodes/momoa";
 import {
   escapePointerToken,
   type SourceLocation,
@@ -9,11 +10,12 @@ import {
  * Strict JSON parsing with a source map.
  *
  * Stage 0 of the validation pipeline parses raw input under the v1 rules
- * (E1-S2, E1-S3): duplicate keys are errors rather than last-wins, the
- * `NaN`/`Infinity` literals accepted by `JSON.parse` are rejected because
- * they are not part of the JSON grammar, and byte input must be valid
- * UTF-8. The parser records the location of every value so findings can
- * carry one-based line and column numbers.
+ * (E1-S2, E1-S3): duplicate keys are errors rather than last-wins, raw
+ * control characters in strings are rejected, the `NaN`/`Infinity`
+ * literals accepted by `JSON.parse` are rejected because they are not
+ * part of the JSON grammar (momoa implements ECMA-404), and byte input
+ * must be valid UTF-8. The parser records the location of every value so
+ * findings can carry one-based line and column numbers.
  */
 
 export type ParseErrorCode =
@@ -41,47 +43,22 @@ export type JsonParseResult =
   | { ok: true; value: unknown; sourceMap: SourceMap }
   | { ok: false; issues: JsonParseIssue[] };
 
+/** JSON Pointer (RFC 6901) of the document root. */
+const ROOT_POINTER = "";
+
 /**
- * Aborts recursive-descent parsing at the first syntax error.
- *
- * The error carries the finished issue rather than raw parts, so `parse`
- * reports it unchanged instead of converting representations.
+ * Turns raw input into a validated value plus the source locations every
+ * finding can point at. Grammar handling is delegated to momoa; this
+ * class owns the workflow-specific rules: duplicate-key rejection,
+ * control-character rejection, pointer construction, and UTF-8
+ * validation of byte input.
  */
-class JsonParseError extends Error {
-  readonly issue: JsonParseIssue;
-
-  /** Builds the abort signal from the issue it carries. */
-  constructor(issue: JsonParseIssue) {
-    super(issue.message);
-    this.name = "JsonParseError";
-    this.issue = issue;
-  }
-}
-
-/** Checks whether a thrown value is a parse abort rather than an unexpected failure. */
-function isParseAbort(error: unknown): error is JsonParseError {
-  return error instanceof JsonParseError;
-}
-
 export class JsonSourceParser {
-  /**
-   * Matches one JSON number at the parse position: no leading zeros, no
-   * bare `+`, no `NaN`. Kept sticky so it matches at `lastIndex`.
-   */
-  private static readonly NUMBER_PATTERN = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
-
-  /** Matches the four hexadecimal digits of a `\uXXXX` escape. */
-  private static readonly UNICODE_ESCAPE_PATTERN = /^[0-9a-fA-F]{4}/;
-
-  /** JSON Pointer (RFC 6901) of the document root. */
-  private static readonly ROOT_POINTER = "";
-
   private readonly input: string | Uint8Array;
   private text = "";
-  private pos = 0;
   private lineStarts: number[] | null = null;
   private readonly pointers = new Map<string, SourcePointer>();
-  private readonly duplicates: JsonParseIssue[] = [];
+  private readonly issues: JsonParseIssue[] = [];
 
   /** Constructs a parser over raw text or UTF-8 bytes; decoding happens in `parse`. */
   constructor(input: string | Uint8Array) {
@@ -103,23 +80,19 @@ export class JsonSourceParser {
       };
     }
 
+    let document: ReturnType<typeof parseJsonAst>;
     try {
-      // The whole document is one value, recorded under the root pointer.
-      const value = this.parseValue(JsonSourceParser.ROOT_POINTER);
-      this.skipWhitespace();
-      if (this.pos < this.text.length) {
-        this.fail("Unexpected content after the JSON document");
-      }
-      if (this.duplicates.length > 0) {
-        return { ok: false, issues: this.duplicates };
-      }
-      return { ok: true, value, sourceMap: Object.fromEntries(this.pointers) };
+      document = parseJsonAst(this.text, { mode: "json" });
     } catch (error) {
-      if (!isParseAbort(error)) {
-        throw error;
-      }
-      return { ok: false, issues: [error.issue] };
+      return { ok: false, issues: [this.syntaxIssue(error)] };
     }
+
+    // The whole document is one value, recorded under the root pointer.
+    const value = this.appendValue(document.body, ROOT_POINTER);
+    if (this.issues.length > 0) {
+      return { ok: false, issues: this.issues };
+    }
+    return { ok: true, value, sourceMap: Object.fromEntries(this.pointers) };
   }
 
   /**
@@ -140,287 +113,119 @@ export class JsonSourceParser {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Values
-  // -------------------------------------------------------------------------
-
   /**
-   * Parses one value and records its source locations under `pointer`.
-   * Dispatches on the first character, which identifies the value kind.
+   * Walks one AST node, recording its source locations under `pointer`
+   * and returning the plain JSON value the node represents. Objects and
+   * arrays recurse so every nested value lands in the pointer map.
    */
-  private parseValue(pointer: string): unknown {
-    this.skipWhitespace();
-    const ch = this.text[this.pos];
-    if (ch === undefined) {
-      this.fail("Unexpected end of input");
-    }
-    const start = this.pos;
-    let value: unknown;
-    switch (ch) {
-      case "{":
-        value = this.parseObjectBody(pointer);
-        break;
-      case "[":
-        value = this.parseArrayBody(pointer);
-        break;
-      case '"':
-        value = this.parseString();
-        break;
-      case "-":
-      case "0":
-      case "1":
-      case "2":
-      case "3":
-      case "4":
-      case "5":
-      case "6":
-      case "7":
-      case "8":
-      case "9":
-        value = this.parseNumber();
-        break;
-      case "t":
-        value = this.parseLiteral("true", true);
-        break;
-      case "f":
-        value = this.parseLiteral("false", false);
-        break;
-      case "n":
-        value = this.parseLiteral("null", null);
-        break;
-      default:
-        this.fail(`Unexpected character '${ch}'`);
-    }
+  private appendValue(node: AnyNode, pointer: string): unknown {
     this.pointers.set(pointer, {
-      value: this.locationAt(start),
-      valueEnd: this.locationAt(this.pos),
+      value: this.toLocation(node.loc.start),
+      valueEnd: this.toLocation(node.loc.end),
     });
-    return value;
-  }
-
-  /** Parses an object body after `{`; members extend the parent pointer by escaped key. */
-  private parseObjectBody(pointer: string): Record<string, unknown> {
-    this.expect("{");
-    const object: Record<string, unknown> = {};
-    const firstKeyPositions = new Map<string, number>();
-    this.skipWhitespace();
-    if (this.text[this.pos] === "}") {
-      this.pos++;
-      return object;
-    }
-    while (true) {
-      this.skipWhitespace();
-      const keyPosition = this.pos;
-      const key = this.parseString();
-      this.skipWhitespace();
-      this.expect(":");
-      this.skipWhitespace();
-      const memberPointer = `${pointer}/${escapePointerToken(key)}`;
-      const firstPosition = firstKeyPositions.get(key);
-      if (firstPosition !== undefined) {
-        this.recordDuplicateKey(key, keyPosition, firstPosition, memberPointer);
-      } else {
-        firstKeyPositions.set(key, keyPosition);
-      }
-      object[key] = this.parseValue(memberPointer);
-      this.skipWhitespace();
-      if (this.text[this.pos] === ",") {
-        this.pos++;
-        continue;
-      }
-      if (this.text[this.pos] === "}") {
-        this.pos++;
-        return object;
-      }
-      this.fail("Expected ',' or '}' in object");
-    }
-  }
-
-  /** Parses an array body after `[`; elements extend the parent pointer by index. */
-  private parseArrayBody(pointer: string): unknown[] {
-    this.expect("[");
-    const array: unknown[] = [];
-    this.skipWhitespace();
-    if (this.text[this.pos] === "]") {
-      this.pos++;
-      return array;
-    }
-    while (true) {
-      array.push(this.parseValue(`${pointer}/${array.length}`));
-      this.skipWhitespace();
-      if (this.text[this.pos] === ",") {
-        this.pos++;
-        continue;
-      }
-      if (this.text[this.pos] === "]") {
-        this.pos++;
-        return array;
-      }
-      this.fail("Expected ',' or ']' in array");
-    }
-  }
-
-  /** Parses a string value after the opening quote, decoding escapes as it goes. */
-  private parseString(): string {
-    this.expect('"');
-    let out = "";
-    while (true) {
-      const ch = this.text[this.pos];
-      if (ch === undefined) {
-        this.fail("Unterminated string");
-      }
-      if (ch === '"') {
-        this.pos++;
-        return out;
-      }
-      if (ch === "\\") {
-        out += this.parseEscape();
-        continue;
-      }
-      if (ch.charCodeAt(0) < 0x20) {
-        this.fail("Unescaped control character in string");
-      }
-      out += ch;
-      this.pos++;
-    }
-  }
-
-  /**
-   * Parses one escape sequence with the parse position on the backslash,
-   * returning the decoded character.
-   */
-  private parseEscape(): string {
-    this.pos++;
-    const esc = this.text[this.pos];
-    if (esc === undefined) {
-      this.fail("Unterminated string");
-    }
-    this.pos++;
-    switch (esc) {
-      case '"':
-        return '"';
-      case "\\":
-        return "\\";
-      case "/":
-        return "/";
-      case "b":
-        return "\b";
-      case "f":
-        return "\f";
-      case "n":
-        return "\n";
-      case "r":
-        return "\r";
-      case "t":
-        return "\t";
-      case "u":
-        return this.parseUnicodeEscape();
+    switch (node.type) {
+      case "Object":
+        return this.appendObject(node, pointer);
+      case "Array":
+        return node.elements.map((element, index) =>
+          this.appendValue(element.value, `${pointer}/${index}`),
+        );
+      case "Document":
+        return this.appendValue(node.body, pointer);
+      case "String":
+        this.rejectControlCharacters(node.value, pointer, node.loc.start);
+        return node.value;
+      case "Number":
+      case "Boolean":
+        return node.value;
+      case "Null":
+        return null;
       default:
-        this.fail(`Invalid escape sequence '\\${esc}'`);
+        throw new Error(`Unexpected AST node '${node.type}' at ${pointer}`);
     }
   }
 
   /**
-   * Parses `\uXXXX` after the `u`. A high surrogate followed by a low
-   * surrogate escape combines into one code point; a lone surrogate is
-   * kept as-is because the JSON grammar permits it.
+   * Walks an object's members after the `{`. Keys are compared after
+   * escape decoding — `"a"` and `"\u0061"` are the same member name — and
+   * each repetition after the first is reported at its own location.
    */
-  private parseUnicodeEscape(): string {
-    const hex = this.text.slice(this.pos, this.pos + 4);
-    if (!JsonSourceParser.UNICODE_ESCAPE_PATTERN.test(hex)) {
-      this.fail("Invalid \\u escape sequence");
-    }
-    this.pos += 4;
-    const code = Number.parseInt(hex, 16);
-    const nextIsLowSurrogate =
-      code >= 0xd800 &&
-      code <= 0xdbff &&
-      this.text[this.pos] === "\\" &&
-      this.text[this.pos + 1] === "u";
-    if (nextIsLowSurrogate) {
-      const lowHex = this.text.slice(this.pos + 2, this.pos + 6);
-      if (JsonSourceParser.UNICODE_ESCAPE_PATTERN.test(lowHex)) {
-        const low = Number.parseInt(lowHex, 16);
-        if (low >= 0xdc00 && low <= 0xdfff) {
-          this.pos += 6;
-          return String.fromCharCode(code, low);
-        }
+  private appendObject(
+    node: Extract<AnyNode, { type: "Object" }>,
+    pointer: string,
+  ): Record<string, unknown> {
+    const object: Record<string, unknown> = {};
+    const firstKeyLocations = new Map<string, SourceLocation>();
+    for (const member of node.members) {
+      // Member names are strings in json mode; IdentifierNode only
+      // occurs in json5 mode, but the union forces the guard.
+      const key = member.name.type === "String" ? member.name.value : member.name.name;
+      const memberPointer = `${pointer}/${escapePointerToken(key)}`;
+      const firstLocation = firstKeyLocations.get(key);
+      if (firstLocation === undefined) {
+        firstKeyLocations.set(key, this.toLocation(member.name.loc.start));
+      } else {
+        this.recordDuplicateKey(member, key, firstLocation, memberPointer);
       }
+      object[key] = this.appendValue(member.value, memberPointer);
     }
-    return String.fromCharCode(code);
+    return object;
   }
 
-  /** Parses a number at the parse position per the JSON number grammar. */
-  private parseNumber(): number {
-    const pattern = JsonSourceParser.NUMBER_PATTERN;
-    pattern.lastIndex = this.pos;
-    const match = pattern.exec(this.text);
-    if (!match || match[0] === undefined) {
-      this.fail("Invalid number");
-    }
-    this.pos = pattern.lastIndex;
-    return Number(match[0]);
-  }
-
-  /** Parses a literal word (`true`, `false`, `null`) at the parse position. */
-  private parseLiteral(word: string, value: unknown): unknown {
-    if (!this.text.startsWith(word, this.pos)) {
-      this.fail(`Invalid literal; expected '${word}'`);
-    }
-    this.pos += word.length;
-    return value;
-  }
-
-  /** Records a duplicated object key at its second occurrence. */
-  private recordDuplicateKey(
-    key: string,
-    keyPosition: number,
-    firstPosition: number,
-    memberPointer: string,
+  /**
+   * Reports raw control characters (U+0000–U+001F) inside one string
+   * value; momoa's tokenizer accepts them, the JSON grammar does not.
+   */
+  private rejectControlCharacters(
+    value: string,
+    pointer: string,
+    start: { line: number; column: number },
   ): void {
-    const location = this.locationAt(keyPosition);
-    this.duplicates.push({
-      code: "workflow.parse.duplicate-key",
-      message: `Duplicate object key "${key}"`,
-      path: memberPointer,
-      line: location.line,
-      column: location.column,
-      details: { key, firstOccurrence: this.locationAt(firstPosition) },
-    });
-  }
-
-  // -------------------------------------------------------------------------
-  // Positions
-  // -------------------------------------------------------------------------
-
-  /** Advances past whitespace: space, tab, newline, and carriage return. */
-  private skipWhitespace(): void {
-    while (true) {
-      const ch = this.text[this.pos];
-      if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
-        this.pos++;
+    for (const ch of value) {
+      if (ch.charCodeAt(0) >= 0x20) {
         continue;
       }
+      this.issues.push({
+        code: "workflow.parse.json-invalid",
+        message: "Unescaped control character in string",
+        path: pointer,
+        ...this.toLocation(start),
+      });
       return;
     }
   }
 
-  /** Consumes the expected character or raises a syntax error. */
-  private expect(expected: string): void {
-    if (this.text[this.pos] !== expected) {
-      this.fail(`Expected '${expected}'`);
-    }
-    this.pos++;
+  /** Records a duplicated object key at its repeating occurrence. */
+  private recordDuplicateKey(
+    member: MemberNode,
+    key: string,
+    firstLocation: SourceLocation,
+    memberPointer: string,
+  ): void {
+    this.issues.push({
+      code: "workflow.parse.duplicate-key",
+      message: `Duplicate object key "${key}"`,
+      path: memberPointer,
+      ...this.toLocation(member.name.loc.start),
+      details: { key, firstOccurrence: firstLocation },
+    });
   }
 
-  /** Raises a syntax error at the current position; `parse` converts it to an issue. */
-  private fail(message: string): never {
-    throw new JsonParseError({
+  /** Converts a syntax failure into an issue located at the offending offset. */
+  private syntaxIssue(error: unknown): JsonParseIssue {
+    const offset =
+      typeof error === "object" && error !== null && "offset" in error ? Number(error.offset) : NaN;
+    const issue: JsonParseIssue = {
       code: "workflow.parse.json-invalid",
-      message,
+      message: error instanceof Error ? error.message : String(error),
       path: "",
-      ...this.locationAt(this.pos),
-    });
+    };
+    if (!Number.isNaN(offset)) {
+      const location = this.locationAt(offset);
+      issue.line = location.line;
+      issue.column = location.column;
+    }
+    return issue;
   }
 
   /**
@@ -455,5 +260,10 @@ export class JsonSourceParser {
     }
     this.lineStarts = starts;
     return starts;
+  }
+
+  /** Drops the offset from a momoa location, keeping the one-based line and column. */
+  private toLocation(location: { line: number; column: number }): SourceLocation {
+    return { line: location.line, column: location.column };
   }
 }
