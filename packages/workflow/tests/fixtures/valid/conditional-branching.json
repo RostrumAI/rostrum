@@ -1,61 +1,65 @@
 {
-  "interfaceVersion": "v1",
-  "id": "0192b0a0-7e1d-7000-8000-000000000010",
-  "name": "Classify a score",
-  "firstNode": "0192b0a0-7e1d-7000-8000-000000000011",
-  "inputs": {
-    "score": { "type": "number" }
-  },
-  "steps": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000011",
-      "type": "task",
-      "config": { "operation": "threshold" },
-      "inputs": { "score": { "ref": "inputs.score" } },
-      "outputs": { "decision": { "type": "string" } },
-      "conditional": "0192b0a0-7e1d-7000-8000-000000000012"
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000010",
+    "name": "Classify a score",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000011",
+    "inputs": {
+        "score": { "type": "number" }
     },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000013",
-      "type": "result",
-      "inputs": { "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision" } }
-    },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000014",
-      "type": "result",
-      "inputs": { "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision" } }
-    }
-  ],
-  "conditionals": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000012",
-      "dependencies": ["0192b0a0-7e1d-7000-8000-000000000011"],
-      "branches": [
+    "steps": [
         {
-          "label": "high-score",
-          "priority": 0,
-          "condition": {
-            "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision",
-            "op": "eq",
-            "value": "high"
-          },
-          "next": "0192b0a0-7e1d-7000-8000-000000000013"
+            "id": "0192b0a0-7e1d-7000-8000-000000000011",
+            "type": "task",
+            "config": { "operation": "threshold" },
+            "inputs": { "score": { "ref": "inputs.score" } },
+            "outputs": { "decision": { "type": "string" } },
+            "conditional": "0192b0a0-7e1d-7000-8000-000000000012"
         },
         {
-          "label": "low-score",
-          "priority": 1,
-          "condition": {
-            "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision",
-            "op": "eq",
-            "value": "low"
-          },
-          "next": "0192b0a0-7e1d-7000-8000-000000000014"
+            "id": "0192b0a0-7e1d-7000-8000-000000000013",
+            "type": "result",
+            "inputs": {
+                "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision" }
+            }
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000014",
+            "type": "result",
+            "inputs": {
+                "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision" }
+            }
         }
-      ],
-      "default": {
-        "label": "fallback",
-        "next": "0192b0a0-7e1d-7000-8000-000000000014"
-      }
-    }
-  ]
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000012",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-000000000011"],
+            "branches": [
+                {
+                    "label": "high-score",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision",
+                        "op": "eq",
+                        "value": "high"
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-000000000013"
+                },
+                {
+                    "label": "low-score",
+                    "priority": 1,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision",
+                        "op": "eq",
+                        "value": "low"
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-000000000014"
+                }
+            ],
+            "default": {
+                "label": "fallback",
+                "next": "0192b0a0-7e1d-7000-8000-000000000014"
+            }
+        }
+    ]
 }

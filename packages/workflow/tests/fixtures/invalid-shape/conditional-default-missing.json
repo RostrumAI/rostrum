@@ -1,42 +1,42 @@
 {
-  "interfaceVersion": "v1",
-  "id": "0192b0a0-7e1d-7000-8000-00000000101",
-  "name": "Conditional missing default",
-  "firstNode": "0192b0a0-7e1d-7000-8000-00000000102",
-  "inputs": {
-    "score": { "type": "number" }
-  },
-  "steps": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-00000000102",
-      "type": "task",
-      "config": { "operation": "threshold" },
-      "inputs": { "score": { "ref": "inputs.score" } },
-      "outputs": { "decision": { "type": "string" } },
-      "conditional": "0192b0a0-7e1d-7000-8000-00000000103"
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-00000000101",
+    "name": "Conditional missing default",
+    "firstNode": "0192b0a0-7e1d-7000-8000-00000000102",
+    "inputs": {
+        "score": { "type": "number" }
     },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-00000000104",
-      "type": "result",
-      "inputs": { "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-00000000102.decision" } }
-    }
-  ],
-  "conditionals": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-00000000103",
-      "dependencies": ["0192b0a0-7e1d-7000-8000-00000000102"],
-      "branches": [
+    "steps": [
         {
-          "label": "high-score",
-          "priority": 0,
-          "condition": {
-            "ref": "step.0192b0a0-7e1d-7000-8000-00000000102.decision",
-            "op": "eq",
-            "value": "high"
-          },
-          "next": "0192b0a0-7e1d-7000-8000-00000000104"
+            "id": "0192b0a0-7e1d-7000-8000-00000000102",
+            "type": "task",
+            "config": { "operation": "threshold" },
+            "inputs": { "score": { "ref": "inputs.score" } },
+            "outputs": { "decision": { "type": "string" } },
+            "conditional": "0192b0a0-7e1d-7000-8000-00000000103"
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000104",
+            "type": "result",
+            "inputs": { "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-00000000102.decision" } }
         }
-      ]
-    }
-  ]
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000103",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-00000000102"],
+            "branches": [
+                {
+                    "label": "high-score",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-00000000102.decision",
+                        "op": "eq",
+                        "value": "high"
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-00000000104"
+                }
+            ]
+        }
+    ]
 }

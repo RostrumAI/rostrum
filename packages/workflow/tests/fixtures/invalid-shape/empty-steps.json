@@ -1,7 +1,7 @@
 {
-  "interfaceVersion": "v1",
-  "id": "0192b0a0-7e1d-7000-8000-0000000000d1",
-  "name": "Steps array is empty",
-  "firstNode": "0192b0a0-7e1d-7000-8000-0000000000d2",
-  "steps": []
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000d1",
+    "name": "Steps array is empty",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000d2",
+    "steps": []
 }

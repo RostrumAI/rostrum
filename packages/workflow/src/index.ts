@@ -1,5 +1,5 @@
-export type { WorkflowDocument as WorkflowDocumentType } from "./schema";
-export { WorkflowDocument } from "./schema";
+export type { WorkflowDocument as WorkflowDocumentType, WorkflowInterfaceVersion } from "./schema";
+export { WorkflowDocument, workflowInterfaceVersionSchema } from "./schema";
 
 /**
  * Entry point of the shared workflow package.
