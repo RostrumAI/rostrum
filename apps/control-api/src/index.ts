@@ -1,11 +1,38 @@
-import { createApp } from "./app.ts";
+import { getLogger } from "@logtape/logtape";
+import { ControlApiApp } from "./app";
+import { loadConfig } from "./env";
+import { configureLogging } from "./logger";
 
-const app = createApp();
-const port = Number(process.env.PORT ?? 3000);
+const config = loadConfig();
+await configureLogging(config.logLevel);
+const logger = getLogger("control-api");
+const app = await ControlApiApp.create();
 
-Bun.serve({
-    port,
-    fetch: (request) => app.fetch(request),
+const server = Bun.serve({
+    hostname: config.host,
+    port: config.port,
+    fetch: app.routes.fetch,
+    error(error) {
+        logger.error("request failed", { error: String(error) });
+        return new Response("Internal Server Error", { status: 500 });
+    },
 });
 
-console.log(`rostrum-control-api listening on http://127.0.0.1:${port}`);
+logger.info("listening", {
+    host: config.host,
+    port: server.port,
+    url: `http://${config.host}:${server.port}`,
+});
+
+let shuttingDown = false;
+async function shutdown(signal: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info("shutdown started", { signal });
+    server.stop(true);
+    logger.info("shutdown complete", { signal });
+    process.exit(0);
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
