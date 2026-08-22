@@ -1,12 +1,12 @@
-import { type Static, Type } from "typebox";
+export type { WorkflowDocument as WorkflowDocumentType } from "./schema";
+export { WorkflowDocument } from "./schema";
 
 /**
  * Entry point of the shared workflow package.
  *
- * E1-01 establishes the package boundary and its toolchain. E1-03 publishes
- * the workflow interface v1 JSON Schema, and E1-04 replaces this surface with
- * the interface schema, the validator, stable findings, and the digest rules.
+ * E1-01 established the package boundary; E1-03 publishes the workflow
+ * interface v1 document schema (source: `./schema`; machine-readable JSON
+ * Schema 2020-12 artifact: `docs/specs/workflow-interface-v1.schema.json`).
+ * E1-04 adds the staged validator, stable findings, and the production
+ * digest implementation on top of this schema.
  */
-export const workflowInterfaceVersionSchema = Type.Literal("v1");
-
-export type WorkflowInterfaceVersion = Static<typeof workflowInterfaceVersionSchema>;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Compile } from "typebox/compile";
-import { type WorkflowInterfaceVersion, workflowInterfaceVersionSchema } from "./index.ts";
+import { WorkflowDocument } from "./index.ts";
 
 describe("package boundary", () => {
     test("the entry exports the interface version type", () => {
