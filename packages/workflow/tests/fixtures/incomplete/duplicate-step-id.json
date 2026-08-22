@@ -1,0 +1,14 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000097",
+    "name": "Duplicate step id",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000098",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000098",
+            "type": "task",
+            "config": { "operation": "work" }
+        },
+        { "id": "0192b0a0-7e1d-7000-8000-000000000098", "type": "result", "inputs": {} }
+    ]
+}

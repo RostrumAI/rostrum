@@ -1,0 +1,43 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000092",
+    "name": "Loop body cycle",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000093",
+    "inputs": {
+        "files": { "type": "array", "items": { "type": "string" } }
+    },
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000093",
+            "type": "task",
+            "config": { "operation": "iterate" },
+            "inputs": { "files": { "ref": "inputs.files" } },
+            "outputs": { "files": { "type": "array", "items": { "type": "string" } } },
+            "loop": {
+                "collection": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000093.files" },
+                "maxIterations": 10,
+                "variable": "file",
+                "body": "0192b0a0-7e1d-7000-8000-000000000094"
+            },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000096"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000094",
+            "type": "task",
+            "config": { "operation": "transform" },
+            "inputs": { "file": { "ref": "loop.file" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000095"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000095",
+            "type": "task",
+            "config": { "operation": "finalize" },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000094"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000096",
+            "type": "result",
+            "inputs": {}
+        }
+    ]
+}

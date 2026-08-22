@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.reference.loop-out-of-scope",
+            "blocking": true,
+            "path": "/steps/2/inputs/lastFile",
+            "line": 34,
+            "column": 37,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-0000000000e7",
+                "ref": "loop.file",
+                "available": null
+            }
+        }
+    ]
+}

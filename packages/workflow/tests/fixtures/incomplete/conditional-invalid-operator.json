@@ -1,0 +1,38 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000c4",
+    "name": "Unknown predicate operator",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000c5",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000c5",
+            "type": "task",
+            "config": { "operation": "threshold" },
+            "outputs": { "score": { "type": "number" } },
+            "conditional": "0192b0a0-7e1d-7000-8000-0000000000c6"
+        },
+        { "id": "0192b0a0-7e1d-7000-8000-0000000000c7", "type": "result", "inputs": {} }
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000c6",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-0000000000c5"],
+            "branches": [
+                {
+                    "label": "approximate",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-0000000000c5.score",
+                        "op": "approx",
+                        "value": 80
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-0000000000c7"
+                }
+            ],
+            "default": {
+                "label": "fallback",
+                "next": "0192b0a0-7e1d-7000-8000-0000000000c7"
+            }
+        }
+    ]
+}

@@ -1,0 +1,19 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.constraint",
+            "blocking": true,
+            "path": "/steps",
+            "line": 6,
+            "column": 14,
+            "details": {
+                "schemaPath": "#/properties/steps",
+                "keyword": "minItems",
+                "params": {
+                    "limit": 1
+                }
+            }
+        }
+    ]
+}

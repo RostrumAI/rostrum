@@ -1,0 +1,115 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.required-field",
+            "blocking": true,
+            "path": "/conditionals/0/default",
+            "details": {
+                "schemaPath": "#/properties/conditionals/items",
+                "keyword": "required",
+                "params": {
+                    "requiredProperties": ["default"]
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/conditionals/0/dependencies/0",
+            "line": 27,
+            "column": 30,
+            "details": {
+                "schemaPath": "#/properties/conditionals/items/properties/dependencies/items",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/conditionals/0/id",
+            "line": 26,
+            "column": 19,
+            "details": {
+                "schemaPath": "#/properties/conditionals/items/properties/id",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/firstNode",
+            "line": 5,
+            "column": 18,
+            "details": {
+                "schemaPath": "#/properties/firstNode",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/id",
+            "line": 3,
+            "column": 11,
+            "details": {
+                "schemaPath": "#/properties/id",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/steps/0/conditional",
+            "line": 16,
+            "column": 28,
+            "details": {
+                "schemaPath": "#/properties/steps/items/properties/conditional",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/steps/0/id",
+            "line": 11,
+            "column": 19,
+            "details": {
+                "schemaPath": "#/properties/steps/items/properties/id",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.format",
+            "blocking": true,
+            "path": "/steps/1/id",
+            "line": 19,
+            "column": 19,
+            "details": {
+                "schemaPath": "#/properties/steps/items/properties/id",
+                "keyword": "pattern",
+                "params": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+            }
+        }
+    ]
+}

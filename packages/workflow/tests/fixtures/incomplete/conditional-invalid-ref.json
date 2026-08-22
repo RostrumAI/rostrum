@@ -1,0 +1,37 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000c8",
+    "name": "Condition ref with invalid form",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000c9",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000c9",
+            "type": "task",
+            "config": { "operation": "evaluate" },
+            "conditional": "0192b0a0-7e1d-7000-8000-0000000000ca"
+        },
+        { "id": "0192b0a0-7e1d-7000-8000-0000000000cb", "type": "result", "inputs": {} }
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000ca",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-0000000000c9"],
+            "branches": [
+                {
+                    "label": "named",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "inputs.score",
+                        "op": "gte",
+                        "value": 80
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-0000000000cb"
+                }
+            ],
+            "default": {
+                "label": "fallback",
+                "next": "0192b0a0-7e1d-7000-8000-0000000000cb"
+            }
+        }
+    ]
+}

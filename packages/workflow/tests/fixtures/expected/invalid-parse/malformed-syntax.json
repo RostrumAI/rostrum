@@ -1,0 +1,12 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.parse.json-invalid",
+            "blocking": true,
+            "path": "",
+            "line": 5,
+            "column": 1
+        }
+    ]
+}

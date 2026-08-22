@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.required-field",
+            "blocking": true,
+            "path": "/steps/0/loop/collection",
+            "details": {
+                "schemaPath": "#/properties/steps/items/properties/loop",
+                "keyword": "required",
+                "params": {
+                    "requiredProperties": ["collection"]
+                }
+            }
+        }
+    ]
+}

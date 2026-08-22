@@ -1,0 +1,23 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.conditional.missing-dependency",
+            "blocking": true,
+            "path": "/conditionals/0/dependencies",
+            "line": 19,
+            "column": 29,
+            "relatedLocations": [
+                {
+                    "path": "/conditionals/0/branches",
+                    "message": "references step.0192b0a0-7e1d-7000-8000-0000000000c1.score"
+                }
+            ],
+            "details": {
+                "conditionalId": "0192b0a0-7e1d-7000-8000-0000000000c2",
+                "referencedStep": "0192b0a0-7e1d-7000-8000-0000000000c1",
+                "ref": "step.0192b0a0-7e1d-7000-8000-0000000000c1.score"
+            }
+        }
+    ]
+}
