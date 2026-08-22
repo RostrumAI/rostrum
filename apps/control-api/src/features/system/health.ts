@@ -7,17 +7,17 @@ import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader"
  * answers without touching any dependency that could fail independently.
  */
 export const HealthSchema = Type.Object(
-  { status: Type.Literal("ok") },
-  { additionalProperties: false },
+    { status: Type.Literal("ok") },
+    { additionalProperties: false },
 );
 
 /** Route binding for the health check. */
 export const route: FeatureRoute = {
-  method: "GET",
-  path: "/health",
-  responses: {
-    "200": { description: "Service is healthy", schemaName: "Health" },
-  },
+    method: "GET",
+    path: "/health",
+    responses: {
+        "200": { description: "Service is healthy", schemaName: "Health" },
+    },
 };
 
 /** OpenAPI components contributed by this slice. */

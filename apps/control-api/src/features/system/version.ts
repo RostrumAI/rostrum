@@ -9,21 +9,21 @@ import { INTERFACE_VERSION } from "../../schemas";
  * interface token so clients verify compatibility before sending workflows.
  */
 export const VersionSchema = Type.Object(
-  {
-    service: Type.String(),
-    version: Type.String(),
-    interfaceVersion: Type.Literal(INTERFACE_VERSION),
-  },
-  { additionalProperties: false },
+    {
+        service: Type.String(),
+        version: Type.String(),
+        interfaceVersion: Type.Literal(INTERFACE_VERSION),
+    },
+    { additionalProperties: false },
 );
 
 /** Route binding for version reporting. */
 export const route: FeatureRoute = {
-  method: "GET",
-  path: "/version",
-  responses: {
-    "200": { description: "Service and workflow interface version", schemaName: "Version" },
-  },
+    method: "GET",
+    path: "/version",
+    responses: {
+        "200": { description: "Service and workflow interface version", schemaName: "Version" },
+    },
 };
 
 /** OpenAPI components contributed by this slice. */
@@ -35,8 +35,8 @@ export const schema: FeatureSchemas = { Version: VersionSchema };
  * package.json so it never drifts from the published package.
  */
 export const handler: FeatureHandler = (c: Context) =>
-  c.json({
-    service: pkg.name,
-    version: pkg.version,
-    interfaceVersion: INTERFACE_VERSION,
-  });
+    c.json({
+        service: pkg.name,
+        version: pkg.version,
+        interfaceVersion: INTERFACE_VERSION,
+    });

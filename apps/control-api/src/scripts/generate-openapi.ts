@@ -11,7 +11,7 @@ import { ControlApiApp } from "../app";
 const app = await ControlApiApp.create();
 const response = await app.routes.fetch(new Request("http://localhost/openapi.json"));
 if (!response.ok) {
-  throw new Error(`openapi.json fetch failed: ${response.status}`);
+    throw new Error(`openapi.json fetch failed: ${response.status}`);
 }
 const doc = await response.json();
 const out = join(import.meta.dir, "../../openapi.json");

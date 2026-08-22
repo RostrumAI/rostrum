@@ -6,17 +6,17 @@ import { configure, type LogLevel, type LogRecord } from "@logtape/logtape";
  * collectors.
  */
 export function formatJsonLine(record: LogRecord): string {
-  return JSON.stringify({
-    time: new Date(record.timestamp).toISOString(),
-    level: record.level,
-    msg: record.rawMessage,
-    ...record.properties,
-  });
+    return JSON.stringify({
+        time: new Date(record.timestamp).toISOString(),
+        level: record.level,
+        msg: record.rawMessage,
+        ...record.properties,
+    });
 }
 
 /** Writes each formatted record to the console without blocking the caller. */
 export function consoleSink(record: LogRecord): void {
-  console.log(formatJsonLine(record));
+    console.log(formatJsonLine(record));
 }
 
 /**
@@ -25,17 +25,17 @@ export function consoleSink(record: LogRecord): void {
  * first log call; tests can inject a sink.
  */
 export async function configureLogging(
-  level: LogLevel,
-  sink: (record: LogRecord) => void = consoleSink,
+    level: LogLevel,
+    sink: (record: LogRecord) => void = consoleSink,
 ): Promise<void> {
-  await configure({
-    sinks: { app: sink },
-    loggers: [
-      { category: "control-api", sinks: ["app"], lowestLevel: level },
-      // LogTape reports its own diagnostics on this category; surface only
-      // failures so the info-level setup notice stays out of the output.
-      { category: ["logtape", "meta"], sinks: ["app"], lowestLevel: "error" },
-    ],
-    reset: true,
-  });
+    await configure({
+        sinks: { app: sink },
+        loggers: [
+            { category: "control-api", sinks: ["app"], lowestLevel: level },
+            // LogTape reports its own diagnostics on this category; surface only
+            // failures so the info-level setup notice stays out of the output.
+            { category: ["logtape", "meta"], sinks: ["app"], lowestLevel: "error" },
+        ],
+        reset: true,
+    });
 }

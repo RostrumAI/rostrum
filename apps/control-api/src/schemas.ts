@@ -13,21 +13,21 @@ export const INTERFACE_VERSION = "v1";
  * until workflow operations report findings (E1-06).
  */
 export const FindingSchema = Type.Object(
-  {
-    code: Type.String(),
-    message: Type.String(),
-    blocking: Type.Boolean(),
-    path: Type.String(),
-  },
-  { additionalProperties: false },
+    {
+        code: Type.String(),
+        message: Type.String(),
+        blocking: Type.Boolean(),
+        path: Type.String(),
+    },
+    { additionalProperties: false },
 );
 
 /** The single error shape for every Control API error response (E1-02 contract). */
 export const ErrorResponseSchema = Type.Object(
-  {
-    code: Type.String(),
-    message: Type.String(),
-    findings: Type.Array(FindingSchema),
-  },
-  { additionalProperties: false },
+    {
+        code: Type.String(),
+        message: Type.String(),
+        findings: Type.Array(FindingSchema),
+    },
+    { additionalProperties: false },
 );

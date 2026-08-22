@@ -86,11 +86,16 @@ port: 8080
 | --- | --- | --- |
 | `PORT` / `port` | `3000` | TCP port to bind; use `0` for an ephemeral port |
 | `HOST` / `host` | `127.0.0.1` | Address to bind |
-| `LOG_LEVEL` / `logLevel` | `info` | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
+| `NODE_ENV` / `nodeEnv` | `development` | One of `development`, `test`, `production`; selects the default log level |
+| `LOG_LEVEL` / `logLevel` | `debug` in development and test, `info` in production | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
 | `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the Control API does not open a connection until storage arrives in [E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) |
 
 Logging uses [LogTape](https://logtape.org/). Records are one JSON object
 per line on the console with `time`, `level`, `msg`, and any extra fields.
+
+At the default development level, each request logs a
+`request received` record and its response logs a `response sent` record
+with `method`, `path`, `status`, and `durationMs`.
 
 ### Routes
 
