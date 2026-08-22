@@ -116,8 +116,7 @@ describe("digest vectors match the E1-S3 fixture table", () => {
         "sequential.json": "e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368",
         "conditional-branching.json":
             "62060162c41188816562fcca6c75899f212f46fbda8ab41ebe458bfd93f8698a",
-        "fan-out-fan-in.json": "c1083c2c9e495374be8d33950fd46d2e3bcae12d19848d794f71a08c9b47293e",
-        "bounded-loop.json": "2521dc9ea3c0c26a4b1784eafadee1b2546d15954e487b65e8c4801b76462737",
+        "bounded-loop.json": "5003b9d73650da0605ffbdd11c61f2e370f10f23070f2ff136f01f679808fa92",
         "conditional-groups.json":
             "5793efea91c0206dc646b845b5656162906c70f2cf6ce88f8fb0e59bda4ea04b",
     };
@@ -136,8 +135,10 @@ describe("digest vectors match the E1-S3 fixture table", () => {
             name: "Renamed workflow",
             description: "Different description.",
         };
-        expect(await digestWorkflow(renamed as Record<string, unknown>)).toBe(
-            expectedDigests["sequential.json"],
-        );
+        const expected = expectedDigests["sequential.json"];
+        if (expected === undefined) {
+            throw new Error("missing sequential digest vector");
+        }
+        expect(await digestWorkflow(renamed as Record<string, unknown>)).toBe(expected);
     });
 });

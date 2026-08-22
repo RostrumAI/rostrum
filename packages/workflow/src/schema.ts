@@ -18,13 +18,6 @@ import { type Static, Type } from "typebox";
  */
 
 /**
- * The workflow interface version this package publishes.
- */
-export const workflowInterfaceVersionSchema = Type.Literal("v1");
-
-export type WorkflowInterfaceVersion = Static<typeof workflowInterfaceVersionSchema>;
-
-/**
  * UUID v7: version nibble 7 in the third group, RFC 9562 variant (8, 9,
  * a, or b) in the fourth group, lowercase hexadecimal.
  */
@@ -128,7 +121,7 @@ const Conditional = Type.Object(
 /** A workflow interface v1 document. */
 export const WorkflowDocument = Type.Object(
     {
-        interfaceVersion: workflowInterfaceVersionSchema,
+        interfaceVersion: Type.Literal("v1"),
         id: UuidV7,
         name: Type.String(),
         description: Type.Optional(Type.String()),
@@ -141,3 +134,6 @@ export const WorkflowDocument = Type.Object(
 );
 
 export type WorkflowDocument = Static<typeof WorkflowDocument>;
+
+export type WorkflowStep = Static<typeof Step>;
+export type WorkflowConditional = Static<typeof Conditional>;

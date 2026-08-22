@@ -12,12 +12,18 @@
 
 /** Sorts by UTF-16 code units, per RFC 8785 §3.2.2.3. */
 function compareKeys(a: string, b: string): number {
-    if (a === b) return 0;
+    if (a === b) {
+        return 0;
+    }
     const aUnits = a.split("").map((c) => c.charCodeAt(0));
     const bUnits = b.split("").map((c) => c.charCodeAt(0));
     const length = Math.min(aUnits.length, bUnits.length);
     for (let i = 0; i < length; i++) {
-        if (aUnits[i] !== bUnits[i]) return aUnits[i] < bUnits[i] ? -1 : 1;
+        const aUnit = aUnits[i];
+        const bUnit = bUnits[i];
+        if (aUnit !== undefined && bUnit !== undefined && aUnit !== bUnit) {
+            return aUnit < bUnit ? -1 : 1;
+        }
     }
     return aUnits.length - bUnits.length;
 }
@@ -44,16 +50,26 @@ export function serializeNumber(value: number): string {
     if (Number.isNaN(value) || !Number.isFinite(value)) {
         throw new Error("NaN and Infinity are not valid JSON values");
     }
-    if (Object.is(value, -0)) return "0";
+    if (Object.is(value, -0)) {
+        return "0";
+    }
     return String(value);
 }
 
 /** Serializes a parsed JSON value to its RFC 8785 canonical form. */
 export function canonicalize(value: unknown): string {
-    if (value === null) return "null";
-    if (typeof value === "boolean") return String(value);
-    if (typeof value === "number") return serializeNumber(value);
-    if (typeof value === "string") return serializeString(value);
+    if (value === null) {
+        return "null";
+    }
+    if (typeof value === "boolean") {
+        return String(value);
+    }
+    if (typeof value === "number") {
+        return serializeNumber(value);
+    }
+    if (typeof value === "string") {
+        return serializeString(value);
+    }
     if (Array.isArray(value)) {
         const items = value.map((item) => canonicalize(item));
         return `[${items.join(",")}]`;

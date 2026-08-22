@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-19 |
+| Status | Done — awaiting review |
+| Last updated | 2026-08-21 |
 | Picked up | Yes |
 | Owner | Stephen |
 | Blocked by | [E1-01](e1-01-create-project-foundation.md), [E1-03](e1-03-write-workflow-interface-v1-specification.md) |
