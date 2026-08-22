@@ -1,13 +1,13 @@
 {
-  "interfaceVersion": "v2",
-  "id": "0192b0a0-7e1d-7000-8000-000000000070",
-  "name": "Not yet supported",
-  "firstNode": "0192b0a0-7e1d-7000-8000-000000000071",
-  "steps": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000071",
-      "type": "task",
-      "config": { "operation": "noop" }
-    }
-  ]
+    "interfaceVersion": "v2",
+    "id": "0192b0a0-7e1d-7000-8000-000000000070",
+    "name": "Not yet supported",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000071",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000071",
+            "type": "task",
+            "config": { "operation": "noop" }
+        }
+    ]
 }

@@ -33,29 +33,29 @@ const ReferenceObject = Type.Object({ ref: Type.String() }, { additionalProperti
 
 /** Bounded forEach loop configuration on a step. */
 const Loop = Type.Object(
-  {
-    collection: ReferenceObject,
-    maxIterations: Type.Integer({ minimum: 1 }),
-    variable: Type.String(),
-    body: UuidV7,
-  },
-  { additionalProperties: false },
+    {
+        collection: ReferenceObject,
+        maxIterations: Type.Integer({ minimum: 1 }),
+        variable: Type.String(),
+        body: UuidV7,
+    },
+    { additionalProperties: false },
 );
 
 /** A workflow step. `config` is validated against the step type's registered schema. */
 const Step = Type.Object(
-  {
-    id: UuidV7,
-    type: Type.String(),
-    config: Type.Optional(Type.Object({}, { additionalProperties: true })),
-    inputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
-    outputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
-    successors: Type.Optional(Type.Array(UuidV7)),
-    dependencies: Type.Optional(Type.Array(UuidV7)),
-    conditional: Type.Optional(UuidV7),
-    loop: Type.Optional(Loop),
-  },
-  { additionalProperties: false },
+    {
+        id: UuidV7,
+        type: Type.String(),
+        config: Type.Optional(Type.Object({}, { additionalProperties: true })),
+        inputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
+        outputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
+        successors: Type.Optional(Type.Array(UuidV7)),
+        dependencies: Type.Optional(Type.Array(UuidV7)),
+        conditional: Type.Optional(UuidV7),
+        loop: Type.Optional(Loop),
+    },
+    { additionalProperties: false },
 );
 
 /**
@@ -64,67 +64,76 @@ const Step = Type.Object(
  * path shape are checked in stage 5.
  */
 const Condition = Type.Cyclic(
-  {
-    Condition: Type.Union([
-      Type.Object(
-        {
-          ref: Type.String(),
-          op: Type.String(),
-          value: Type.Optional(JsonValue),
-        },
-        { additionalProperties: false },
-      ),
-      Type.Object({ all: Type.Array(Type.Ref("Condition")) }, { additionalProperties: false }),
-      Type.Object({ any: Type.Array(Type.Ref("Condition")) }, { additionalProperties: false }),
-    ]),
-  },
-  "Condition",
+    {
+        Condition: Type.Union([
+            Type.Object(
+                {
+                    ref: Type.String(),
+                    op: Type.String(),
+                    value: Type.Optional(JsonValue),
+                },
+                { additionalProperties: false },
+            ),
+            Type.Object(
+                { all: Type.Array(Type.Ref("Condition")) },
+                { additionalProperties: false },
+            ),
+            Type.Object(
+                { any: Type.Array(Type.Ref("Condition")) },
+                { additionalProperties: false },
+            ),
+        ]),
+    },
+    "Condition",
 );
 
 /** A conditional branch rule. `next` omitted ends the workflow on this branch. */
 const Branch = Type.Object(
-  {
-    label: Type.String(),
-    priority: Type.Integer({ minimum: 0 }),
-    condition: Condition,
-    next: Type.Optional(UuidV7),
-  },
-  { additionalProperties: false },
+    {
+        label: Type.String(),
+        priority: Type.Integer({ minimum: 0 }),
+        condition: Condition,
+        next: Type.Optional(UuidV7),
+    },
+    { additionalProperties: false },
 );
 
 /** The fallback branch taken when no branch condition matches. */
 const DefaultBranch = Type.Object(
-  {
-    label: Type.String(),
-    next: Type.Optional(UuidV7),
-  },
-  { additionalProperties: false },
+    {
+        label: Type.String(),
+        next: Type.Optional(UuidV7),
+    },
+    { additionalProperties: false },
 );
 
 /** A conditional: evaluated routing for a step that references it by id. */
 const Conditional = Type.Object(
-  {
-    id: UuidV7,
-    dependencies: Type.Array(UuidV7),
-    branches: Type.Array(Branch, { minItems: 1 }),
-    default: DefaultBranch,
-  },
-  { additionalProperties: false },
+    {
+        id: UuidV7,
+        dependencies: Type.Array(UuidV7),
+        branches: Type.Array(Branch, { minItems: 1 }),
+        default: DefaultBranch,
+    },
+    { additionalProperties: false },
 );
 
 /** A workflow interface v1 document. */
 export const WorkflowDocument = Type.Object(
-  {
-    interfaceVersion: Type.Literal("v1"),
-    id: UuidV7,
-    name: Type.String(),
-    description: Type.Optional(Type.String()),
-    firstNode: UuidV7,
-    inputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
-    steps: Type.Array(Step, { minItems: 1 }),
-    conditionals: Type.Optional(Type.Array(Conditional, { minItems: 1 })),
-  },
-  { additionalProperties: false },
+    {
+        interfaceVersion: Type.Literal("v1"),
+        id: UuidV7,
+        name: Type.String(),
+        description: Type.Optional(Type.String()),
+        firstNode: UuidV7,
+        inputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
+        steps: Type.Array(Step, { minItems: 1 }),
+        conditionals: Type.Optional(Type.Array(Conditional, { minItems: 1 })),
+    },
+    { additionalProperties: false },
 );
 
 export type WorkflowDocument = Static<typeof WorkflowDocument>;
+
+export type WorkflowStep = Static<typeof Step>;
+export type WorkflowConditional = Static<typeof Conditional>;

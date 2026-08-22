@@ -97,7 +97,7 @@ The step graph is a directed acyclic graph (DAG). These rules are enforced at va
 A binding value is either a JSON literal (string, number, boolean, object, array, or `null`) or a reference object with the exact shape `{ "ref": "<path>" }`. A path is one of:
 
 - `inputs.<name>` — a workflow input;
-- `step.<stepId>.<outputName>` — an output declared by a step that completes before this reference resolves;
+- `step.<stepId>.<outputName>` — an output declared by a step that completes before this reference resolves; a step that declares a `loop` also exposes the reserved output `results`, the array of collected iteration results (see [Loops](#loops));
 - `loop.<variable>` — the current element in a loop iteration, available only within loop body steps.
 
 A reference resolves to the referenced value at execution time. A `result` step binds its `inputs` the same way, and the resolved object is the run's terminal result.
@@ -180,7 +180,7 @@ Loop rules:
 4. Only bounded `forEach` iteration is supported. No `while` or `until` loops are expressible in v1.
 5. `loop` can coexist with `successors`: the body runs per iteration, and `successors` fire after all iterations complete.
 6. `loop` is mutually exclusive with `conditional`.
-7. Body terminal steps' outputs are collected into an array, available as the loop step's output.
+7. Body terminal steps' outputs are collected into an array and exposed as the loop step's output under the reserved output name `results`. A reference to `step.<loopStepId>.results` resolves to the collected array without a declaration in the loop step's `outputs`; declaring `results` in `outputs` is optional and documents the element shape.
 8. The loop step's own handler runs before iteration begins, so `collection` may reference the loop step's own outputs in addition to any workflow input or upstream step output.
 
 ## Interface versioning and evolution

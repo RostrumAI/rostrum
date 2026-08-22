@@ -1,79 +1,83 @@
 {
-  "interfaceVersion": "v1",
-  "id": "0192b0a0-7e1d-7000-8000-000000000040",
-  "name": "Conditional with grouped logic",
-  "firstNode": "0192b0a0-7e1d-7000-8000-000000000041",
-  "inputs": {
-    "score": { "type": "number" }
-  },
-  "steps": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000041",
-      "type": "task",
-      "config": { "operation": "evaluate" },
-      "inputs": { "score": { "ref": "inputs.score" } },
-      "outputs": { "score": { "type": "number" }, "category": { "type": "string" } },
-      "conditional": "0192b0a0-7e1d-7000-8000-000000000042"
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000040",
+    "name": "Conditional with grouped logic",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000041",
+    "inputs": {
+        "score": { "type": "number" }
     },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000043",
-      "type": "result",
-      "inputs": { "category": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category" } }
-    },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000044",
-      "type": "result",
-      "inputs": { "category": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category" } }
-    }
-  ],
-  "conditionals": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000042",
-      "dependencies": ["0192b0a0-7e1d-7000-8000-000000000041"],
-      "branches": [
+    "steps": [
         {
-          "label": "critical-security",
-          "priority": 0,
-          "condition": {
-            "all": [
-              {
-                "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.score",
-                "op": "gte",
-                "value": 80
-              },
-              {
-                "any": [
-                  {
-                    "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category",
-                    "op": "eq",
-                    "value": "security"
-                  },
-                  {
-                    "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category",
-                    "op": "eq",
-                    "value": "critical"
-                  }
-                ]
-              }
-            ]
-          },
-          "next": "0192b0a0-7e1d-7000-8000-000000000043"
+            "id": "0192b0a0-7e1d-7000-8000-000000000041",
+            "type": "task",
+            "config": { "operation": "evaluate" },
+            "inputs": { "score": { "ref": "inputs.score" } },
+            "outputs": { "score": { "type": "number" }, "category": { "type": "string" } },
+            "conditional": "0192b0a0-7e1d-7000-8000-000000000042"
         },
         {
-          "label": "standard",
-          "priority": 1,
-          "condition": {
-            "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.score",
-            "op": "lt",
-            "value": 80
-          },
-          "next": "0192b0a0-7e1d-7000-8000-000000000044"
+            "id": "0192b0a0-7e1d-7000-8000-000000000043",
+            "type": "result",
+            "inputs": {
+                "category": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category" }
+            }
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000044",
+            "type": "result",
+            "inputs": {
+                "category": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category" }
+            }
         }
-      ],
-      "default": {
-        "label": "fallback",
-        "next": "0192b0a0-7e1d-7000-8000-000000000044"
-      }
-    }
-  ]
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000042",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-000000000041"],
+            "branches": [
+                {
+                    "label": "critical-security",
+                    "priority": 0,
+                    "condition": {
+                        "all": [
+                            {
+                                "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.score",
+                                "op": "gte",
+                                "value": 80
+                            },
+                            {
+                                "any": [
+                                    {
+                                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category",
+                                        "op": "eq",
+                                        "value": "security"
+                                    },
+                                    {
+                                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category",
+                                        "op": "eq",
+                                        "value": "critical"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-000000000043"
+                },
+                {
+                    "label": "standard",
+                    "priority": 1,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.score",
+                        "op": "lt",
+                        "value": 80
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-000000000044"
+                }
+            ],
+            "default": {
+                "label": "fallback",
+                "next": "0192b0a0-7e1d-7000-8000-000000000044"
+            }
+        }
+    ]
 }

@@ -126,14 +126,14 @@ Full option analysis with per-option pros and cons is recorded in the research d
 
 ### Digest fixtures
 
-The vectors reproduce the digest of the E1-S1 representative examples under these rules: canonical form with the `name` and `description` members removed (amendment of 2026-08-17). The pre-amendment whole-document digests were reproduced independently during the amendment as a check of the canonicalizer; the updated digests below must **be reproduced independently in E1-05** before they ship as fixtures. Edge-case vectors (key order, number edges, escapes, Unicode, `-0`, duplicate-key rejection) are added there. The vector input is the canonical form of each example minus its metadata members, not its pretty-printed source text.
+The vectors reproduce the digest of the E1-S1 representative examples under these rules: canonical form with the `name` and `description` members removed (amendment of 2026-08-17). The pre-amendment whole-document digests were reproduced independently during the amendment as a check of the canonicalizer; the updated digests below must **be reproduced independently in E1-05** before they ship as fixtures. Edge-case vectors (key order, number edges, escapes, Unicode, `-0`, duplicate-key rejection) are added there. The vector input is the canonical form of each example minus its metadata members, not its pretty-printed source text. Amendment (2026-08-21): the bounded-loop example now declares the reserved `results` output named by the workflow interface specification, so its vector was recomputed.
 
 | Example | SHA-256 (hex) of canonical form (metadata removed) |
 | --- | --- |
 | Valid — sequential with terminal result ("Greet and summarize") | `e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368` |
 | Valid — conditional branching with two terminal results ("Classify a score") | `62060162c41188816562fcca6c75899f212f46fbda8ab41ebe458bfd93f8698a` |
 | Valid — fan-out and fan-in (PR review workflow) | `c1083c2c9e495374be8d33950fd46d2e3bcae12d19848d794f71a08c9b47293e` |
-| Valid — bounded loop over a collection ("Batch file analysis") | `2521dc9ea3c0c26a4b1784eafadee1b2546d15954e487b65e8c4801b76462737` |
+| Valid — bounded loop over a collection ("Batch file analysis") | `5003b9d73650da0605ffbdd11c61f2e370f10f23070f2ff136f01f679808fa92` |
 | Valid — conditional with AND/OR groups | `5793efea91c0206dc646b845b5656162906c70f2cf6ce88f8fb0e59bda4ea04b` |
 
 Worked example — "Greet and summarize" (metadata removed) canonicalizes to:

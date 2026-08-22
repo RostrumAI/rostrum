@@ -1,229 +1,229 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "required": ["interfaceVersion", "id", "name", "firstNode", "steps"],
-  "properties": {
-    "interfaceVersion": {
-      "type": "string",
-      "const": "v1"
-    },
-    "id": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "name": {
-      "type": "string"
-    },
-    "description": {
-      "type": "string"
-    },
-    "firstNode": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "inputs": {
-      "type": "object",
-      "patternProperties": {
-        "^.*$": {
-          "title": "JSON value"
-        }
-      }
-    },
-    "steps": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "type"],
-        "properties": {
-          "id": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["interfaceVersion", "id", "name", "firstNode", "steps"],
+    "properties": {
+        "interfaceVersion": {
+            "type": "string",
+            "const": "v1"
+        },
+        "id": {
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-          },
-          "type": {
+        },
+        "name": {
             "type": "string"
-          },
-          "config": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": true
-          },
-          "inputs": {
-            "type": "object",
-            "patternProperties": {
-              "^.*$": {
-                "title": "JSON value"
-              }
-            }
-          },
-          "outputs": {
-            "type": "object",
-            "patternProperties": {
-              "^.*$": {
-                "title": "JSON value"
-              }
-            }
-          },
-          "successors": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            }
-          },
-          "dependencies": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            }
-          },
-          "conditional": {
+        },
+        "description": {
+            "type": "string"
+        },
+        "firstNode": {
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-          },
-          "loop": {
+        },
+        "inputs": {
             "type": "object",
-            "required": ["collection", "maxIterations", "variable", "body"],
-            "properties": {
-              "collection": {
+            "patternProperties": {
+                "^.*$": {
+                    "title": "JSON value"
+                }
+            }
+        },
+        "steps": {
+            "type": "array",
+            "items": {
                 "type": "object",
-                "required": ["ref"],
+                "required": ["id", "type"],
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  }
+                    "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "config": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": true
+                    },
+                    "inputs": {
+                        "type": "object",
+                        "patternProperties": {
+                            "^.*$": {
+                                "title": "JSON value"
+                            }
+                        }
+                    },
+                    "outputs": {
+                        "type": "object",
+                        "patternProperties": {
+                            "^.*$": {
+                                "title": "JSON value"
+                            }
+                        }
+                    },
+                    "successors": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        }
+                    },
+                    "dependencies": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        }
+                    },
+                    "conditional": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "loop": {
+                        "type": "object",
+                        "required": ["collection", "maxIterations", "variable", "body"],
+                        "properties": {
+                            "collection": {
+                                "type": "object",
+                                "required": ["ref"],
+                                "properties": {
+                                    "ref": {
+                                        "type": "string"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "maxIterations": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "variable": {
+                                "type": "string"
+                            },
+                            "body": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 },
                 "additionalProperties": false
-              },
-              "maxIterations": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "variable": {
-                "type": "string"
-              },
-              "body": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "minItems": 1
-    },
-    "conditionals": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "dependencies", "branches", "default"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-          },
-          "dependencies": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            }
-          },
-          "branches": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["label", "priority", "condition"],
-              "properties": {
-                "label": {
-                  "type": "string"
-                },
-                "priority": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "condition": {
-                  "$defs": {
-                    "Condition": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "required": ["ref", "op"],
-                          "properties": {
-                            "ref": {
-                              "type": "string"
-                            },
-                            "op": {
-                              "type": "string"
-                            },
-                            "value": {
-                              "title": "JSON value"
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        {
-                          "type": "object",
-                          "required": ["all"],
-                          "properties": {
-                            "all": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "Condition"
-                              }
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        {
-                          "type": "object",
-                          "required": ["any"],
-                          "properties": {
-                            "any": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "Condition"
-                              }
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      ],
-                      "$id": "Condition"
-                    }
-                  },
-                  "$ref": "Condition"
-                },
-                "next": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-                }
-              },
-              "additionalProperties": false
             },
             "minItems": 1
-          },
-          "default": {
-            "type": "object",
-            "required": ["label"],
-            "properties": {
-              "label": {
-                "type": "string"
-              },
-              "next": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              }
-            },
-            "additionalProperties": false
-          }
         },
-        "additionalProperties": false
-      },
-      "minItems": 1
-    }
-  },
-  "additionalProperties": false
+        "conditionals": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "dependencies", "branches", "default"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "dependencies": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        }
+                    },
+                    "branches": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["label", "priority", "condition"],
+                            "properties": {
+                                "label": {
+                                    "type": "string"
+                                },
+                                "priority": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
+                                "condition": {
+                                    "$defs": {
+                                        "Condition": {
+                                            "anyOf": [
+                                                {
+                                                    "type": "object",
+                                                    "required": ["ref", "op"],
+                                                    "properties": {
+                                                        "ref": {
+                                                            "type": "string"
+                                                        },
+                                                        "op": {
+                                                            "type": "string"
+                                                        },
+                                                        "value": {
+                                                            "title": "JSON value"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "required": ["all"],
+                                                    "properties": {
+                                                        "all": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "Condition"
+                                                            }
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "required": ["any"],
+                                                    "properties": {
+                                                        "any": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "Condition"
+                                                            }
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            ],
+                                            "$id": "Condition"
+                                        }
+                                    },
+                                    "$ref": "Condition"
+                                },
+                                "next": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "minItems": 1
+                    },
+                    "default": {
+                        "type": "object",
+                        "required": ["label"],
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "next": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            },
+            "minItems": 1
+        }
+    },
+    "additionalProperties": false
 }
