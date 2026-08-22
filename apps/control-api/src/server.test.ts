@@ -121,7 +121,7 @@ describe("real process over HTTP", () => {
   test.skipIf(!signalTestSupported)("graceful shutdown on SIGTERM logs and exits 0", async () => {
     // Boot a second server so the shared one keeps serving the suite.
     const second = await bootServer();
-    const health = await fetch(`${second.baseUrl}/api/v1/health`);
+    const health = await fetch(`${second.baseUrl}/api/v1/system/health`);
     expect(health.status).toBe(200);
 
     second.proc.kill("SIGTERM");

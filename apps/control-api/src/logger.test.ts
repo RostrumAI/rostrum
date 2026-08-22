@@ -47,8 +47,11 @@ describe("logging", () => {
   test("configureLogging passes fields through to the sink", async () => {
     const records: LogRecord[] = [];
     await configureLogging("info", (r) => records.push(r));
-    getLogger("control-api").warn("handler failed", { error: "boom", path: "/api/v1/health" });
+    getLogger("control-api").warn("handler failed", {
+      error: "boom",
+      path: "/api/v1/system/health",
+    });
     expect(records).toHaveLength(1);
-    expect(records[0]?.properties).toEqual({ error: "boom", path: "/api/v1/health" });
+    expect(records[0]?.properties).toEqual({ error: "boom", path: "/api/v1/system/health" });
   });
 });
