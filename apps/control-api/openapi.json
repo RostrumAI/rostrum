@@ -12,40 +12,6 @@
   ],
   "components": {
     "schemas": {
-      "Health": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "const": "ok"
-          }
-        },
-        "additionalProperties": false
-      },
-      "Version": {
-        "type": "object",
-        "required": [
-          "service",
-          "version",
-          "interfaceVersion"
-        ],
-        "properties": {
-          "service": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          },
-          "interfaceVersion": {
-            "type": "string",
-            "const": "v1"
-          }
-        },
-        "additionalProperties": false
-      },
       "ErrorResponse": {
         "type": "object",
         "required": [
@@ -113,13 +79,47 @@
           }
         },
         "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "service",
+          "version",
+          "interfaceVersion"
+        ],
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "interfaceVersion": {
+            "type": "string",
+            "const": "v1"
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
   "paths": {
-    "/api/v1/health": {
+    "/api/v1/system/health": {
       "get": {
-        "operationId": "getApiV1Health",
+        "operationId": "getApiV1SystemHealth",
         "tags": [
           "system"
         ],
@@ -137,9 +137,9 @@
         }
       }
     },
-    "/api/v1/version": {
+    "/api/v1/system/version": {
       "get": {
-        "operationId": "getApiV1Version",
+        "operationId": "getApiV1SystemVersion",
         "tags": [
           "system"
         ],

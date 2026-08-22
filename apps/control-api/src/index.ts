@@ -6,7 +6,7 @@ import { configureLogging } from "./logger";
 const config = loadConfig();
 await configureLogging(config.logLevel);
 const logger = getLogger("control-api");
-const app = new ControlApiApp();
+const app = await ControlApiApp.create();
 
 const server = Bun.serve({
   hostname: config.host,

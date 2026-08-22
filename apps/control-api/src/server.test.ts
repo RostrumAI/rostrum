@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import pkg from "../package.json" with { type: "json" };
 
 /**
  * Boots the real Control API process over HTTP and runs the foundation
@@ -97,15 +98,15 @@ afterAll(async () => {
 });
 
 describe("real process over HTTP", () => {
-  test("foundation routes answer over HTTP", async () => {
-    const health = await fetch(`${server.baseUrl}/api/v1/health`);
+  test("boots through the normal path and foundation routes answer over HTTP", async () => {
+    const health = await fetch(`${server.baseUrl}/api/v1/system/health`);
     expect(health.status).toBe(200);
     expect(await health.json()).toEqual({ status: "ok" });
 
-    const version = await fetch(`${server.baseUrl}/api/v1/version`);
+    const version = await fetch(`${server.baseUrl}/api/v1/system/version`);
     expect(version.status).toBe(200);
     const versionBody = (await version.json()) as Record<string, unknown>;
-    expect(versionBody.service).toBe("rostrum-control-api");
+    expect(versionBody.service).toBe(pkg.name);
     expect(versionBody.interfaceVersion).toBe("v1");
 
     const missing = await fetch(`${server.baseUrl}/api/v1/nope`);

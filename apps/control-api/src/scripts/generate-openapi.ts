@@ -8,7 +8,7 @@ import { ControlApiApp } from "../app";
  * (a test asserts that parity), so the checked-in file is the stable contract
  * artifact and conformance tooling can consume it directly.
  */
-const app = new ControlApiApp();
+const app = await ControlApiApp.create();
 const response = await app.routes.fetch(new Request("http://localhost/openapi.json"));
 if (!response.ok) {
   throw new Error(`openapi.json fetch failed: ${response.status}`);

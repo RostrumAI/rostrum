@@ -1,18 +1,20 @@
+import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
 import { type Context, Hono } from "hono";
-import { generateSpecs } from "hono-openapi";
+import { describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
-import { SystemRoutes } from "./features/system/system.routes";
-import { HealthSchema, VersionSchema } from "./features/system/system.schema";
+import type { FeatureBundle, LoadedFeature } from "./loader";
+import { loadFeatures } from "./loader";
 import { ErrorResponseSchema, FindingSchema } from "./schemas";
 
+/** Version prefix every feature route mounts under. */
+const API_PREFIX = "/api/v1";
+
 /**
- * OpenAPI components. The TypeBox schemas are embedded verbatim, so the
- * generated document round-trips the schemas unchanged (E1-S0 row 3).
+ * Components shared across features. The TypeBox schemas are embedded
+ * verbatim, so the generated document round-trips them unchanged (E1-S0 row 3).
  */
-const Schemas = {
-  Health: HealthSchema,
-  Version: VersionSchema,
+const SHARED_COMPONENTS = {
   ErrorResponse: ErrorResponseSchema,
   Finding: FindingSchema,
 } as const;
@@ -34,8 +36,10 @@ const CANDIDATE_METHODS = [
  *
  * Routes are mounted on a plain Hono app so tests can drive `routes.fetch()`
  * without a socket and the real process serves the same app over HTTP.
- * Foundation surface (E1-02): versioned `/api/v1` routes, one error shape,
- * and the code-first OpenAPI 3.1 document at `/openapi.json`.
+ * Route slices under `src/features` bind themselves at construction: the
+ * folder layout decides the versioned path, so a slice never edits a central
+ * route table. Foundation surface (E1-02): versioned `/api/v1` routes, one
+ * error shape, and the code-first OpenAPI 3.1 document at `/openapi.json`.
  */
 export class ControlApiApp {
   /** The mounted Hono application; serve it with Bun.serve or fetch it directly. */
@@ -43,8 +47,28 @@ export class ControlApiApp {
 
   private readonly logger = getLogger("control-api");
 
-  constructor() {
-    this.routes.route("/api/v1", new SystemRoutes().routes);
+  /**
+   * Creates the app with every feature slice under `src/features` loaded,
+   * validated, and bound. Prefer this over the constructor: a slice that
+   * misses the feature contract fails here, before anything serves traffic.
+   */
+  static async create(): Promise<ControlApiApp> {
+    return new ControlApiApp(await loadFeatures(join(import.meta.dir, "features")));
+  }
+
+  private readonly loaded: FeatureBundle;
+
+  private constructor(loaded: FeatureBundle) {
+    this.loaded = loaded;
+
+    for (const feature of this.loaded.features) {
+      this.routes.on(
+        feature.method,
+        `${API_PREFIX}${feature.path}`,
+        describeRoute(this.describeFeature(feature)),
+        feature.handler,
+      );
+    }
 
     this.routes.get("/openapi.json", async (c) => {
       const doc = await generateSpecs(
@@ -59,7 +83,7 @@ export class ControlApiApp {
                 "Code-first OpenAPI 3.1 document generated from TypeBox schemas (Decision e1-s0).",
             },
             tags: [{ name: "system" }],
-            components: { schemas: Schemas },
+            components: { schemas: { ...SHARED_COMPONENTS, ...this.loaded.components } },
           },
         },
         c,
@@ -71,6 +95,34 @@ export class ControlApiApp {
     this.routes.onError((err, c) => this.serverError(err, c));
     // Must run after all routes are registered (E1-02 error contract).
     this.registerMethodNotAllowed();
+  }
+
+  /**
+   * Builds the hono-openapi documentation for one bound feature. The tag is
+   * the feature area folder; each documented response references its module
+   * component by name.
+   */
+  private describeFeature(feature: LoadedFeature) {
+    return {
+      tags: [feature.tag],
+      responses: Object.fromEntries(
+        Object.entries(feature.responses ?? {}).map(([status, response]) => [
+          status,
+          {
+            description: response.description,
+            ...(response.schemaName === undefined
+              ? {}
+              : {
+                  content: {
+                    "application/json": {
+                      schema: { $ref: `#/components/schemas/${response.schemaName}` },
+                    },
+                  },
+                }),
+          },
+        ]),
+      ),
+    };
   }
 
   /**

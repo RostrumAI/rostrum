@@ -96,14 +96,21 @@ per line on the console with `time`, `level`, `msg`, and any extra fields.
 
 | Route | Response |
 | --- | --- |
-| `GET /api/v1/health` | `{"status":"ok"}` |
-| `GET /api/v1/version` | Service name, package version, and the served workflow interface version (`v1`) |
+| `GET /api/v1/system/health` | `{"status":"ok"}` |
+| `GET /api/v1/system/version` | Service name, package version, and the served workflow interface version (`v1`) |
 | `GET /openapi.json` | The generated OpenAPI 3.1 document |
 
 Routes live under the `/api/v1` path prefix. A breaking change to the API or
 the workflow interface creates a new prefix and leaves existing prefixes
 served unchanged. The version route reports the workflow interface version
 as the exact-match token `v1` ([Decision E1-S1](docs/decisions/epic-01/e1-s1-workflow-interface-v1.md)).
+
+Each route is one feature slice under
+`apps/control-api/src/features/`: a slice exports `route`, `schema`, and
+`handler`, and the folder layout decides the bound path. For example,
+`src/features/system/health.ts` serves `GET /api/v1/system/health`. The
+server startup validates every slice against this contract; a slice that
+misses it fails startup.
 
 Every error response uses one shape: `{"code","message","findings"}`.
 
