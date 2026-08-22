@@ -13,10 +13,10 @@ import canonicalJson from "canonicalize";
 
 /** Raised when a value cannot be represented in canonical JSON form. */
 export class CanonicalizationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CanonicalizationError";
-  }
+    constructor(message: string) {
+        super(message);
+        this.name = "CanonicalizationError";
+    }
 }
 
 /**
@@ -26,45 +26,45 @@ export class CanonicalizationError extends Error {
  * content that this contract requires rejecting.
  */
 function assertJsonValue(value: unknown): void {
-  if (
-    value === null ||
-    typeof value === "boolean" ||
-    typeof value === "number" ||
-    typeof value === "string"
-  ) {
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      assertJsonValue(item);
+    if (
+        value === null ||
+        typeof value === "boolean" ||
+        typeof value === "number" ||
+        typeof value === "string"
+    ) {
+        return;
     }
-    return;
-  }
-  if (typeof value === "object") {
-    for (const item of Object.values(value)) {
-      assertJsonValue(item);
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            assertJsonValue(item);
+        }
+        return;
     }
-    return;
-  }
-  throw new CanonicalizationError(`Value of type '${typeof value}' is not valid JSON`);
+    if (typeof value === "object") {
+        for (const item of Object.values(value)) {
+            assertJsonValue(item);
+        }
+        return;
+    }
+    throw new CanonicalizationError(`Value of type '${typeof value}' is not valid JSON`);
 }
 
 /** Serializes a parsed JSON value to its RFC 8785 canonical form. */
 export function canonicalize(value: unknown): string {
-  assertJsonValue(value);
-  try {
-    // The validity pre-check guarantees a string result; the library's
-    // return type includes undefined only for `undefined` input.
-    const canonical = canonicalJson(value);
-    if (canonical === undefined) {
-      throw new CanonicalizationError("The value has no canonical JSON form");
+    assertJsonValue(value);
+    try {
+        // The validity pre-check guarantees a string result; the library's
+        // return type includes undefined only for `undefined` input.
+        const canonical = canonicalJson(value);
+        if (canonical === undefined) {
+            throw new CanonicalizationError("The value has no canonical JSON form");
+        }
+        return canonical;
+    } catch (error) {
+        if (error instanceof CanonicalizationError) {
+            throw error;
+        }
+        // The library rejects non-finite numbers, which have no canonical form.
+        throw new CanonicalizationError(error instanceof Error ? error.message : String(error));
     }
-    return canonical;
-  } catch (error) {
-    if (error instanceof CanonicalizationError) {
-      throw error;
-    }
-    // The library rejects non-finite numbers, which have no canonical form.
-    throw new CanonicalizationError(error instanceof Error ? error.message : String(error));
-  }
 }

@@ -9,10 +9,10 @@ import { ValidationPipeline, type ValidationStage } from "./validation/validatio
 
 /** The result of validating one workflow document. */
 export interface ValidationResult {
-  /** Findings sorted by pointer then code; empty for a valid document. */
-  findings: Finding[];
-  /** True when no finding blocks publication. */
-  validForPublication: boolean;
+    /** Findings sorted by pointer then code; empty for a valid document. */
+    findings: Finding[];
+    /** True when no finding blocks publication. */
+    validForPublication: boolean;
 }
 
 /**
@@ -27,73 +27,76 @@ export interface ValidationResult {
  * only the line and column numbers differ.
  */
 export class WorkflowValidator {
-  private readonly registry: RuleSetRegistry;
+    private readonly registry: RuleSetRegistry;
 
-  /** Constructs a validator over a registry of supported interface rule sets. */
-  constructor(registry: RuleSetRegistry) {
-    this.registry = registry;
-  }
-
-  /**
-   * Validates raw workflow JSON given as text or UTF-8 bytes.
-   * Parse failures return their findings alone; every later stage is gated.
-   */
-  validate(input: string | Uint8Array): ValidationResult {
-    const parsed = new JsonSourceParser(input).parse();
-    if (!parsed.ok) {
-      const findings: Finding[] = parsed.issues.map((issue) => ({
-        code: issue.code,
-        message: issue.message,
-        blocking: true,
-        path: issue.path,
-        line: issue.line,
-        column: issue.column,
-        details: issue.details,
-      }));
-      return this.result(findings);
+    /** Constructs a validator over a registry of supported interface rule sets. */
+    constructor(registry: RuleSetRegistry) {
+        this.registry = registry;
     }
-    return this.validateParsed(parsed.value, parsed.sourceMap);
-  }
 
-  /**
-   * Validates an already-parsed document.
-   * Findings carry no line or column because no source text is available.
-   */
-  validateDocument(document: unknown): ValidationResult {
-    return this.validateParsed(document, null);
-  }
-
-  /**
-   * Runs the version stage over the rule-set registry, then the selected
-   * rule set's stages. An unknown version runs the version stage alone,
-   * so its finding is the only output.
-   */
-  private validateParsed(document: unknown, sourceMap: SourceMap | null): ValidationResult {
-    const context = new ValidationContext(document, sourceMap);
-    const declared = declaredInterfaceVersion(document);
-    const stages: ValidationStage[] = [new VersionStage(this.registry)];
-    const selected = typeof declared === "string" ? this.registry.select(declared) : undefined;
-    if (selected) {
-      stages.push(...selected.stages);
+    /**
+     * Validates raw workflow JSON given as text or UTF-8 bytes.
+     * Parse failures return their findings alone; every later stage is gated.
+     */
+    validate(input: string | Uint8Array): ValidationResult {
+        const parsed = new JsonSourceParser(input).parse();
+        if (!parsed.ok) {
+            const findings: Finding[] = parsed.issues.map((issue) => ({
+                code: issue.code,
+                message: issue.message,
+                blocking: true,
+                path: issue.path,
+                line: issue.line,
+                column: issue.column,
+                details: issue.details,
+            }));
+            return this.result(findings);
+        }
+        return this.validateParsed(parsed.value, parsed.sourceMap);
     }
-    return this.result(new ValidationPipeline(stages).run(context));
-  }
 
-  private result(findings: Finding[]): ValidationResult {
-    const sorted = sortFindings(findings);
-    return { findings: sorted, validForPublication: !sorted.some((finding) => finding.blocking) };
-  }
+    /**
+     * Validates an already-parsed document.
+     * Findings carry no line or column because no source text is available.
+     */
+    validateDocument(document: unknown): ValidationResult {
+        return this.validateParsed(document, null);
+    }
+
+    /**
+     * Runs the version stage over the rule-set registry, then the selected
+     * rule set's stages. An unknown version runs the version stage alone,
+     * so its finding is the only output.
+     */
+    private validateParsed(document: unknown, sourceMap: SourceMap | null): ValidationResult {
+        const context = new ValidationContext(document, sourceMap);
+        const declared = declaredInterfaceVersion(document);
+        const stages: ValidationStage[] = [new VersionStage(this.registry)];
+        const selected = typeof declared === "string" ? this.registry.select(declared) : undefined;
+        if (selected) {
+            stages.push(...selected.stages);
+        }
+        return this.result(new ValidationPipeline(stages).run(context));
+    }
+
+    private result(findings: Finding[]): ValidationResult {
+        const sorted = sortFindings(findings);
+        return {
+            findings: sorted,
+            validForPublication: !sorted.some((finding) => finding.blocking),
+        };
+    }
 }
 
 /** Reads the declared `interfaceVersion` member when the document is a JSON object. */
 function declaredInterfaceVersion(document: unknown): unknown {
-  if (typeof document !== "object" || document === null || Array.isArray(document)) {
-    return undefined;
-  }
-  return (document as Record<string, unknown>).interfaceVersion;
+    if (typeof document !== "object" || document === null || Array.isArray(document)) {
+        return undefined;
+    }
+    return (document as Record<string, unknown>).interfaceVersion;
 }
 
 /** Creates a validator that supports workflow interface v1. */
 export function createWorkflowValidator(): WorkflowValidator {
-  return new WorkflowValidator(new RuleSetRegistry([V1_RULE_SET]));
+    return new WorkflowValidator(new RuleSetRegistry([V1_RULE_SET]));
 }

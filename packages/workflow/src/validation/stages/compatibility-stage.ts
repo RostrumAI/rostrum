@@ -15,11 +15,11 @@ import type { ValidationStage } from "../validation-stage";
  * schema, so there is nothing to compare and the stage emits nothing.
  */
 export class CompatibilityStage implements ValidationStage {
-  readonly id = "compatibility";
-  readonly prerequisites: readonly string[] = ["references"];
+    readonly id = "compatibility";
+    readonly prerequisites: readonly string[] = ["references"];
 
-  /** Emits no findings in v1; see the reserved `workflow.io.type-mismatch` contract. */
-  run(_context: ValidationContext): Finding[] {
-    return [];
-  }
+    /** Emits no findings in v1; see the reserved `workflow.io.type-mismatch` contract. */
+    run(_context: ValidationContext): Finding[] {
+        return [];
+    }
 }

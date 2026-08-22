@@ -22,9 +22,9 @@
 
 export type { Finding, FindingSpec, RelatedLocation } from "./findings";
 export {
-  compareFindings,
-  FindingFactory,
-  sortFindings,
+    compareFindings,
+    FindingFactory,
+    sortFindings,
 } from "./findings";
 export type { JsonParseIssue, JsonParseResult, ParseErrorCode } from "./parse/json-source-parser";
 export { JsonSourceParser } from "./parse/json-source-parser";
@@ -37,9 +37,9 @@ export type { StepTypeRegistration } from "./rules/step-type-registry";
 export { StepTypeRegistry } from "./rules/step-type-registry";
 export { V1_RULE_SET } from "./rules/v1";
 export type {
-  WorkflowConditional,
-  WorkflowDocument as WorkflowDocumentType,
-  WorkflowStep,
+    WorkflowConditional,
+    WorkflowDocument as WorkflowDocumentType,
+    WorkflowStep,
 } from "./schema";
 export { WorkflowDocument } from "./schema";
 export type { SourceLocation, SourceMap, SourcePointer } from "./source-map";

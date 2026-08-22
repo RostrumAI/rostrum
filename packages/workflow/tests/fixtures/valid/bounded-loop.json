@@ -1,51 +1,51 @@
 {
-  "interfaceVersion": "v1",
-  "id": "0192b0a0-7e1d-7000-8000-000000000030",
-  "name": "Batch file analysis",
-  "description": "Loop over files, analyze each, summarize all.",
-  "firstNode": "0192b0a0-7e1d-7000-8000-000000000031",
-  "inputs": {
-    "files": { "type": "array", "items": { "type": "string" } }
-  },
-  "steps": [
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000031",
-      "type": "task",
-      "config": { "operation": "list-files" },
-      "inputs": { "files": { "ref": "inputs.files" } },
-      "outputs": {
-        "fileList": { "type": "array", "items": { "type": "string" } },
-        "results": { "type": "array", "items": { "type": "string" } }
-      },
-      "loop": {
-        "collection": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.fileList" },
-        "maxIterations": 50,
-        "variable": "file",
-        "body": "0192b0a0-7e1d-7000-8000-000000000032"
-      },
-      "successors": ["0192b0a0-7e1d-7000-8000-000000000033"]
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000030",
+    "name": "Batch file analysis",
+    "description": "Loop over files, analyze each, summarize all.",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000031",
+    "inputs": {
+        "files": { "type": "array", "items": { "type": "string" } }
     },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000032",
-      "type": "task",
-      "config": { "operation": "analyze-file" },
-      "inputs": { "file": { "ref": "loop.file" } },
-      "outputs": { "analysis": { "type": "string" } }
-    },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000033",
-      "type": "task",
-      "config": { "operation": "summarize" },
-      "inputs": {
-        "analyses": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.results" }
-      },
-      "outputs": { "summary": { "type": "string" } },
-      "successors": ["0192b0a0-7e1d-7000-8000-000000000034"]
-    },
-    {
-      "id": "0192b0a0-7e1d-7000-8000-000000000034",
-      "type": "result",
-      "inputs": { "summary": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000033.summary" } }
-    }
-  ]
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000031",
+            "type": "task",
+            "config": { "operation": "list-files" },
+            "inputs": { "files": { "ref": "inputs.files" } },
+            "outputs": {
+                "fileList": { "type": "array", "items": { "type": "string" } },
+                "results": { "type": "array", "items": { "type": "string" } }
+            },
+            "loop": {
+                "collection": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.fileList" },
+                "maxIterations": 50,
+                "variable": "file",
+                "body": "0192b0a0-7e1d-7000-8000-000000000032"
+            },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000033"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000032",
+            "type": "task",
+            "config": { "operation": "analyze-file" },
+            "inputs": { "file": { "ref": "loop.file" } },
+            "outputs": { "analysis": { "type": "string" } }
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000033",
+            "type": "task",
+            "config": { "operation": "summarize" },
+            "inputs": {
+                "analyses": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.results" }
+            },
+            "outputs": { "summary": { "type": "string" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000034"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000034",
+            "type": "result",
+            "inputs": { "summary": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000033.summary" } }
+        }
+    ]
 }

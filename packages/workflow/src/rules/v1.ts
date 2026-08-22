@@ -25,26 +25,26 @@ import { StepTypeRegistry } from "./step-type-registry";
  */
 
 const stepTypes = new StepTypeRegistry({
-  task: {
-    configSchema: Type.Object({ operation: Type.String() }, { additionalProperties: true }),
-  },
-  result: {},
+    task: {
+        configSchema: Type.Object({ operation: Type.String() }, { additionalProperties: true }),
+    },
+    result: {},
 });
 stepTypes.seal();
 
 /** The frozen v1 rule set: schema, step types, metadata members, and validation stages. */
 export const V1_RULE_SET: InterfaceRuleSet = Object.freeze({
-  version: "v1",
-  documentSchema: WorkflowDocument,
-  stepTypes,
-  metadataMembers: Object.freeze(["name", "description"]),
-  stages: Object.freeze([
-    new ShapeStage(WorkflowDocument),
-    new IdentityStage(stepTypes),
-    new GraphStage(),
-    new ConditionalStage(),
-    new TerminationStage(),
-    new ReferencesStage(),
-    new CompatibilityStage(),
-  ]),
+    version: "v1",
+    documentSchema: WorkflowDocument,
+    stepTypes,
+    metadataMembers: Object.freeze(["name", "description"]),
+    stages: Object.freeze([
+        new ShapeStage(WorkflowDocument),
+        new IdentityStage(stepTypes),
+        new GraphStage(),
+        new ConditionalStage(),
+        new TerminationStage(),
+        new ReferencesStage(),
+        new CompatibilityStage(),
+    ]),
 });

@@ -12,16 +12,16 @@ import type { StepTypeRegistry } from "./step-type-registry";
  * blocking finding, never a fallback to a newer or older rule set.
  */
 export interface InterfaceRuleSet {
-  /** Exact-match version token, for example `"v1"`. */
-  readonly version: string;
-  /** Document shape schema enforced by the shape stage. */
-  readonly documentSchema: TSchema;
-  /** Step types registered for this version. */
-  readonly stepTypes: StepTypeRegistry;
-  /** Top-level metadata members removed before canonicalization (E1-S4). */
-  readonly metadataMembers: readonly string[];
-  /** Validation stages for this version, in execution order. */
-  readonly stages: readonly ValidationStage[];
+    /** Exact-match version token, for example `"v1"`. */
+    readonly version: string;
+    /** Document shape schema enforced by the shape stage. */
+    readonly documentSchema: TSchema;
+    /** Step types registered for this version. */
+    readonly stepTypes: StepTypeRegistry;
+    /** Top-level metadata members removed before canonicalization (E1-S4). */
+    readonly metadataMembers: readonly string[];
+    /** Validation stages for this version, in execution order. */
+    readonly stages: readonly ValidationStage[];
 }
 
 /**
@@ -32,27 +32,27 @@ export interface InterfaceRuleSet {
  * with the supported versions in `details`; nothing falls back.
  */
 export class RuleSetRegistry {
-  private readonly ruleSets = new Map<string, InterfaceRuleSet>();
+    private readonly ruleSets = new Map<string, InterfaceRuleSet>();
 
-  /** Constructs a registry over initial rule sets. */
-  constructor(ruleSets: readonly InterfaceRuleSet[] = []) {
-    for (const ruleSet of ruleSets) {
-      this.register(ruleSet);
+    /** Constructs a registry over initial rule sets. */
+    constructor(ruleSets: readonly InterfaceRuleSet[] = []) {
+        for (const ruleSet of ruleSets) {
+            this.register(ruleSet);
+        }
     }
-  }
 
-  /** Adds a rule set under its version token and freezes the rule set object. */
-  register(ruleSet: InterfaceRuleSet): void {
-    this.ruleSets.set(ruleSet.version, Object.freeze(ruleSet));
-  }
+    /** Adds a rule set under its version token and freezes the rule set object. */
+    register(ruleSet: InterfaceRuleSet): void {
+        this.ruleSets.set(ruleSet.version, Object.freeze(ruleSet));
+    }
 
-  /** Gets the rule set for an exact version token, or undefined when the version is unsupported. */
-  select(version: string): InterfaceRuleSet | undefined {
-    return this.ruleSets.get(version);
-  }
+    /** Gets the rule set for an exact version token, or undefined when the version is unsupported. */
+    select(version: string): InterfaceRuleSet | undefined {
+        return this.ruleSets.get(version);
+    }
 
-  /** Lists supported version tokens in sorted order, for finding details. */
-  versions(): string[] {
-    return [...this.ruleSets.keys()].sort();
-  }
+    /** Lists supported version tokens in sorted order, for finding details. */
+    versions(): string[] {
+        return [...this.ruleSets.keys()].sort();
+    }
 }

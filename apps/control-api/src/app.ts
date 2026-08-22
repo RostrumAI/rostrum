@@ -8,9 +8,9 @@ import { Hono } from "hono";
  * routes, versioned routing, the error shape, and OpenAPI documentation.
  */
 export function createApp(): Hono {
-  const app = new Hono();
+    const app = new Hono();
 
-  app.get("/", (c) => c.json({ service: "rostrum-control-api" }));
+    app.get("/", (c) => c.json({ service: "rostrum-control-api" }));
 
-  return app;
+    return app;
 }

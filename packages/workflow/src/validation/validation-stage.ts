@@ -10,12 +10,12 @@ import type { ValidationContext } from "./validation-context";
  * when earlier results provide enough reliable information (E1-S2).
  */
 export interface ValidationStage {
-  /** Stable stage id used in prerequisite declarations. */
-  readonly id: string;
-  /** Stage ids whose blocking findings gate this stage. */
-  readonly prerequisites: readonly string[];
-  /** Runs the stage against the context and returns its findings. */
-  run(context: ValidationContext): Finding[];
+    /** Stable stage id used in prerequisite declarations. */
+    readonly id: string;
+    /** Stage ids whose blocking findings gate this stage. */
+    readonly prerequisites: readonly string[];
+    /** Runs the stage against the context and returns its findings. */
+    run(context: ValidationContext): Finding[];
 }
 
 /**
@@ -28,30 +28,30 @@ export interface ValidationStage {
  * applies the pointer-then-code ordering.
  */
 export class ValidationPipeline {
-  private readonly stages: readonly ValidationStage[];
+    private readonly stages: readonly ValidationStage[];
 
-  /** Constructs a pipeline over stages in execution order. */
-  constructor(stages: readonly ValidationStage[]) {
-    this.stages = stages;
-  }
-
-  /** Runs every ungated stage and returns the collected findings. */
-  run(context: ValidationContext): Finding[] {
-    const blocked = new Set<string>();
-    const ran = new Set<string>();
-    const findings: Finding[] = [];
-    for (const stage of this.stages) {
-      const ready = stage.prerequisites.every((id) => ran.has(id) && !blocked.has(id));
-      if (!ready) {
-        continue;
-      }
-      ran.add(stage.id);
-      const produced = stage.run(context);
-      findings.push(...produced);
-      if (produced.some((finding) => finding.blocking)) {
-        blocked.add(stage.id);
-      }
+    /** Constructs a pipeline over stages in execution order. */
+    constructor(stages: readonly ValidationStage[]) {
+        this.stages = stages;
     }
-    return findings;
-  }
+
+    /** Runs every ungated stage and returns the collected findings. */
+    run(context: ValidationContext): Finding[] {
+        const blocked = new Set<string>();
+        const ran = new Set<string>();
+        const findings: Finding[] = [];
+        for (const stage of this.stages) {
+            const ready = stage.prerequisites.every((id) => ran.has(id) && !blocked.has(id));
+            if (!ready) {
+                continue;
+            }
+            ran.add(stage.id);
+            const produced = stage.run(context);
+            findings.push(...produced);
+            if (produced.some((finding) => finding.blocking)) {
+                blocked.add(stage.id);
+            }
+        }
+        return findings;
+    }
 }
