@@ -4,12 +4,9 @@
     "type": "module",
     "exports": "./src/index.ts",
     "scripts": {
-        "typecheck": "tsc --noEmit",
-        "test": "bun test",
-        "migrate": "bun src/scripts/migrate.ts"
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@rostrum/workflow": "workspace:*",
         "kysely": "^0.29.0",
         "kysely-postgres-js": "^4.0.0",
         "postgres": "^3.4.9"

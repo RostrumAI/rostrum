@@ -15,8 +15,8 @@ export interface Config {
 }
 
 // Targets the Docker Compose Postgres service (docker-compose.yml). The
-// Control API opens no connections itself; @rostrum/storage owns them and
-// the workflow operations that consume it arrive with E1-06.
+// workflow store in src/workflows opens its pool against this URL; E1-06
+// wires it into the route handlers.
 const DEFAULT_DATABASE_URL = "postgres://rostrum:rostrum@localhost:5432/rostrum";
 
 /** Log levels accepted in configuration, matching the LogTape vocabulary. */

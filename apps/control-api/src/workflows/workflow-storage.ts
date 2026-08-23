@@ -1,13 +1,15 @@
 import { type Finding, PublicationPreparer, V1_RULE_SET } from "@rostrum/workflow";
 import { type Kysely, sql } from "kysely";
-import type { RevisionRow, WorkflowDatabase } from "./database";
+// The `uuid` package is the RFC 9562 implementation of record; minting and
+// version checks are its job, not this repository's.
+import { validate as isUuid, v7 as mintUuidV7, version as uuidVersion } from "uuid";
 import {
     CorruptWorkflowStateError,
     DigestVerificationError,
     DuplicateWorkflowIdError,
     InvalidWorkflowInputError,
 } from "./errors";
-import { isUuidV7, mintUuidV7 } from "./uuid-v7";
+import type { RevisionRow, WorkflowDatabase } from "./schema";
 
 /** A stored revision as the Control API consumes it. */
 export interface StoredRevision {
@@ -532,7 +534,9 @@ export class WorkflowStorage {
     }
 
     private assertWorkflowId(workflowId: string): void {
-        if (!isUuidV7(workflowId)) {
+        // `validate` accepts every RFC 9562 shape; the version nibble must
+        // be 7 for a workflow id (E1-S3 identity rule).
+        if (!isUuid(workflowId) || uuidVersion(workflowId) !== 7) {
             throw new InvalidWorkflowInputError(`'${workflowId}' is not a UUID v7 workflow id`);
         }
     }

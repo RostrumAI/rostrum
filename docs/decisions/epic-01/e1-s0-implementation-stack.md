@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Decided — proof of concept verified |
 | Source | [E1-S0: Select the implementation stack and workflow database](../../tasks/epic-01/e1-s0-select-implementation-stack.md) |
-| Last updated | 2026-08-22 |
+| Last updated | 2026-08-23 |
 
 ## Decision
 
@@ -29,7 +29,7 @@ E1-S0 must select the stack before product code exists. The blueprint and epics 
 | TypeScript toolchain | TypeScript 7 (`typescript@^7.0.2`) | Native compiler with a stable CLI surface; verified by the POC with zero source changes. The unstable programmatic API is a deferred caveat for future API-consuming tooling, not for the current stack. |
 | Database | Postgres | Chosen database; durable store for drafts, revisions, findings, and published versions. |
 | Database driver | `postgres` (postgres.js) | Proven, Bun-first-class, and portable to non-Bun runtimes for the Cloud control plane; built-in connection pooling and `sql.begin(...)` transactions. |
-| Query and migration layer | Kysely + Kysely `Migrator` with SQL-file migrations | Typed queries without ORM magic for the persistence contract the Control API and daemon share; SQL files are the migration source of truth and run programmatically in tests. |
+| Query and migration layer | Kysely + Kysely `Migrator` with TypeScript migration modules | Typed queries without ORM magic for the persistence contract the Control API and daemon share; migrations are TypeScript modules whose queries typecheck against the schema types, and they run programmatically in tests. Amended during E1-07 review: the proof-of-concept SQL-file convention is replaced so migrations can be typed and unit-tested like code. |
 | Local development database | Docker Compose Postgres service, configured through environment variables (`DATABASE_URL`) | One documented command starts a reproducible local database with no machine-local install assumptions; environment overrides select any target. |
 | Repository layout | Bun workspaces: `apps/` for runnable applications and `packages/` for shared libraries | The Control API and the future daemon are independently runnable while sharing workflow and persistence code; one `bun.lock` and no build step. |
 | Backup assumption | Documented `pg_dump` backup and restore path; no replication or point-in-time recovery in Epic 1 | Sets the durability ceiling: published versions are recoverable to the dump file, and nothing stronger is assumed. |

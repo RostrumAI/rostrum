@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { migrateToLatest, TsFileMigrationProvider } from "@rostrum/storage";
 import {
     createWorkflowValidator,
     type Finding,
@@ -8,21 +9,22 @@ import {
 } from "@rostrum/workflow";
 import { sql } from "kysely";
 import { Migrator, NO_MIGRATIONS } from "kysely/migration";
+import { v7 as mintUuidV7 } from "uuid";
 import {
-    type CreatedDraft,
-    createStorage,
     DigestVerificationError,
     DuplicateWorkflowIdError,
     InvalidWorkflowInputError,
-    migrateToLatest,
-    mintUuidV7,
-    type PublishInput,
-    type RostrumStorage,
-    SqlFileMigrationProvider,
-    type StoredRevision,
-} from "../src";
+} from "../src/workflows/errors";
+import { createWorkflowStore, type WorkflowStore } from "../src/workflows/store";
+import type {
+    CreatedDraft,
+    PublishInput,
+    StoredRevision,
+} from "../src/workflows/workflow-storage";
 
 const databaseUrl = process.env.DATABASE_URL ?? "postgres://rostrum:rostrum@localhost:5432/rostrum";
+/** The app's migration files, resolved relative to this test file. */
+const migrationsFolder = join(import.meta.dir, "../migrations");
 
 async function isDatabaseReachable(): Promise<boolean> {
     const { default: postgres } = await import("postgres");
@@ -111,7 +113,7 @@ async function preparePublishInput(
     };
 }
 
-async function countRevisions(storage: RostrumStorage, workflowId: string): Promise<number> {
+async function countRevisions(storage: WorkflowStore, workflowId: string): Promise<number> {
     const rows = await storage.db
         .selectFrom("revisions")
         .select((eb) => eb.fn.countAll().as("count"))
@@ -120,7 +122,7 @@ async function countRevisions(storage: RostrumStorage, workflowId: string): Prom
     return Number(rows.count);
 }
 
-async function revisionIds(storage: RostrumStorage, workflowId: string): Promise<string[]> {
+async function revisionIds(storage: WorkflowStore, workflowId: string): Promise<string[]> {
     const rows = await storage.db
         .selectFrom("revisions")
         .select("id")
@@ -139,10 +141,10 @@ function savedRevision(result: { outcome: string; revision?: StoredRevision }): 
 }
 
 /** Opens one migrated storage with empty tables and closes it afterwards. */
-async function withStorage<T>(run: (storage: RostrumStorage) => Promise<T>): Promise<T> {
-    const storage = createStorage(databaseUrl);
+async function withStorage<T>(run: (storage: WorkflowStore) => Promise<T>): Promise<T> {
+    const storage = createWorkflowStore(databaseUrl);
     try {
-        await migrateToLatest(storage.db);
+        await migrateToLatest(storage.db, migrationsFolder);
         await sql`TRUNCATE published_versions, revisions, workflows`.execute(storage.db);
         return await run(storage);
     } finally {
@@ -156,7 +158,7 @@ describe("migrations", () => {
             await withStorage(async (storage) => {
                 const migrator = new Migrator({
                     db: storage.db,
-                    provider: new SqlFileMigrationProvider(join(import.meta.dir, "../migrations")),
+                    provider: new TsFileMigrationProvider(migrationsFolder),
                 });
                 const down = await migrator.migrateTo(NO_MIGRATIONS);
                 expect(down.error).toBeUndefined();
@@ -167,14 +169,14 @@ describe("migrations", () => {
                     );
                 expect(remaining.rows).toEqual([]);
 
-                const up = await migrateToLatest(storage.db);
+                const up = await migrateToLatest(storage.db, migrationsFolder);
                 expect(up.map((entry) => entry.migrationName)).toEqual([
                     "001_workflows",
                     "002_revisions",
                     "003_published_versions",
                 ]);
 
-                const again = await migrateToLatest(storage.db);
+                const again = await migrateToLatest(storage.db, migrationsFolder);
                 expect(again).toHaveLength(0);
             });
         },
@@ -313,9 +315,9 @@ describe("drafts and revisions", () => {
         async () => {
             let created: CreatedDraft;
             {
-                const first = createStorage(databaseUrl);
+                const first = createWorkflowStore(databaseUrl);
                 try {
-                    await migrateToLatest(first.db);
+                    await migrateToLatest(first.db, migrationsFolder);
                     await sql`TRUNCATE published_versions, revisions, workflows`.execute(first.db);
                     const document = greetDocument("Restart durable");
                     created = await first.workflows.createDraft({
@@ -334,7 +336,7 @@ describe("drafts and revisions", () => {
                 }
             }
             {
-                const reopened = createStorage(databaseUrl);
+                const reopened = createWorkflowStore(databaseUrl);
                 try {
                     const draft = await reopened.workflows.getRevision(
                         created.workflowId,

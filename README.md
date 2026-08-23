@@ -35,6 +35,7 @@ the `DATABASE_URL` environment variable.
 | `bun run test` | Runs unit and integration tests with `bun test` |
 | `bun run db:up` | Starts the local Postgres service |
 | `bun run db:down` | Stops the local Postgres service |
+| `bun run db:migrate` | Applies pending workflow-database migrations to the `DATABASE_URL` target |
 
 The repository has no build step: Bun runs TypeScript directly. Integration
 tests that use Postgres skip with a message when the database is unreachable;
@@ -88,7 +89,7 @@ port: 8080
 | `HOST` / `host` | `127.0.0.1` | Address to bind |
 | `NODE_ENV` / `nodeEnv` | `development` | One of `development`, `test`, `production`; selects the default log level |
 | `LOG_LEVEL` / `logLevel` | `debug` in development and test, `info` in production | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
-| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the Control API does not open a connection until storage arrives in [E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) |
+| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the workflow database migrations ([E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md)) and the workflow store in `apps/control-api/src/workflows` use it |
 
 Logging uses [LogTape](https://logtape.org/). Records are one JSON object
 per line on the console with `time`, `level`, `msg`, and any extra fields.

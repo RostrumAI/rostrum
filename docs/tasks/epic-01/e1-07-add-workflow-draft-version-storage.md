@@ -10,7 +10,7 @@
 
 ## Task
 
-This task implements the Postgres store selected by [E1-S0](../../decisions/epic-01/e1-s0-implementation-stack.md) using postgres.js with Kysely and SQL-file migrations. It adds:
+This task implements the Postgres store selected by [E1-S0](../../decisions/epic-01/e1-s0-implementation-stack.md) using postgres.js with Kysely and TypeScript migration modules. It adds:
 
 - Schemas and migrations for drafts, revisions, validation results, and published versions. Revisions store the server-assigned `id` (UUID v7), exact submitted bytes, findings snapshot, and optional name. Published versions store the RFC 8785 canonical text and SHA-256 hex digest (computed over the canonical form with `name` and `description` removed, per [E1-S4](../../decisions/epic-01/e1-s4-interface-versioning-methodology.md)).
 - Storage for workflow JSON, identifiers, interface versions, digests, and creation metadata (`createdAt`/`updatedAt`).

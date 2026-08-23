@@ -21,7 +21,7 @@ This task gives authors Control API operations that implement the lifecycle in [
 - Select validation and publication rules from the declared `interfaceVersion` through the shared `RuleSetRegistry` (E1-S4): exact-match only, unknown versions are blocking findings, never a fallback.
 - Map storage outcomes and typed errors to the E1-02 error shape in one place: outcome unions decide success, 409 (stale `baseRevision`), and 404 (`not-found`, `revision-not-found` on publish); `InvalidWorkflowInputError` → 400, `DuplicateWorkflowIdError` → 409, `CorruptWorkflowStateError` and `DigestVerificationError` → 500 `internal_error` through the existing `onError` path.
 
-> Constraint for later: when a second interface version ships, `@rostrum/storage` verification (`getPublishedVersion`) must select its rule set from the stored `interface_version` (E1-S4) instead of the single preparer created at `createStorage`; the registry E1-06 owns here is the wiring point. No storage change is needed while v1 is the only supported version.
+> Constraint for later: when a second interface version ships, the workflow store's verification (`getPublishedVersion`) must select its rule set from the stored `interface_version` (E1-S4) instead of the single preparer created by `createWorkflowStore`; the registry E1-06 owns here is the wiring point. No storage change is needed while v1 is the only supported version.
 
 Every validation and publication decision uses the shared workflow library. Published-version retrieval is byte-exact: verification is `sha256(retrieved) == digest`.
 

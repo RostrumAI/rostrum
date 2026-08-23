@@ -1,5 +1,6 @@
 /**
- * Storage-layer failures raised by @rostrum/storage.
+ * Storage-layer failures raised by the workflow store
+ * ({@link WorkflowStorage} and its siblings in this folder).
  *
  * Query errors surface as Kysely/driver errors and are wrapped here only
  * when a driver code carries domain meaning (for example, the Postgres
