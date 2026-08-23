@@ -6,3 +6,4 @@ coverage/
 *.dump
 .DS_Store
 .omp/
+tmp/

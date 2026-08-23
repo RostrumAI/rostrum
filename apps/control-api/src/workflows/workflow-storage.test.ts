@@ -14,13 +14,13 @@ import {
     DigestVerificationError,
     DuplicateWorkflowIdError,
     InvalidWorkflowInputError,
-} from "../src/workflows/errors";
-import { createWorkflowStore, type WorkflowStore } from "../src/workflows/store";
-import type { CreatedDraft, PublishInput, StoredRevision } from "../src/workflows/workflow-storage";
+} from "./errors";
+import { createWorkflowStore, type WorkflowStore } from "./store";
+import type { CreatedDraft, PublishInput, StoredRevision } from "./workflow-storage";
 
 const databaseUrl = process.env.DATABASE_URL ?? "postgres://rostrum:rostrum@localhost:5432/rostrum";
 /** The app's migration files, resolved relative to this test file. */
-const migrationsFolder = join(import.meta.dir, "../migrations");
+const migrationsFolder = join(import.meta.dir, "../../migrations");
 
 async function isDatabaseReachable(): Promise<boolean> {
     const { default: postgres } = await import("postgres");

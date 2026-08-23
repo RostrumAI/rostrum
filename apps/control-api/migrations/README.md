@@ -31,7 +31,7 @@ previous application version is still serving traffic. A new migration:
    first. If neither is possible, the column starts nullable and a later
    migration tightens it after the backfill completes everywhere.
 3. Ships a working `down`. The rollback test in
-   [`tests/workflow-storage.test.ts`](../tests/workflow-storage.test.ts)
+   [`src/workflows/workflow-storage.test.ts`](../src/workflows/workflow-storage.test.ts)
    rolls every migration back and forward again, so a missing or broken
    `down` fails the suite.
 4. Is never edited after merge. Corrections land as new migrations.
