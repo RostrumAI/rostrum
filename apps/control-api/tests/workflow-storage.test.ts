@@ -16,11 +16,7 @@ import {
     InvalidWorkflowInputError,
 } from "../src/workflows/errors";
 import { createWorkflowStore, type WorkflowStore } from "../src/workflows/store";
-import type {
-    CreatedDraft,
-    PublishInput,
-    StoredRevision,
-} from "../src/workflows/workflow-storage";
+import type { CreatedDraft, PublishInput, StoredRevision } from "../src/workflows/workflow-storage";
 
 const databaseUrl = process.env.DATABASE_URL ?? "postgres://rostrum:rostrum@localhost:5432/rostrum";
 /** The app's migration files, resolved relative to this test file. */
