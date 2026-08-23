@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { digestWorkflow } from "../testing/digest";
 import { V1_RULE_SET } from "../rules/v1";
+import { digestWorkflow } from "../testing/digest";
 import { CanonicalizationError, canonicalize } from "./canonical-json";
 import { PublicationPreparer } from "./publication-preparer";
 

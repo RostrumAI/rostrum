@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { V1_RULE_SET } from "../../rules/v1";
 import {
     buildDocument,
     conditional,
@@ -6,7 +7,6 @@ import {
     taskLoopStep,
     taskStep,
 } from "../../testing/documents";
-import { V1_RULE_SET } from "../../rules/v1";
 import { ValidationContext } from "../validation-context";
 import { TerminationStage } from "./termination-stage";
 
