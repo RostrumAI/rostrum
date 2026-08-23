@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createWorkflowValidator } from "../src/workflow-validator";
+import { createWorkflowValidator } from "./workflow-validator";
 
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");
 const validator = createWorkflowValidator();

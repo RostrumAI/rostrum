@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildDocument, resultStep, taskStep } from "../../tests/helpers/documents";
+import { buildDocument, resultStep, taskStep } from "../testing/documents";
 import { sortFindings } from "../findings";
 import { RuleSetRegistry } from "../rules/interface-rule-set";
 import { V1_RULE_SET } from "../rules/v1";

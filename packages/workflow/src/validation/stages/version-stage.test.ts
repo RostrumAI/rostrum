@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildDocument } from "../../../tests/helpers/documents";
+import { buildDocument } from "../../testing/documents";
 import { RuleSetRegistry } from "../../rules/interface-rule-set";
 import { V1_RULE_SET } from "../../rules/v1";
 import { ValidationContext } from "../validation-context";

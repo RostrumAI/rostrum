@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Compile } from "typebox/compile";
-import { WorkflowDocument } from "../src/schema";
-import { digestWorkflow } from "./helpers/digest";
+import { WorkflowDocument } from "./schema";
+import { digestWorkflow } from "./testing/digest";
 
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");
 

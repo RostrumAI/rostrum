@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { digestWorkflow } from "../../tests/helpers/digest";
+import { digestWorkflow } from "../testing/digest";
 import { V1_RULE_SET } from "../rules/v1";
 import { CanonicalizationError, canonicalize } from "./canonical-json";
 import { PublicationPreparer } from "./publication-preparer";
 
-const FIXTURES_DIR = join(import.meta.dir, "..", "..", "tests", "fixtures");
+const FIXTURES_DIR = join(import.meta.dir, "..", "fixtures");
 const preparer = new PublicationPreparer(V1_RULE_SET);
 
 const SEQUENTIAL_DIGEST = "e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368";

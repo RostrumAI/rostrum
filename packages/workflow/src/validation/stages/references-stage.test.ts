@@ -4,7 +4,7 @@ import {
     resultStep,
     taskLoopStep,
     taskStep,
-} from "../../../tests/helpers/documents";
+} from "../../testing/documents";
 import { V1_RULE_SET } from "../../rules/v1";
 import { ValidationContext } from "../validation-context";
 import { ReferencesStage } from "./references-stage";

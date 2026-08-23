@@ -1,4 +1,4 @@
-import type { WorkflowConditional, WorkflowDocument, WorkflowStep } from "../../src/schema";
+import type { WorkflowConditional, WorkflowDocument, WorkflowStep } from "../schema";
 
 let nextId = 0;
 
