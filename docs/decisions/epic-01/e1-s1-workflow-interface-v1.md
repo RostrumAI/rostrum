@@ -2,7 +2,7 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Proposed — awaiting approval |
+| Status | Decided |
 | Source | [E1-S1: Decide the workflow JSON v1 shape](../../tasks/epic-01/e1-s1-define-workflow-interface-v1.md) |
 | Last updated | 2026-08-15 |
 

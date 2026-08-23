@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Decided — proof of concept verified |
 | Source | [E1-S0: Select the implementation stack and workflow database](../../tasks/epic-01/e1-s0-select-implementation-stack.md) |
-| Last updated | 2026-08-11 |
+| Last updated | 2026-08-22 |
 
 ## Decision
 
@@ -61,9 +61,6 @@ E1-S0 must select the stack before product code exists. The blueprint and epics 
 ## Deferred decisions
 
 - The published-workflow retrieval pattern for future execution requests is deferred to Epic 2, where the daemon consumer and the API-to-daemon transport are defined (E2-S2 and E2-02). Epic 1 implements basic retrieval of drafts, revisions, and published versions in E1-07 with direct indexed queries and stored-digest verification.
-- Repository layout (Bun workspaces with `apps/` and `packages/` assumed).
-- Published-workflow retrieval pattern for future execution requests.
-- Lint and format tooling, and the continuous-integration runner.
 
 ## Verification
 

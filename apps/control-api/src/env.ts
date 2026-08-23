@@ -14,8 +14,9 @@ export interface Config {
     logLevel: LogLevel;
 }
 
-// Targets the Docker Compose Postgres service (docker-compose.yml); the
-// Control API does not open a connection until storage arrives in E1-07.
+// Targets the Docker Compose Postgres service (docker-compose.yml). The
+// Control API opens no connections itself; @rostrum/storage owns them and
+// the workflow operations that consume it arrive with E1-06.
 const DEFAULT_DATABASE_URL = "postgres://rostrum:rostrum@localhost:5432/rostrum";
 
 /** Log levels accepted in configuration, matching the LogTape vocabulary. */

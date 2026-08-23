@@ -39,11 +39,14 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 ### Decisions
 
 - [E1-S0: Implementation stack, Control API contract, and workflow persistence](decisions/epic-01/e1-s0-implementation-stack.md)
+- [E1-S1: Workflow JSON v1 shape and interface evolution](decisions/epic-01/e1-s1-workflow-interface-v1.md)
+- [E1-S2: Validation checks, finding shape, and execution order](decisions/epic-01/e1-s2-validation-behavior.md)
+- [E1-S3: Draft revision and publication lifecycle](decisions/epic-01/e1-s3-draft-publication-lifecycle.md)
+- [E1-S4: Interface versioning methodology and runtime impact](decisions/epic-01/e1-s4-interface-versioning-methodology.md)
 
 ### Results
 
 - [E1-S0: Proof-of-concept verification](results/epic-01/e1-s0-proof-of-concept.md)
-
 
 ### Specifications
 

@@ -13,7 +13,8 @@
         "lint:fix": "biome check --write .",
         "format": "biome format --write .",
         "db:up": "docker compose up -d --wait postgres",
-        "db:down": "docker compose down"
+        "db:down": "docker compose down",
+        "db:migrate": "bun --filter @rostrum/storage migrate"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.5.7",

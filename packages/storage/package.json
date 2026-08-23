@@ -1,0 +1,17 @@
+{
+    "name": "@rostrum/storage",
+    "private": true,
+    "type": "module",
+    "exports": "./src/index.ts",
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "test": "bun test",
+        "migrate": "bun src/scripts/migrate.ts"
+    },
+    "dependencies": {
+        "@rostrum/workflow": "workspace:*",
+        "kysely": "^0.29.0",
+        "kysely-postgres-js": "^4.0.0",
+        "postgres": "^3.4.9"
+    }
+}
