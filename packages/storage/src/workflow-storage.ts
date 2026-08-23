@@ -1,7 +1,12 @@
 import { type Finding, PublicationPreparer, V1_RULE_SET } from "@rostrum/workflow";
 import { type Kysely, sql } from "kysely";
 import type { RevisionRow, WorkflowDatabase } from "./database";
-import { DigestVerificationError, StorageError } from "./errors";
+import {
+    CorruptWorkflowStateError,
+    DigestVerificationError,
+    DuplicateWorkflowIdError,
+    InvalidWorkflowInputError,
+} from "./errors";
 import { isUuidV7, mintUuidV7 } from "./uuid-v7";
 
 /** A stored revision as the Control API consumes it. */
@@ -73,10 +78,17 @@ export interface PublishInput {
     interfaceVersion: string;
 }
 
-/** The result of one publish attempt; both outcomes return the same version. */
+/**
+ * The result of one publish attempt. `published` and `already-published`
+ * return the same version; `not-found` reports an unknown workflow and
+ * `revision-not-found` a revision that does not belong to it — the two
+ * 404 cases of the E1-S3 publish contract, typed instead of thrown.
+ */
 export type PublishResult =
     | { outcome: "published"; versionNumber: number }
-    | { outcome: "already-published"; versionNumber: number };
+    | { outcome: "already-published"; versionNumber: number }
+    | { outcome: "not-found" }
+    | { outcome: "revision-not-found" };
 
 /** One retrieved published version with its verified digest. */
 export interface PublishedVersion {
@@ -135,10 +147,19 @@ export class WorkflowStorage {
         this.assertWorkflowId(input.workflowId);
         return this.db.transaction().execute(async (tx) => {
             const revisionId = mintUuidV7();
-            await tx
-                .insertInto("workflows")
-                .values({ id: input.workflowId, createdAt: sql`now()`, updatedAt: sql`now()` })
-                .execute();
+            try {
+                await tx
+                    .insertInto("workflows")
+                    .values({ id: input.workflowId, createdAt: sql`now()`, updatedAt: sql`now()` })
+                    .execute();
+            } catch (error) {
+                // A duplicate id surfaces as a driver-level unique violation;
+                // translate it once here so consumers never parse driver errors.
+                if (isUniqueViolation(error)) {
+                    throw new DuplicateWorkflowIdError(input.workflowId);
+                }
+                throw error;
+            }
             await tx
                 .insertInto("revisions")
                 .values(this.revisionValues(input.workflowId, revisionId, input))
@@ -179,7 +200,7 @@ export class WorkflowStorage {
             }
             if (draft.currentRevision !== input.baseRevision) {
                 if (!draft.currentRevision) {
-                    throw new StorageError(
+                    throw new CorruptWorkflowStateError(
                         `Workflow ${workflowId} has a null current revision while accepting saves`,
                     );
                 }
@@ -323,13 +344,11 @@ export class WorkflowStorage {
                 .forUpdate()
                 .executeTakeFirst();
             if (!locked) {
-                throw new StorageError(`Cannot publish unknown workflow ${input.workflowId}`);
+                return { outcome: "not-found" } as const;
             }
             const revision = await this.getRevisionRow(tx, input.workflowId, input.revisionId);
             if (!revision) {
-                throw new StorageError(
-                    `Cannot publish: revision ${input.revisionId} does not belong to workflow ${input.workflowId}`,
-                );
+                return { outcome: "revision-not-found" } as const;
             }
             const existing = await tx
                 .selectFrom("publishedVersions")
@@ -447,10 +466,10 @@ export class WorkflowStorage {
         input: { content: string; findings: readonly Finding[]; name?: string | null },
     ) {
         if (typeof input.content !== "string" || input.content.length === 0) {
-            throw new StorageError("Workflow content must be a non-empty string");
+            throw new InvalidWorkflowInputError("Workflow content must be a non-empty string");
         }
         if (!Array.isArray(input.findings)) {
-            throw new StorageError("Validation findings must be an array");
+            throw new InvalidWorkflowInputError("Validation findings must be an array");
         }
         return {
             id: revisionId,
@@ -481,7 +500,9 @@ export class WorkflowStorage {
     ): Promise<StoredRevision> {
         const row = await this.getRevisionRow(db, workflowId, revisionId);
         if (!row) {
-            throw new StorageError(`Revision ${revisionId} of workflow ${workflowId} is missing`);
+            throw new CorruptWorkflowStateError(
+                `Revision ${revisionId} of workflow ${workflowId} is missing`,
+            );
         }
         return this.toStoredRevision(row);
     }
@@ -491,10 +512,14 @@ export class WorkflowStorage {
         try {
             parsed = JSON.parse(row.findings);
         } catch {
-            throw new StorageError(`Findings snapshot of revision ${row.id} is not valid JSON`);
+            throw new CorruptWorkflowStateError(
+                `Findings snapshot of revision ${row.id} is not valid JSON`,
+            );
         }
         if (!Array.isArray(parsed)) {
-            throw new StorageError(`Findings snapshot of revision ${row.id} is not an array`);
+            throw new CorruptWorkflowStateError(
+                `Findings snapshot of revision ${row.id} is not an array`,
+            );
         }
         return {
             revisionId: row.id,
@@ -508,7 +533,20 @@ export class WorkflowStorage {
 
     private assertWorkflowId(workflowId: string): void {
         if (!isUuidV7(workflowId)) {
-            throw new StorageError(`'${workflowId}' is not a UUID v7 workflow id`);
+            throw new InvalidWorkflowInputError(`'${workflowId}' is not a UUID v7 workflow id`);
         }
     }
+}
+
+/** Postgres SQLSTATE for a unique-constraint violation (duplicate workflow ids). */
+const UNIQUE_VIOLATION_CODE = "23505";
+
+/** Returns true when `error` is a Postgres unique-violation (SQLSTATE 23505). */
+function isUniqueViolation(error: unknown): boolean {
+    return (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: unknown }).code === UNIQUE_VIOLATION_CODE
+    );
 }

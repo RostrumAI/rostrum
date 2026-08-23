@@ -22,7 +22,13 @@ export type {
     WorkflowRow,
 } from "./database";
 export { createDatabase } from "./database";
-export { DigestVerificationError, StorageError } from "./errors";
+export {
+    CorruptWorkflowStateError,
+    DigestVerificationError,
+    DuplicateWorkflowIdError,
+    InvalidWorkflowInputError,
+    StorageError,
+} from "./errors";
 export { migrateToLatest, SqlFileMigrationProvider } from "./migrator";
 export { createStorage, type RostrumStorage } from "./storage";
 export { isUuidV7, mintUuidV7 } from "./uuid-v7";

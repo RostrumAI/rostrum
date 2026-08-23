@@ -143,8 +143,8 @@ The SPIKEs select the technical foundation, workflow shape, validation rules, an
 | [E1-03](../tasks/epic-01/e1-03-write-workflow-interface-v1-specification.md) | Combine the workflow decisions into one specification, schema, and example set. | E1-S1, E1-S2, E1-S3, E1-S4 |
 | [E1-04](../tasks/epic-01/e1-04-implement-workflow-library-and-validator.md) | Create the shared workflow reader, validator, findings, and publication preparation. | E1-01, E1-03 |
 | [E1-05](../tasks/epic-01/e1-05-build-workflow-example-validation-suite.md) | Turn specification examples into reusable validation fixtures and expected results. | E1-03, E1-04 |
-| [E1-06](../tasks/epic-01/e1-06-add-control-api-workflow-operations.md) | Expose validation, draft, publication, and retrieval through the Control API. | E1-02, E1-04, E1-05 |
-| [E1-07](../tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) | Implement the workflow database schemas, migrations, and storage operations. | E1-S0, E1-S3 |
+| [E1-06](../tasks/epic-01/e1-06-add-control-api-workflow-operations.md) | Expose validation, draft, publication, and retrieval through the Control API. | E1-02, E1-04, E1-05, E1-07 |
+| [E1-07](../tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) | Implement the workflow database schemas, migrations, and storage operations. | E1-S0, E1-S3, E1-03 |
 | [E1-08](../tasks/epic-01/e1-08-publish-workflow-authoring-guidance.md) | Create tested workflow-authoring instructions for humans and agents. | E1-05, E1-06 |
 | [E1-09](../tasks/epic-01/e1-09-add-end-to-end-epic-demonstration.md) | Create one continuous-integration proof of the complete Epic state. | E1-06, E1-07, E1-08 |
 

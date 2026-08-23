@@ -12,6 +12,8 @@ import {
     type CreatedDraft,
     createStorage,
     DigestVerificationError,
+    DuplicateWorkflowIdError,
+    InvalidWorkflowInputError,
     migrateToLatest,
     mintUuidV7,
     type PublishInput,
@@ -286,6 +288,27 @@ describe("drafts and revisions", () => {
     });
 
     test.skipIf(!databaseAvailable)(
+        "rejects duplicate workflow ids with a typed error",
+        async () => {
+            await withStorage(async (storage) => {
+                const workflowId = mintUuidV7();
+                await storage.workflows.createDraft({
+                    workflowId,
+                    content: '{"v":1}',
+                    findings: [],
+                });
+                await expect(
+                    storage.workflows.createDraft({
+                        workflowId,
+                        content: '{"v":2}',
+                        findings: [],
+                    }),
+                ).rejects.toThrow(DuplicateWorkflowIdError);
+            });
+        },
+    );
+
+    test.skipIf(!databaseAvailable)(
         "survives a full connection restart byte-for-byte",
         async () => {
             let created: CreatedDraft;
@@ -456,6 +479,83 @@ describe("rewind", () => {
     });
 });
 
+describe("input guards", () => {
+    test.skipIf(!databaseAvailable)(
+        "rejects malformed workflow ids on every entry point",
+        async () => {
+            await withStorage(async (storage) => {
+                const malformed = "not-a-uuid";
+                await expect(
+                    storage.workflows.createDraft({
+                        workflowId: malformed,
+                        content: "{}",
+                        findings: [],
+                    }),
+                ).rejects.toThrow(InvalidWorkflowInputError);
+                await expect(
+                    storage.workflows.saveRevision(malformed, {
+                        baseRevision: null,
+                        content: "{}",
+                        findings: [],
+                    }),
+                ).rejects.toThrow(InvalidWorkflowInputError);
+                await expect(storage.workflows.getCurrentRevision(malformed)).rejects.toThrow(
+                    InvalidWorkflowInputError,
+                );
+                await expect(
+                    storage.workflows.getRevision(malformed, mintUuidV7()),
+                ).rejects.toThrow(InvalidWorkflowInputError);
+                await expect(storage.workflows.rewind(malformed, mintUuidV7())).rejects.toThrow(
+                    InvalidWorkflowInputError,
+                );
+                await expect(
+                    storage.workflows.publish({
+                        workflowId: malformed,
+                        revisionId: mintUuidV7(),
+                        canonicalText: "{}",
+                        digest: "a".repeat(64),
+                        interfaceVersion: "v1",
+                    }),
+                ).rejects.toThrow(InvalidWorkflowInputError);
+                await expect(storage.workflows.getPublishedVersion(malformed, 1)).rejects.toThrow(
+                    InvalidWorkflowInputError,
+                );
+            });
+        },
+    );
+
+    test.skipIf(!databaseAvailable)("rejects empty content and malformed findings", async () => {
+        await withStorage(async (storage) => {
+            await expect(
+                storage.workflows.createDraft({
+                    workflowId: mintUuidV7(),
+                    content: "",
+                    findings: [],
+                }),
+            ).rejects.toThrow(InvalidWorkflowInputError);
+            await expect(
+                storage.workflows.createDraft({
+                    workflowId: mintUuidV7(),
+                    content: "{}",
+                    findings: "nope" as unknown as Finding[],
+                }),
+            ).rejects.toThrow(InvalidWorkflowInputError);
+            const created = await storage.workflows.createDraft({
+                workflowId: mintUuidV7(),
+                content: "{}",
+                findings: [],
+            });
+            await expect(
+                storage.workflows.saveRevision(created.workflowId, {
+                    baseRevision: created.revision.revisionId,
+                    content: "",
+                    findings: [],
+                }),
+            ).rejects.toThrow(InvalidWorkflowInputError);
+        });
+    });
+});
+
 describe("publication", () => {
     test.skipIf(!databaseAvailable)(
         "publishes once per revision and returns the same version",
@@ -486,7 +586,13 @@ describe("publication", () => {
                     storage.workflows.publish(input),
                     storage.workflows.publish(input),
                 ]);
-                expect(concurrent.map((entry) => entry.versionNumber)).toEqual([1, 1]);
+                expect(
+                    concurrent.map((entry) =>
+                        entry.outcome === "published" || entry.outcome === "already-published"
+                            ? entry.versionNumber
+                            : -1,
+                    ),
+                ).toEqual([1, 1]);
 
                 const version = await storage.workflows.getPublishedVersion(workflowId, 1);
                 expect(version?.digest).toBe(input.digest);
@@ -494,6 +600,58 @@ describe("publication", () => {
                 expect(version?.interfaceVersion).toBe("v1");
                 expect(version?.revisionId).toBe(created.revision.revisionId);
                 expect(await storage.workflows.getPublishedVersion(workflowId, 2)).toBeNull();
+            });
+        },
+    );
+
+    test.skipIf(!databaseAvailable)(
+        "returns typed not-found outcomes for unknown workflows and foreign revisions",
+        async () => {
+            await withStorage(async (storage) => {
+                const workflowId = mintUuidV7();
+                const created = await storage.workflows.createDraft({
+                    workflowId,
+                    content: JSON.stringify(greetDocument()),
+                    findings: [],
+                });
+
+                // Unknown workflow: 404 via outcome, not a thrown error.
+                expect(
+                    await storage.workflows.publish({
+                        workflowId: mintUuidV7(),
+                        revisionId: created.revision.revisionId,
+                        canonicalText: "{}",
+                        digest: "a".repeat(64),
+                        interfaceVersion: "v1",
+                    }),
+                ).toEqual({ outcome: "not-found" });
+
+                // The workflow exists, but the revision belongs to another one.
+                const other = await storage.workflows.createDraft({
+                    workflowId: mintUuidV7(),
+                    content: JSON.stringify(greetDocument("Other")),
+                    findings: [],
+                });
+                expect(
+                    await storage.workflows.publish({
+                        workflowId,
+                        revisionId: other.revision.revisionId,
+                        canonicalText: "{}",
+                        digest: "a".repeat(64),
+                        interfaceVersion: "v1",
+                    }),
+                ).toEqual({ outcome: "revision-not-found" });
+
+                // A revision id that never existed hits the same branch.
+                expect(
+                    await storage.workflows.publish({
+                        workflowId,
+                        revisionId: mintUuidV7(),
+                        canonicalText: "{}",
+                        digest: "a".repeat(64),
+                        interfaceVersion: "v1",
+                    }),
+                ).toEqual({ outcome: "revision-not-found" });
             });
         },
     );
@@ -593,6 +751,44 @@ describe("publication", () => {
                     .execute();
                 await expect(storage.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
                     DigestVerificationError,
+                );
+            });
+        },
+    );
+
+    test.skipIf(!databaseAvailable)(
+        "fails verification when stored bytes are non-canonical but the digest matches",
+        async () => {
+            await withStorage(async (storage) => {
+                const workflowId = mintUuidV7();
+                const document = greetDocument();
+                const created = await storage.workflows.createDraft({
+                    workflowId,
+                    content: JSON.stringify(document),
+                    findings: [],
+                });
+                await storage.workflows.publish(
+                    await preparePublishInput(workflowId, created.revision.revisionId, document),
+                );
+
+                // Pretty-printed JSON is semantically identical and digest-equal
+                // (the digest covers the canonical form), but it is not the
+                // RFC 8785 canonical text: only the canonical-form branch of the
+                // verification catches this replacement. The digest-flip test
+                // covers the other branch.
+                const stored = await storage.workflows.getPublishedVersion(workflowId, 1);
+                if (!stored) {
+                    throw new Error("expected a published version before tampering");
+                }
+                const pretty = JSON.stringify(JSON.parse(stored.canonicalText), null, 2);
+                await storage.db
+                    .updateTable("publishedVersions")
+                    .set({ canonicalText: pretty })
+                    .where("workflowId", "=", workflowId)
+                    .where("versionNumber", "=", 1)
+                    .execute();
+                await expect(storage.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
+                    /not in RFC 8785 canonical form/,
                 );
             });
         },
