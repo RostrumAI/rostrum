@@ -1,6 +1,6 @@
 /**
- * Storage-layer failures raised by the workflow store
- * ({@link WorkflowStorage} and its siblings in this folder).
+ * Storage-layer failures raised by the workflow repository
+ * ({@link WorkflowRepository}).
  *
  * Query errors surface as Kysely/driver errors and are wrapped here only
  * when a driver code carries domain meaning (for example, the Postgres
@@ -48,7 +48,7 @@ export class CorruptWorkflowStateError extends StorageError {
 
 /**
  * A workflow `id` already exists (409-class). Wraps the Postgres
- * unique-violation raised by a duplicate {@link WorkflowStorage.createDraft}
+ * unique-violation raised by a duplicate `WorkflowRepository.createDraft`
  * so consumers never see a raw driver error; E1-06 maps it to an identity
  * conflict.
  */

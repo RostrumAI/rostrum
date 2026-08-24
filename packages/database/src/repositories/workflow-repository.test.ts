@@ -1,26 +1,28 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { migrateToLatest, TsFileMigrationProvider } from "@rostrum/storage";
 import {
     createWorkflowValidator,
     type Finding,
     PublicationPreparer,
     V1_RULE_SET,
 } from "@rostrum/workflow";
-import { sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { Migrator, NO_MIGRATIONS } from "kysely/migration";
 import { v7 as mintUuidV7 } from "uuid";
+import { createDatabase } from "../client";
+import { migrateToLatest, TsFileMigrationProvider } from "../migrator";
+import type { Database } from "../schema/database";
+import { WorkflowRepository } from "./workflow-repository";
 import {
     DigestVerificationError,
     DuplicateWorkflowIdError,
     InvalidWorkflowInputError,
-} from "./errors";
-import { createWorkflowStore, type WorkflowStore } from "./store";
-import type { CreatedDraft, PublishInput, StoredRevision } from "./workflow-storage";
+} from "./workflow-repository.errors";
+import type { CreatedDraft, PublishInput, StoredRevision } from "./workflow-repository.types";
 
 const databaseUrl = process.env.DATABASE_URL ?? "postgres://rostrum:rostrum@localhost:5432/rostrum";
-/** The app's migration files, resolved relative to this test file. */
-const migrationsFolder = join(import.meta.dir, "../../migrations");
+/** This package's migration modules, resolved relative to this test file. */
+const migrationsFolder = join(import.meta.dir, "..", "..", "migrations");
 
 async function isDatabaseReachable(): Promise<boolean> {
     const { default: postgres } = await import("postgres");
@@ -109,7 +111,7 @@ async function preparePublishInput(
     };
 }
 
-async function countRevisions(storage: WorkflowStore, workflowId: string): Promise<number> {
+async function countRevisions(storage: Storage, workflowId: string): Promise<number> {
     const rows = await storage.db
         .selectFrom("revisions")
         .select((eb) => eb.fn.countAll().as("count"))
@@ -118,7 +120,7 @@ async function countRevisions(storage: WorkflowStore, workflowId: string): Promi
     return Number(rows.count);
 }
 
-async function revisionIds(storage: WorkflowStore, workflowId: string): Promise<string[]> {
+async function revisionIds(storage: Storage, workflowId: string): Promise<string[]> {
     const rows = await storage.db
         .selectFrom("revisions")
         .select("id")
@@ -136,15 +138,21 @@ function savedRevision(result: { outcome: string; revision?: StoredRevision }): 
     return result.revision;
 }
 
+/** One open storage under test: the typed connection plus the repository. */
+interface Storage {
+    readonly db: Kysely<Database>;
+    readonly workflows: WorkflowRepository;
+}
+
 /** Opens one migrated storage with empty tables and closes it afterwards. */
-async function withStorage<T>(run: (storage: WorkflowStore) => Promise<T>): Promise<T> {
-    const storage = createWorkflowStore(databaseUrl);
+async function withStorage<T>(run: (storage: Storage) => Promise<T>): Promise<T> {
+    const db = createDatabase(databaseUrl);
     try {
-        await migrateToLatest(storage.db, migrationsFolder);
-        await sql`TRUNCATE published_versions, revisions, workflows`.execute(storage.db);
-        return await run(storage);
+        await migrateToLatest(db);
+        await sql`TRUNCATE published_versions, revisions, workflows`.execute(db);
+        return await run({ db, workflows: new WorkflowRepository(db, preparer) });
     } finally {
-        await storage.close();
+        await db.destroy();
     }
 }
 describe("migrations", () => {
@@ -165,14 +173,14 @@ describe("migrations", () => {
                     );
                 expect(remaining.rows).toEqual([]);
 
-                const up = await migrateToLatest(storage.db, migrationsFolder);
+                const up = await migrateToLatest(storage.db);
                 expect(up.map((entry) => entry.migrationName)).toEqual([
                     "001_workflows",
                     "002_revisions",
                     "003_published_versions",
                 ]);
 
-                const again = await migrateToLatest(storage.db, migrationsFolder);
+                const again = await migrateToLatest(storage.db);
                 expect(again).toHaveLength(0);
             });
         },
@@ -311,12 +319,13 @@ describe("drafts and revisions", () => {
         async () => {
             let created: CreatedDraft;
             {
-                const first = createWorkflowStore(databaseUrl);
+                const first = createDatabase(databaseUrl);
                 try {
-                    await migrateToLatest(first.db, migrationsFolder);
-                    await sql`TRUNCATE published_versions, revisions, workflows`.execute(first.db);
+                    await migrateToLatest(first);
+                    await sql`TRUNCATE published_versions, revisions, workflows`.execute(first);
+                    const firstWorkflows = new WorkflowRepository(first, preparer);
                     const document = greetDocument("Restart durable");
-                    created = await first.workflows.createDraft({
+                    created = await firstWorkflows.createDraft({
                         workflowId: mintUuidV7(),
                         content: JSON.stringify(document),
                         findings: [],
@@ -326,26 +335,27 @@ describe("drafts and revisions", () => {
                         created.revision.revisionId,
                         document,
                     );
-                    await first.workflows.publish(input);
+                    await firstWorkflows.publish(input);
                 } finally {
-                    await first.close();
+                    await first.destroy();
                 }
             }
             {
-                const reopened = createWorkflowStore(databaseUrl);
+                const reopened = createDatabase(databaseUrl);
                 try {
-                    const draft = await reopened.workflows.getRevision(
+                    const reopenedWorkflows = new WorkflowRepository(reopened, preparer);
+                    const draft = await reopenedWorkflows.getRevision(
                         created.workflowId,
                         created.revision.revisionId,
                     );
                     expect(draft?.content).toBe(created.revision.content);
-                    const version = await reopened.workflows.getPublishedVersion(
+                    const version = await reopenedWorkflows.getPublishedVersion(
                         created.workflowId,
                         1,
                     );
                     expect(version?.digest).toBeDefined();
                 } finally {
-                    await reopened.close();
+                    await reopened.destroy();
                 }
             }
         },

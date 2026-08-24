@@ -6,6 +6,10 @@ import type { Kysely } from "kysely";
 // at runtime and never calls their functions itself.
 import type { Migration, MigrationProvider, MigrationResult } from "kysely/migration";
 import { Migrator } from "kysely/migration";
+import type { Database } from "./schema/database";
+
+/** This package's migration modules, beside the schema types they implement. */
+const migrationsFolder = join(import.meta.dir, "..", "migrations");
 
 /**
  * Migration provider over TypeScript migration modules.
@@ -56,16 +60,13 @@ export class TsFileMigrationProvider implements MigrationProvider {
  * applied migrations are recorded in the database and skipped.
  * Returns the per-migration results of this run.
  *
- * The migration folder is the caller's — each application owns its own
- * migration files next to its schema types.
+ * The migrations are this package's own `migrations/` directory — the
+ * single owner of the Postgres schema — so callers pass no folder.
  */
-export async function migrateToLatest<DB>(
-    db: Kysely<DB>,
-    migrationFolder: string,
-): Promise<MigrationResult[]> {
+export async function migrateToLatest(db: Kysely<Database>): Promise<MigrationResult[]> {
     const migrator = new Migrator({
         db,
-        provider: new TsFileMigrationProvider(migrationFolder),
+        provider: new TsFileMigrationProvider(migrationsFolder),
     });
     const { error, results } = await migrator.migrateToLatest();
     if (error) {

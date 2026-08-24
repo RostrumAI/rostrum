@@ -89,7 +89,7 @@ port: 8080
 | `HOST` / `host` | `127.0.0.1` | Address to bind |
 | `NODE_ENV` / `nodeEnv` | `development` | One of `development`, `test`, `production`; selects the default log level |
 | `LOG_LEVEL` / `logLevel` | `debug` in development and test, `info` in production | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
-| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the workflow database migrations ([E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md)) and the workflow store in `apps/control-api/src/workflows` use it |
+| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the database package's migrations ([E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md)) and the Control API's workflow store in `apps/control-api/src/workflows` use it |
 
 Logging uses [LogTape](https://logtape.org/). Records are one JSON object
 per line on the console with `time`, `level`, `msg`, and any extra fields.
@@ -147,7 +147,7 @@ A test asserts that the served document matches the checked-in copy.
 | Path | Contents |
 | --- | --- |
 | `apps/` | Runnable applications; `control-api/` is the Control API process |
-| `packages/` | Shared libraries; `workflow/` is the shared workflow library |
+| `packages/` | Shared libraries; `workflow/` is the shared workflow library and `database/` owns Postgres persistence |
 | `docs/` | Research, strategy, epics, decisions, results, and tasks |
 | `scripts/` | One-off repository scripts |
 | `tmp/` | Scratch space for proof-of-concept work, excluded from lint and format |

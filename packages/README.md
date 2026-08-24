@@ -8,8 +8,10 @@ step — see the repository-layout decision in
   boundary and toolchain; E1-03 and E1-04 add the workflow interface v1
   schema, the validator, stable findings, and the digest rules.
 
-- `storage/` — persistence infrastructure: one typed Kysely connection
-  factory over postgres.js and a migration runner for TypeScript migration
-  modules. The package stores anything and names no tables; each
-  application owns its schema types, migrations, and repositories next to
-  the code that uses them (the workflow store lives in `apps/control-api`).
+- `database/` — Postgres persistence owned end to end: the typed Kysely
+  connection factory over postgres.js, the schema types that declare what
+  can physically exist in Postgres, the TypeScript migration modules, and
+  repositories that own transactions, row locks, optimistic checks, and
+  row-to-application mapping. Applications depend on this package one-way;
+  it depends on no application, and validation and publication preparation
+  stay in `workflow/`.

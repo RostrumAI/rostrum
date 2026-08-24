@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { WorkflowDatabase } from "../src/workflows/schema";
+import type { Database } from "../src/schema/database";
 
 /**
  * Creates `published_versions`: immutable published releases with
@@ -8,7 +8,7 @@ import type { WorkflowDatabase } from "../src/workflows/schema";
  * publishes at most once; the unique `(workflow_id, revision_id)` index
  * decides the concurrent-publish race.
  */
-export async function up(db: Kysely<WorkflowDatabase>): Promise<void> {
+export async function up(db: Kysely<Database>): Promise<void> {
     await db.schema
         .createTable("published_versions")
         .addColumn("workflow_id", "uuid", (col) => col.notNull())
@@ -39,7 +39,7 @@ export async function up(db: Kysely<WorkflowDatabase>): Promise<void> {
     );
 }
 
-export async function down(db: Kysely<WorkflowDatabase>): Promise<void> {
+export async function down(db: Kysely<Database>): Promise<void> {
     // The check constraints belong to this table and go with it.
     await db.schema.dropTable("published_versions").execute();
 }

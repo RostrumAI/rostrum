@@ -5,7 +5,7 @@ tables (`workflows`, `revisions`, `published_versions`). Each file is one
 TypeScript module named `NNN_description.ts` that exports an `up` function,
 which applies the change, and a `down` function, which reverts it. Files run
 in filename order. The types come from
-[`src/workflows/schema.ts`](../src/workflows/schema.ts), so a migration that
+[`src/schema/database.ts`](../src/schema/database.ts), so a migration that
 reads or writes rows is checked against the declared table shapes at build
 time.
 
@@ -31,7 +31,7 @@ previous application version is still serving traffic. A new migration:
    first. If neither is possible, the column starts nullable and a later
    migration tightens it after the backfill completes everywhere.
 3. Ships a working `down`. The rollback test in
-   [`src/workflows/workflow-storage.test.ts`](../src/workflows/workflow-storage.test.ts)
+   [`src/repositories/workflow-repository.test.ts`](../src/repositories/workflow-repository.test.ts)
    rolls every migration back and forward again, so a missing or broken
    `down` fails the suite.
 4. Is never edited after merge. Corrections land as new migrations.

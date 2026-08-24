@@ -1,107 +1,27 @@
-import { type Finding, PublicationPreparer, V1_RULE_SET } from "@rostrum/workflow";
+import type { Finding, PublicationPreparer } from "@rostrum/workflow";
 import { type Kysely, sql } from "kysely";
 // The `uuid` package is the RFC 9562 implementation of record; minting and
 // version checks are its job, not this repository's.
 import { validate as isUuid, v7 as mintUuidV7, version as uuidVersion } from "uuid";
+import type { Database } from "../schema/database";
+import type { RevisionRow } from "../schema/revisions";
 import {
     CorruptWorkflowStateError,
     DigestVerificationError,
     DuplicateWorkflowIdError,
     InvalidWorkflowInputError,
-} from "./errors";
-import type { RevisionRow, WorkflowDatabase } from "./schema";
-
-/** A stored revision as the Control API consumes it. */
-export interface StoredRevision {
-    revisionId: string;
-    workflowId: string;
-    name: string | null;
-    /** The exact submitted bytes; byte-identical to what was saved. */
-    content: string;
-    /** The validation findings snapshot stored with the revision (E1-S3). */
-    findings: Finding[];
-    createdAt: Date;
-}
-
-/** Input to {@link WorkflowStorage.createDraft}. */
-export interface CreateDraftInput {
-    /**
-     * The server-minted workflow `id`, already injected into `content`.
-     * The caller mints it with {@link mintUuidV7} before serializing the
-     * document, so storage never rewrites bytes.
-     */
-    workflowId: string;
-    content: string;
-    findings: readonly Finding[];
-    name?: string | null;
-}
-
-/** The created draft: the workflow `id` and its first revision. */
-export interface CreatedDraft {
-    workflowId: string;
-    revision: StoredRevision;
-}
-
-/** Input to {@link WorkflowStorage.saveRevision}. */
-export interface SaveRevisionInput {
-    /** The revision id the client last saw; null only for the first save. */
-    baseRevision: string | null;
-    content: string;
-    findings: readonly Finding[];
-    name?: string | null;
-}
-
-/**
- * The result of one save attempt. `conflict` carries the draft's current
- * revision so the Control API can answer 409 without a second query
- * (E1-S3 save contract).
- */
-export type SaveRevisionResult =
-    | { outcome: "saved"; revision: StoredRevision }
-    | { outcome: "conflict"; currentRevision: StoredRevision }
-    | { outcome: "not-found" };
-
-/** The result of one rewind attempt (E1-S3 rewind contract). */
-export type RewindResult =
-    | { outcome: "rewound"; deletedRevisionIds: string[] }
-    | { outcome: "no-op" }
-    | { outcome: "refused"; publishedSourceRevisionId: string }
-    | { outcome: "target-not-found" }
-    | { outcome: "not-found" };
-
-/** Input to {@link WorkflowStorage.publish}; produced by PublicationPreparer. */
-export interface PublishInput {
-    workflowId: string;
-    revisionId: string;
-    /** The full canonical document, metadata members included. */
-    canonicalText: string;
-    /** SHA-256 lowercase hex over the canonical form minus metadata members. */
-    digest: string;
-    interfaceVersion: string;
-}
-
-/**
- * The result of one publish attempt. `published` and `already-published`
- * return the same version; `not-found` reports an unknown workflow and
- * `revision-not-found` a revision that does not belong to it — the two
- * 404 cases of the E1-S3 publish contract, typed instead of thrown.
- */
-export type PublishResult =
-    | { outcome: "published"; versionNumber: number }
-    | { outcome: "already-published"; versionNumber: number }
-    | { outcome: "not-found" }
-    | { outcome: "revision-not-found" };
-
-/** One retrieved published version with its verified digest. */
-export interface PublishedVersion {
-    versionNumber: number;
-    revisionId: string;
-    interfaceVersion: string;
-    /** The full canonical document, metadata members included. */
-    canonicalText: string;
-    digest: string;
-    createdAt: Date;
-}
+} from "./workflow-repository.errors";
+import type {
+    CreateDraftInput,
+    CreatedDraft,
+    PublishedVersion,
+    PublishInput,
+    PublishResult,
+    RewindResult,
+    SaveRevisionInput,
+    SaveRevisionResult,
+    StoredRevision,
+} from "./workflow-repository.types";
 
 /**
  * Postgres persistence for drafts, revisions, and published versions
@@ -120,24 +40,20 @@ export interface PublishedVersion {
  * Published rows have no update or delete path in this class; published
  * versions are immutable by construction (E1-S3).
  */
-export class WorkflowStorage {
-    private readonly db: Kysely<WorkflowDatabase>;
+export class WorkflowRepository {
+    private readonly db: Kysely<Database>;
 
     private readonly preparer: PublicationPreparer;
 
     /**
-     * Creates a storage bound to one Kysely instance. The publication
-     * preparer supplies the metadata members the digest excludes; it
-     * defaults to the frozen v1 rule set's classification.
+     * Creates a repository bound to one Kysely instance. The publication
+     * preparer canonicalizes stored text again at retrieval so tampered or
+     * non-canonical rows fail verification; callers supply it because
+     * publication preparation belongs to @rostrum/workflow.
      */
-    constructor(db: Kysely<WorkflowDatabase>, preparer = new PublicationPreparer(V1_RULE_SET)) {
+    constructor(db: Kysely<Database>, preparer: PublicationPreparer) {
         this.db = db;
         this.preparer = preparer;
-    }
-
-    /** Closes the underlying connection pool. */
-    close(): Promise<void> {
-        return this.db.destroy();
     }
 
     /**
@@ -483,7 +399,7 @@ export class WorkflowStorage {
     }
 
     private async getRevisionRow(
-        db: Kysely<WorkflowDatabase>,
+        db: Kysely<Database>,
         workflowId: string,
         revisionId: string,
     ): Promise<RevisionRow | undefined> {
@@ -496,7 +412,7 @@ export class WorkflowStorage {
     }
 
     private async requireRevision(
-        db: Kysely<WorkflowDatabase>,
+        db: Kysely<Database>,
         workflowId: string,
         revisionId: string,
     ): Promise<StoredRevision> {

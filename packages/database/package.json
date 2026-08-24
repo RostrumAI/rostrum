@@ -1,5 +1,5 @@
 {
-    "name": "@rostrum/storage",
+    "name": "@rostrum/database",
     "private": true,
     "type": "module",
     "exports": "./src/index.ts",
@@ -7,8 +7,10 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
+        "@rostrum/workflow": "workspace:*",
         "kysely": "^0.29.0",
         "kysely-postgres-js": "^4.0.0",
-        "postgres": "^3.4.9"
+        "postgres": "^3.4.9",
+        "uuid": "^11.1.0"
     }
 }

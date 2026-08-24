@@ -1,13 +1,11 @@
-import { createDatabase } from "@rostrum/storage";
+import { createDatabase, type Database, WorkflowRepository } from "@rostrum/database";
 import { PublicationPreparer, V1_RULE_SET } from "@rostrum/workflow";
 import type { Kysely } from "kysely";
-import type { WorkflowDatabase } from "./schema";
-import { WorkflowStorage } from "./workflow-storage";
 
 /** One open workflow store: the typed connection plus the repository. */
 export interface WorkflowStore {
-    readonly db: Kysely<WorkflowDatabase>;
-    readonly workflows: WorkflowStorage;
+    readonly db: Kysely<Database>;
+    readonly workflows: WorkflowRepository;
     /** Closes the underlying connection pool. */
     close(): Promise<void>;
 }
@@ -27,10 +25,10 @@ export function createWorkflowStore(
     databaseUrl: string,
     preparer: PublicationPreparer = new PublicationPreparer(V1_RULE_SET),
 ): WorkflowStore {
-    const db = createDatabase<WorkflowDatabase>(databaseUrl);
+    const db = createDatabase(databaseUrl);
     return {
         db,
-        workflows: new WorkflowStorage(db, preparer),
+        workflows: new WorkflowRepository(db, preparer),
         close: () => db.destroy(),
     };
 }

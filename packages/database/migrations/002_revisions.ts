@@ -1,13 +1,13 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import type { WorkflowDatabase } from "../src/workflows/schema";
+import type { Database } from "../src/schema/database";
 
 /**
  * Creates `revisions`: the draft's immutable checkpoints. Also adds the
  * deferred `workflows.current_revision` foreign key — deferral lets a
  * transaction insert the revision and flip the pointer in one step.
  */
-export async function up(db: Kysely<WorkflowDatabase>): Promise<void> {
+export async function up(db: Kysely<Database>): Promise<void> {
     await db.schema
         .createTable("revisions")
         .addColumn("id", "uuid", (col) => col.primaryKey())
@@ -41,7 +41,7 @@ export async function up(db: Kysely<WorkflowDatabase>): Promise<void> {
     `.execute(db);
 }
 
-export async function down(db: Kysely<WorkflowDatabase>): Promise<void> {
+export async function down(db: Kysely<Database>): Promise<void> {
     await sql`alter table workflows drop constraint workflows_current_revision_fk`.execute(db);
     await db.schema.dropIndex("revisions_workflow_backstop_idx").execute();
     await db.schema.dropTable("revisions").execute();
