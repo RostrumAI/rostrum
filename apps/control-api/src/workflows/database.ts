@@ -2,8 +2,8 @@ import { createDatabase, type Database, WorkflowRepository } from "@rostrum/data
 import { PublicationPreparer, V1_RULE_SET } from "@rostrum/workflow";
 import type { Kysely } from "kysely";
 
-/** One open workflow store: the typed connection plus the repository. */
-export interface WorkflowStore {
+/** One open workflow database: the typed connection plus the repository. */
+export interface WorkflowDatabase {
     readonly db: Kysely<Database>;
     readonly workflows: WorkflowRepository;
     /** Closes the underlying connection pool. */
@@ -11,7 +11,7 @@ export interface WorkflowStore {
 }
 
 /**
- * Opens the workflow store against one Postgres URL. Each process owns
+ * Opens the workflow database against one Postgres URL. Each process owns
  * its pool and no other shared state, so any number of instances can run
  * in parallel behind a load balancer: saves, publishes, and rewinds
  * coordinate through Postgres row locks, and the unique indexes decide
@@ -21,10 +21,10 @@ export interface WorkflowStore {
  * The publication preparer supplies the metadata members the digest
  * excludes; it defaults to the frozen v1 rule set's classification.
  */
-export function createWorkflowStore(
+export function createWorkflowDatabase(
     databaseUrl: string,
     preparer: PublicationPreparer = new PublicationPreparer(V1_RULE_SET),
-): WorkflowStore {
+): WorkflowDatabase {
     const db = createDatabase(databaseUrl);
     return {
         db,

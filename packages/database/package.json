@@ -4,7 +4,8 @@
     "type": "module",
     "exports": "./src/index.ts",
     "scripts": {
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "migrate": "bun src/scripts/migrate.ts"
     },
     "dependencies": {
         "@rostrum/workflow": "workspace:*",
@@ -12,5 +13,8 @@
         "kysely-postgres-js": "^4.0.0",
         "postgres": "^3.4.9",
         "uuid": "^11.1.0"
+    },
+    "devDependencies": {
+        "embedded-postgres": "^18.4.0-beta.17"
     }
 }

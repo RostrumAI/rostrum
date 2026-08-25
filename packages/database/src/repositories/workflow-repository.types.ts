@@ -10,13 +10,17 @@ import type { Finding } from "@rostrum/workflow";
 
 /** A stored revision as applications consume it. */
 export interface StoredRevision {
+    /** The revision's id. */
     revisionId: string;
+    /** The owning draft's id. */
     workflowId: string;
+    /** The optional display label stored with the revision. */
     name: string | null;
     /** The exact submitted bytes; byte-identical to what was saved. */
     content: string;
     /** The validation findings snapshot stored with the revision (E1-S3). */
     findings: Finding[];
+    /** Creation time according to the database clock. */
     createdAt: Date;
 }
 
@@ -28,14 +32,19 @@ export interface CreateDraftInput {
      * the document, so storage never rewrites bytes.
      */
     workflowId: string;
+    /** The exact submitted bytes, stored and returned unchanged. */
     content: string;
+    /** The findings snapshot to store with the revision. */
     findings: readonly Finding[];
+    /** Optional display label for the revision. */
     name?: string | null;
 }
 
 /** The created draft: the workflow `id` and its first revision. */
 export interface CreatedDraft {
+    /** The new draft's id. */
     workflowId: string;
+    /** The first revision, identical to what a save returns. */
     revision: StoredRevision;
 }
 
@@ -43,8 +52,11 @@ export interface CreatedDraft {
 export interface SaveRevisionInput {
     /** The revision id the client last saw; null only for the first save. */
     baseRevision: string | null;
+    /** The exact submitted bytes, stored and returned unchanged. */
     content: string;
+    /** The findings snapshot to store with the revision. */
     findings: readonly Finding[];
+    /** Optional display label for the revision. */
     name?: string | null;
 }
 
@@ -68,19 +80,22 @@ export type RewindResult =
 
 /** Input to `WorkflowRepository.publish`; produced by PublicationPreparer. */
 export interface PublishInput {
+    /** The publishing draft's id. */
     workflowId: string;
+    /** The source revision inside that draft. */
     revisionId: string;
     /** The full canonical document, metadata members included. */
     canonicalText: string;
     /** SHA-256 lowercase hex over the canonical form minus metadata members. */
     digest: string;
+    /** The interface contract the canonical text satisfies, such as `v1`. */
     interfaceVersion: string;
 }
 
 /**
  * The result of one publish attempt. `published` and `already-published`
- * return the same version; `not-found` reports an unknown workflow and
- * `revision-not-found` a revision that does not belong to it — the two
+ * return the same version number; `not-found` reports an unknown workflow
+ * and `revision-not-found` a revision that does not belong to it, the two
  * 404 cases of the E1-S3 publish contract, typed instead of thrown.
  */
 export type PublishResult =
@@ -91,11 +106,16 @@ export type PublishResult =
 
 /** One retrieved published version with its verified digest. */
 export interface PublishedVersion {
+    /** The per-draft version number of this publication. */
     versionNumber: number;
+    /** The source revision the published bytes came from. */
     revisionId: string;
+    /** The interface contract the canonical text satisfies. */
     interfaceVersion: string;
     /** The full canonical document, metadata members included. */
     canonicalText: string;
+    /** SHA-256 lowercase hex over the canonical form minus metadata members. */
     digest: string;
+    /** Publication time according to the database clock. */
     createdAt: Date;
 }

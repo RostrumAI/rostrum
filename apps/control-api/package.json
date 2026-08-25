@@ -9,7 +9,6 @@
         "start": "bun run src/index.ts",
         "typecheck": "tsc --noEmit",
         "test": "bun test",
-        "migrate": "bun src/scripts/migrate.ts",
         "generate-openapi": "bun src/scripts/generate-openapi.ts"
     },
     "dependencies": {

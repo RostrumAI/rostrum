@@ -398,6 +398,7 @@ export class WorkflowRepository {
         };
     }
 
+    /** Returns the stored revision row for one draft, or undefined when absent. */
     private async getRevisionRow(
         db: Kysely<Database>,
         workflowId: string,
@@ -411,6 +412,10 @@ export class WorkflowRepository {
             .executeTakeFirst();
     }
 
+    /**
+     * Returns one revision or fails: a row missing mid-transaction is
+     * corrupt state, not a lookup miss.
+     */
     private async requireRevision(
         db: Kysely<Database>,
         workflowId: string,
@@ -425,6 +430,7 @@ export class WorkflowRepository {
         return this.toStoredRevision(row);
     }
 
+    /** Maps one row into the application shape, parsing and checking its findings snapshot. */
     private toStoredRevision(row: RevisionRow): StoredRevision {
         let parsed: unknown;
         try {
@@ -449,6 +455,7 @@ export class WorkflowRepository {
         };
     }
 
+    /** Rejects ids that are not UUID v7 before any transaction opens (E1-S3 identity rule). */
     private assertWorkflowId(workflowId: string): void {
         // `validate` accepts every RFC 9562 shape; the version nibble must
         // be 7 for a workflow id (E1-S3 identity rule).

@@ -1,17 +1,18 @@
-import { describe, expect, test } from "bun:test";
-import { join } from "node:path";
+import { afterAll, describe, expect, test } from "bun:test";
 import {
     createWorkflowValidator,
     type Finding,
     PublicationPreparer,
     V1_RULE_SET,
 } from "@rostrum/workflow";
+import boundedLoopJson from "@rostrum/workflow/fixtures/valid/bounded-loop.json";
+import conditionalGroupsJson from "@rostrum/workflow/fixtures/valid/conditional-groups.json";
 import { type Kysely, sql } from "kysely";
-import { Migrator, NO_MIGRATIONS } from "kysely/migration";
 import { v7 as mintUuidV7 } from "uuid";
 import { createDatabase } from "../client";
-import { migrateToLatest, TsFileMigrationProvider } from "../migrator";
+import { migrateToLatest } from "../migrator";
 import type { Database } from "../schema/database";
+import { startTestPostgres } from "../testing/postgres";
 import { WorkflowRepository } from "./workflow-repository";
 import {
     DigestVerificationError,
@@ -20,29 +21,11 @@ import {
 } from "./workflow-repository.errors";
 import type { CreatedDraft, PublishInput, StoredRevision } from "./workflow-repository.types";
 
-const databaseUrl = process.env.DATABASE_URL ?? "postgres://rostrum:rostrum@localhost:5432/rostrum";
-/** This package's migration modules, resolved relative to this test file. */
-const migrationsFolder = join(import.meta.dir, "..", "..", "migrations");
-
-async function isDatabaseReachable(): Promise<boolean> {
-    const { default: postgres } = await import("postgres");
-    const sql = postgres(databaseUrl, { max: 1, connect_timeout: 3 });
-    try {
-        await sql`select 1`;
-        return true;
-    } catch {
-        return false;
-    } finally {
-        await sql.end();
-    }
-}
-
-const databaseAvailable = await isDatabaseReachable();
-if (!databaseAvailable) {
-    console.warn(
-        "Postgres is not reachable; storage tests are skipped. Start it with: bun run db:up",
-    );
-}
+// CI supplies DATABASE_URL; everywhere else the suite starts an embedded
+// Postgres cluster so the tests run wherever the repository clones.
+const testPostgres = await startTestPostgres();
+afterAll(() => testPostgres.stop());
+const databaseUrl = testPostgres.url;
 
 const FINDINGS_DRAFT: Finding[] = [
     {
@@ -57,33 +40,26 @@ const validator = createWorkflowValidator();
 const preparer = new PublicationPreparer(V1_RULE_SET);
 
 /**
- * The specification's valid sequential example; every document a test
- * publishes passes the real validator as a sanity gate first.
+ * Fresh copies of the shared fixture documents. The optional name rewrites
+ * the display-name metadata member, so metadata-only edit scenarios store
+ * two documents whose definitional bytes stay identical.
  */
-function greetDocument(name = "Greet and summarize"): Record<string, unknown> {
-    return {
-        interfaceVersion: "v1",
-        id: "0192b0a0-7e1d-7000-8000-000000000001",
-        name,
-        description: "Bind a name, produce a greeting, return it.",
-        firstNode: "0192b0a0-7e1d-7000-8000-000000000002",
-        inputs: { name: { type: "string" } },
-        steps: [
-            {
-                id: "0192b0a0-7e1d-7000-8000-000000000002",
-                type: "task",
-                config: { operation: "grüß 😀" },
-                inputs: { name: { ref: "inputs.name" } },
-                outputs: { greeting: { type: "string" } },
-                successors: ["0192b0a0-7e1d-7000-8000-000000000003"],
-            },
-            {
-                id: "0192b0a0-7e1d-7000-8000-000000000003",
-                type: "result",
-                inputs: { greeting: { ref: "step.0192b0a0-7e1d-7000-8000-000000000002.greeting" } },
-            },
-        ],
-    };
+function boundedLoopDocument(name?: string): Record<string, unknown> {
+    return fixtureDocument(boundedLoopJson, name);
+}
+
+/** The conditional-grouping fixture under the same fresh-copy contract. */
+function conditionalGroupsDocument(name?: string): Record<string, unknown> {
+    return fixtureDocument(conditionalGroupsJson, name);
+}
+
+/** Returns a deep copy of a fixture document with its display name replaced. */
+function fixtureDocument(base: Record<string, unknown>, name?: string): Record<string, unknown> {
+    const document = structuredClone(base);
+    if (name !== undefined) {
+        document.name = name;
+    }
+    return document;
 }
 
 /** Raw submitted bytes with CRLF line endings and an escaped NUL member. */
@@ -111,8 +87,8 @@ async function preparePublishInput(
     };
 }
 
-async function countRevisions(storage: Storage, workflowId: string): Promise<number> {
-    const rows = await storage.db
+async function countRevisions(database: Storage, workflowId: string): Promise<number> {
+    const rows = await database.db
         .selectFrom("revisions")
         .select((eb) => eb.fn.countAll().as("count"))
         .where("workflowId", "=", workflowId)
@@ -120,8 +96,8 @@ async function countRevisions(storage: Storage, workflowId: string): Promise<num
     return Number(rows.count);
 }
 
-async function revisionIds(storage: Storage, workflowId: string): Promise<string[]> {
-    const rows = await storage.db
+async function revisionIds(database: Storage, workflowId: string): Promise<string[]> {
+    const rows = await database.db
         .selectFrom("revisions")
         .select("id")
         .where("workflowId", "=", workflowId)
@@ -138,14 +114,14 @@ function savedRevision(result: { outcome: string; revision?: StoredRevision }): 
     return result.revision;
 }
 
-/** One open storage under test: the typed connection plus the repository. */
+/** One open database under test: the typed connection plus the repository. */
 interface Storage {
     readonly db: Kysely<Database>;
     readonly workflows: WorkflowRepository;
 }
 
-/** Opens one migrated storage with empty tables and closes it afterwards. */
-async function withStorage<T>(run: (storage: Storage) => Promise<T>): Promise<T> {
+/** Opens one migrated database with empty tables and closes it afterwards. */
+async function withDatabase<T>(run: (database: Storage) => Promise<T>): Promise<T> {
     const db = createDatabase(databaseUrl);
     try {
         await migrateToLatest(db);
@@ -155,136 +131,96 @@ async function withStorage<T>(run: (storage: Storage) => Promise<T>): Promise<T>
         await db.destroy();
     }
 }
-describe("migrations", () => {
-    test.skipIf(!databaseAvailable)(
-        "roll back fully, reapply, and rerun idempotently",
-        async () => {
-            await withStorage(async (storage) => {
-                const migrator = new Migrator({
-                    db: storage.db,
-                    provider: new TsFileMigrationProvider(migrationsFolder),
-                });
-                const down = await migrator.migrateTo(NO_MIGRATIONS);
-                expect(down.error).toBeUndefined();
-
-                const remaining =
-                    await sql`select table_name from information_schema.tables where table_name = 'revisions'`.execute(
-                        storage.db,
-                    );
-                expect(remaining.rows).toEqual([]);
-
-                const up = await migrateToLatest(storage.db);
-                expect(up.map((entry) => entry.migrationName)).toEqual([
-                    "001_workflows",
-                    "002_revisions",
-                    "003_published_versions",
-                ]);
-
-                const again = await migrateToLatest(storage.db);
-                expect(again).toHaveLength(0);
-            });
-        },
-    );
-});
 
 describe("drafts and revisions", () => {
-    test.skipIf(!databaseAvailable)(
-        "createDraft stores the first revision byte-exactly",
-        async () => {
-            await withStorage(async (storage) => {
-                const content = JSON.stringify(greetDocument(), null, 4);
-                const created = await storage.workflows.createDraft({
-                    workflowId: mintUuidV7(),
-                    content,
-                    findings: [],
-                });
-                expect(created.revision.content).toBe(content);
-
-                const current = await storage.workflows.getCurrentRevision(created.workflowId);
-                expect(current?.revisionId).toBe(created.revision.revisionId);
-                expect(current?.content).toBe(content);
+    test("createDraft stores the first revision byte-exactly", async () => {
+        await withDatabase(async (database) => {
+            const content = JSON.stringify(boundedLoopDocument(), null, 4);
+            const created = await database.workflows.createDraft({
+                workflowId: mintUuidV7(),
+                content,
+                findings: [],
             });
-        },
-    );
+            expect(created.revision.content).toBe(content);
 
-    test.skipIf(!databaseAvailable)(
-        "round-trips CRLF text, Unicode, and escaped NUL bytes",
-        async () => {
-            await withStorage(async (storage) => {
-                const created = await storage.workflows.createDraft({
-                    workflowId: mintUuidV7(),
-                    content: RAW_NUL_CONTENT,
-                    findings: FINDINGS_DRAFT,
-                });
-                const stored = await storage.workflows.getRevision(
-                    created.workflowId,
-                    created.revision.revisionId,
-                );
-                expect(stored?.content).toBe(RAW_NUL_CONTENT);
-                expect(stored?.findings).toEqual(FINDINGS_DRAFT);
+            const current = await database.workflows.getCurrentRevision(created.workflowId);
+            expect(current?.revisionId).toBe(created.revision.revisionId);
+            expect(current?.content).toBe(content);
+        });
+    });
+
+    test("round-trips CRLF text, Unicode, and escaped NUL bytes", async () => {
+        await withDatabase(async (database) => {
+            const created = await database.workflows.createDraft({
+                workflowId: mintUuidV7(),
+                content: RAW_NUL_CONTENT,
+                findings: FINDINGS_DRAFT,
             });
-        },
-    );
+            const stored = await database.workflows.getRevision(
+                created.workflowId,
+                created.revision.revisionId,
+            );
+            expect(stored?.content).toBe(RAW_NUL_CONTENT);
+            expect(stored?.findings).toEqual(FINDINGS_DRAFT);
+        });
+    });
 
-    test.skipIf(!databaseAvailable)(
-        "rejects stale baseRevision values with the current revision",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: '{"v":1}',
-                    findings: FINDINGS_DRAFT,
-                });
+    test("rejects stale baseRevision values with the current revision", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: '{"v":1}',
+                findings: FINDINGS_DRAFT,
+            });
 
-                // A null base after creation means the client never saw a revision.
-                const staleNull = await storage.workflows.saveRevision(workflowId, {
-                    baseRevision: null,
-                    content: '{"v":2}',
-                    findings: [],
-                });
-                expect(staleNull.outcome).toBe("conflict");
-                if (staleNull.outcome === "conflict") {
-                    expect(staleNull.currentRevision.revisionId).toBe(created.revision.revisionId);
-                }
+            // A null base after creation means the client never saw a revision.
+            const staleNull = await database.workflows.saveRevision(workflowId, {
+                baseRevision: null,
+                content: '{"v":2}',
+                findings: [],
+            });
+            expect(staleNull.outcome).toBe("conflict");
+            if (staleNull.outcome === "conflict") {
+                expect(staleNull.currentRevision.revisionId).toBe(created.revision.revisionId);
+            }
 
-                const secondRevision = savedRevision(
-                    await storage.workflows.saveRevision(workflowId, {
-                        baseRevision: created.revision.revisionId,
-                        content: '{"v":2}',
-                        findings: [],
-                    }),
-                );
-
-                // Replaying the first save's base must not overwrite newer work.
-                const replayed = await storage.workflows.saveRevision(workflowId, {
+            const secondRevision = savedRevision(
+                await database.workflows.saveRevision(workflowId, {
                     baseRevision: created.revision.revisionId,
-                    content: '{"v":3}',
-                    findings: FINDINGS_DRAFT,
-                });
-                expect(replayed).toEqual({
-                    outcome: "conflict",
-                    currentRevision: {
-                        revisionId: secondRevision.revisionId,
-                        workflowId,
-                        name: null,
-                        content: '{"v":2}',
-                        findings: [],
-                        createdAt: secondRevision.createdAt,
-                    },
-                });
-
-                expect(await countRevisions(storage, workflowId)).toBe(2);
-                expect(await storage.workflows.getCurrentRevision(workflowId)).toMatchObject({
                     content: '{"v":2}',
-                });
-            });
-        },
-    );
+                    findings: [],
+                }),
+            );
 
-    test.skipIf(!databaseAvailable)("reports unknown workflows on save", async () => {
-        await withStorage(async (storage) => {
-            const result = await storage.workflows.saveRevision(mintUuidV7(), {
+            // Replaying the first save's base must not overwrite newer work.
+            const replayed = await database.workflows.saveRevision(workflowId, {
+                baseRevision: created.revision.revisionId,
+                content: '{"v":3}',
+                findings: FINDINGS_DRAFT,
+            });
+            expect(replayed).toEqual({
+                outcome: "conflict",
+                currentRevision: {
+                    revisionId: secondRevision.revisionId,
+                    workflowId,
+                    name: null,
+                    content: '{"v":2}',
+                    findings: [],
+                    createdAt: secondRevision.createdAt,
+                },
+            });
+
+            expect(await countRevisions(database, workflowId)).toBe(2);
+            expect(await database.workflows.getCurrentRevision(workflowId)).toMatchObject({
+                content: '{"v":2}',
+            });
+        });
+    });
+
+    test("reports unknown workflows on save", async () => {
+        await withDatabase(async (database) => {
+            const result = await database.workflows.saveRevision(mintUuidV7(), {
                 baseRevision: null,
                 content: "{}",
                 findings: [],
@@ -293,111 +229,105 @@ describe("drafts and revisions", () => {
         });
     });
 
-    test.skipIf(!databaseAvailable)(
-        "rejects duplicate workflow ids with a typed error",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                await storage.workflows.createDraft({
+    test("rejects duplicate workflow ids with a typed error", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            await database.workflows.createDraft({
+                workflowId,
+                content: '{"v":1}',
+                findings: [],
+            });
+            await expect(
+                database.workflows.createDraft({
                     workflowId,
-                    content: '{"v":1}',
+                    content: '{"v":2}',
+                    findings: [],
+                }),
+            ).rejects.toThrow(DuplicateWorkflowIdError);
+        });
+    });
+
+    test("survives a full connection restart byte-for-byte", async () => {
+        let created: CreatedDraft;
+        {
+            const first = createDatabase(databaseUrl);
+            try {
+                await migrateToLatest(first);
+                await sql`TRUNCATE published_versions, revisions, workflows`.execute(first);
+                const firstWorkflows = new WorkflowRepository(first, preparer);
+                const document = conditionalGroupsDocument("Restart durable");
+                created = await firstWorkflows.createDraft({
+                    workflowId: mintUuidV7(),
+                    content: JSON.stringify(document),
                     findings: [],
                 });
-                await expect(
-                    storage.workflows.createDraft({
-                        workflowId,
-                        content: '{"v":2}',
-                        findings: [],
-                    }),
-                ).rejects.toThrow(DuplicateWorkflowIdError);
-            });
-        },
-    );
-
-    test.skipIf(!databaseAvailable)(
-        "survives a full connection restart byte-for-byte",
-        async () => {
-            let created: CreatedDraft;
-            {
-                const first = createDatabase(databaseUrl);
-                try {
-                    await migrateToLatest(first);
-                    await sql`TRUNCATE published_versions, revisions, workflows`.execute(first);
-                    const firstWorkflows = new WorkflowRepository(first, preparer);
-                    const document = greetDocument("Restart durable");
-                    created = await firstWorkflows.createDraft({
-                        workflowId: mintUuidV7(),
-                        content: JSON.stringify(document),
-                        findings: [],
-                    });
-                    const input = await preparePublishInput(
-                        created.workflowId,
-                        created.revision.revisionId,
-                        document,
-                    );
-                    await firstWorkflows.publish(input);
-                } finally {
-                    await first.destroy();
-                }
+                const input = await preparePublishInput(
+                    created.workflowId,
+                    created.revision.revisionId,
+                    document,
+                );
+                await firstWorkflows.publish(input);
+            } finally {
+                await first.destroy();
             }
-            {
-                const reopened = createDatabase(databaseUrl);
-                try {
-                    const reopenedWorkflows = new WorkflowRepository(reopened, preparer);
-                    const draft = await reopenedWorkflows.getRevision(
-                        created.workflowId,
-                        created.revision.revisionId,
-                    );
-                    expect(draft?.content).toBe(created.revision.content);
-                    const version = await reopenedWorkflows.getPublishedVersion(
-                        created.workflowId,
-                        1,
-                    );
-                    expect(version?.digest).toBeDefined();
-                } finally {
-                    await reopened.destroy();
-                }
+        }
+        {
+            const reopened = createDatabase(databaseUrl);
+            try {
+                const reopenedWorkflows = new WorkflowRepository(reopened, preparer);
+                const draft = await reopenedWorkflows.getRevision(
+                    created.workflowId,
+                    created.revision.revisionId,
+                );
+                expect(draft?.content).toBe(created.revision.content);
+                const version = await reopenedWorkflows.getPublishedVersion(created.workflowId, 1);
+                expect(version?.digest).toBeDefined();
+            } finally {
+                await reopened.destroy();
             }
-        },
-    );
+        }
+    });
 });
 
 describe("rewind", () => {
-    test.skipIf(!databaseAvailable)("deletes newer revisions and repoints the draft", async () => {
-        await withStorage(async (storage) => {
+    test("deletes newer revisions and repoints the draft", async () => {
+        await withDatabase(async (database) => {
             const workflowId = mintUuidV7();
-            const created = await storage.workflows.createDraft({
+            const created = await database.workflows.createDraft({
                 workflowId,
                 content: '{"v":1}',
                 findings: [],
             });
             const second = savedRevision(
-                await storage.workflows.saveRevision(workflowId, {
+                await database.workflows.saveRevision(workflowId, {
                     baseRevision: created.revision.revisionId,
                     content: '{"v":2}',
                     findings: [],
                 }),
             );
             const third = savedRevision(
-                await storage.workflows.saveRevision(workflowId, {
+                await database.workflows.saveRevision(workflowId, {
                     baseRevision: second.revisionId,
                     content: '{"v":3}',
                     findings: [],
                 }),
             );
 
-            const rewound = await storage.workflows.rewind(workflowId, created.revision.revisionId);
+            const rewound = await database.workflows.rewind(
+                workflowId,
+                created.revision.revisionId,
+            );
             expect(rewound.outcome).toBe("rewound");
             expect(
                 rewound.outcome === "rewound" ? [...rewound.deletedRevisionIds].sort() : [],
             ).toEqual([second.revisionId, third.revisionId].sort());
 
-            const current = await storage.workflows.getCurrentRevision(workflowId);
+            const current = await database.workflows.getCurrentRevision(workflowId);
             expect(current?.revisionId).toBe(created.revision.revisionId);
-            expect(await countRevisions(storage, workflowId)).toBe(1);
+            expect(await countRevisions(database, workflowId)).toBe(1);
 
             // Saves continue after the rewind point.
-            const resumed = await storage.workflows.saveRevision(workflowId, {
+            const resumed = await database.workflows.saveRevision(workflowId, {
                 baseRevision: created.revision.revisionId,
                 content: '{"v":4}',
                 findings: [],
@@ -406,81 +336,75 @@ describe("rewind", () => {
         });
     });
 
-    test.skipIf(!databaseAvailable)(
-        "treats rewinding to the current revision as a no-op",
-        async () => {
-            await withStorage(async (storage) => {
-                const created = await storage.workflows.createDraft({
-                    workflowId: mintUuidV7(),
-                    content: '{"v":1}',
-                    findings: [],
-                });
-                expect(
-                    await storage.workflows.rewind(created.workflowId, created.revision.revisionId),
-                ).toEqual({ outcome: "no-op" });
+    test("treats rewinding to the current revision as a no-op", async () => {
+        await withDatabase(async (database) => {
+            const created = await database.workflows.createDraft({
+                workflowId: mintUuidV7(),
+                content: '{"v":1}',
+                findings: [],
             });
-        },
-    );
+            expect(
+                await database.workflows.rewind(created.workflowId, created.revision.revisionId),
+            ).toEqual({ outcome: "no-op" });
+        });
+    });
 
-    test.skipIf(!databaseAvailable)(
-        "refuses targets older than the newest published source",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const document = greetDocument();
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: JSON.stringify(document),
-                    findings: [],
-                });
-                const second = savedRevision(
-                    await storage.workflows.saveRevision(workflowId, {
-                        baseRevision: created.revision.revisionId,
-                        content: JSON.stringify(greetDocument("Renamed")),
-                        findings: [],
-                    }),
-                );
-
-                // Publish from the second revision, then try to rewind past it.
-                const input = await preparePublishInput(
-                    workflowId,
-                    second.revisionId,
-                    greetDocument("Renamed"),
-                );
-                await storage.workflows.publish(input);
-
-                const refused = await storage.workflows.rewind(
-                    workflowId,
-                    created.revision.revisionId,
-                );
-                expect(refused).toEqual({
-                    outcome: "refused",
-                    publishedSourceRevisionId: input.revisionId,
-                });
-                expect(await revisionIds(storage, workflowId)).toEqual([
-                    created.revision.revisionId,
-                    input.revisionId,
-                ]);
-
-                // Rewinding TO the published source stays allowed.
-                expect(await storage.workflows.rewind(workflowId, input.revisionId)).toEqual({
-                    outcome: "no-op",
-                });
+    test("refuses targets older than the newest published source", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const document = boundedLoopDocument();
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(document),
+                findings: [],
             });
-        },
-    );
+            const second = savedRevision(
+                await database.workflows.saveRevision(workflowId, {
+                    baseRevision: created.revision.revisionId,
+                    content: JSON.stringify(boundedLoopDocument("Renamed")),
+                    findings: [],
+                }),
+            );
 
-    test.skipIf(!databaseAvailable)("reports missing workflows and targets", async () => {
-        await withStorage(async (storage) => {
-            expect(await storage.workflows.rewind(mintUuidV7(), mintUuidV7())).toEqual({
+            // Publish from the second revision, then try to rewind past it.
+            const input = await preparePublishInput(
+                workflowId,
+                second.revisionId,
+                boundedLoopDocument("Renamed"),
+            );
+            await database.workflows.publish(input);
+
+            const refused = await database.workflows.rewind(
+                workflowId,
+                created.revision.revisionId,
+            );
+            expect(refused).toEqual({
+                outcome: "refused",
+                publishedSourceRevisionId: input.revisionId,
+            });
+            expect(await revisionIds(database, workflowId)).toEqual([
+                created.revision.revisionId,
+                input.revisionId,
+            ]);
+
+            // Rewinding TO the published source stays allowed.
+            expect(await database.workflows.rewind(workflowId, input.revisionId)).toEqual({
+                outcome: "no-op",
+            });
+        });
+    });
+
+    test("reports missing workflows and targets", async () => {
+        await withDatabase(async (database) => {
+            expect(await database.workflows.rewind(mintUuidV7(), mintUuidV7())).toEqual({
                 outcome: "not-found",
             });
-            const created = await storage.workflows.createDraft({
+            const created = await database.workflows.createDraft({
                 workflowId: mintUuidV7(),
                 content: "{}",
                 findings: [],
             });
-            expect(await storage.workflows.rewind(created.workflowId, mintUuidV7())).toEqual({
+            expect(await database.workflows.rewind(created.workflowId, mintUuidV7())).toEqual({
                 outcome: "target-not-found",
             });
         });
@@ -488,73 +412,70 @@ describe("rewind", () => {
 });
 
 describe("input guards", () => {
-    test.skipIf(!databaseAvailable)(
-        "rejects malformed workflow ids on every entry point",
-        async () => {
-            await withStorage(async (storage) => {
-                const malformed = "not-a-uuid";
-                await expect(
-                    storage.workflows.createDraft({
-                        workflowId: malformed,
-                        content: "{}",
-                        findings: [],
-                    }),
-                ).rejects.toThrow(InvalidWorkflowInputError);
-                await expect(
-                    storage.workflows.saveRevision(malformed, {
-                        baseRevision: null,
-                        content: "{}",
-                        findings: [],
-                    }),
-                ).rejects.toThrow(InvalidWorkflowInputError);
-                await expect(storage.workflows.getCurrentRevision(malformed)).rejects.toThrow(
-                    InvalidWorkflowInputError,
-                );
-                await expect(
-                    storage.workflows.getRevision(malformed, mintUuidV7()),
-                ).rejects.toThrow(InvalidWorkflowInputError);
-                await expect(storage.workflows.rewind(malformed, mintUuidV7())).rejects.toThrow(
-                    InvalidWorkflowInputError,
-                );
-                await expect(
-                    storage.workflows.publish({
-                        workflowId: malformed,
-                        revisionId: mintUuidV7(),
-                        canonicalText: "{}",
-                        digest: "a".repeat(64),
-                        interfaceVersion: "v1",
-                    }),
-                ).rejects.toThrow(InvalidWorkflowInputError);
-                await expect(storage.workflows.getPublishedVersion(malformed, 1)).rejects.toThrow(
-                    InvalidWorkflowInputError,
-                );
-            });
-        },
-    );
-
-    test.skipIf(!databaseAvailable)("rejects empty content and malformed findings", async () => {
-        await withStorage(async (storage) => {
+    test("rejects malformed workflow ids on every entry point", async () => {
+        await withDatabase(async (database) => {
+            const malformed = "not-a-uuid";
             await expect(
-                storage.workflows.createDraft({
+                database.workflows.createDraft({
+                    workflowId: malformed,
+                    content: "{}",
+                    findings: [],
+                }),
+            ).rejects.toThrow(InvalidWorkflowInputError);
+            await expect(
+                database.workflows.saveRevision(malformed, {
+                    baseRevision: null,
+                    content: "{}",
+                    findings: [],
+                }),
+            ).rejects.toThrow(InvalidWorkflowInputError);
+            await expect(database.workflows.getCurrentRevision(malformed)).rejects.toThrow(
+                InvalidWorkflowInputError,
+            );
+            await expect(database.workflows.getRevision(malformed, mintUuidV7())).rejects.toThrow(
+                InvalidWorkflowInputError,
+            );
+            await expect(database.workflows.rewind(malformed, mintUuidV7())).rejects.toThrow(
+                InvalidWorkflowInputError,
+            );
+            await expect(
+                database.workflows.publish({
+                    workflowId: malformed,
+                    revisionId: mintUuidV7(),
+                    canonicalText: "{}",
+                    digest: "a".repeat(64),
+                    interfaceVersion: "v1",
+                }),
+            ).rejects.toThrow(InvalidWorkflowInputError);
+            await expect(database.workflows.getPublishedVersion(malformed, 1)).rejects.toThrow(
+                InvalidWorkflowInputError,
+            );
+        });
+    });
+
+    test("rejects empty content and malformed findings", async () => {
+        await withDatabase(async (database) => {
+            await expect(
+                database.workflows.createDraft({
                     workflowId: mintUuidV7(),
                     content: "",
                     findings: [],
                 }),
             ).rejects.toThrow(InvalidWorkflowInputError);
             await expect(
-                storage.workflows.createDraft({
+                database.workflows.createDraft({
                     workflowId: mintUuidV7(),
                     content: "{}",
                     findings: "nope" as unknown as Finding[],
                 }),
             ).rejects.toThrow(InvalidWorkflowInputError);
-            const created = await storage.workflows.createDraft({
+            const created = await database.workflows.createDraft({
                 workflowId: mintUuidV7(),
                 content: "{}",
                 findings: [],
             });
             await expect(
-                storage.workflows.saveRevision(created.workflowId, {
+                database.workflows.saveRevision(created.workflowId, {
                     baseRevision: created.revision.revisionId,
                     content: "",
                     findings: [],
@@ -565,240 +486,218 @@ describe("input guards", () => {
 });
 
 describe("publication", () => {
-    test.skipIf(!databaseAvailable)(
-        "publishes once per revision and returns the same version",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const document = greetDocument();
-                const validation = validator.validate(JSON.stringify(document));
-                expect(validation.validForPublication).toBe(true);
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: JSON.stringify(document),
-                    findings: [],
-                });
-                const input = await preparePublishInput(
-                    workflowId,
-                    created.revision.revisionId,
-                    document,
-                );
-
-                const first = await storage.workflows.publish(input);
-                expect(first).toEqual({ outcome: "published", versionNumber: 1 });
-
-                const repeat = await storage.workflows.publish(input);
-                expect(repeat).toEqual({ outcome: "already-published", versionNumber: 1 });
-
-                const concurrent = await Promise.all([
-                    storage.workflows.publish(input),
-                    storage.workflows.publish(input),
-                ]);
-                expect(
-                    concurrent.map((entry) =>
-                        entry.outcome === "published" || entry.outcome === "already-published"
-                            ? entry.versionNumber
-                            : -1,
-                    ),
-                ).toEqual([1, 1]);
-
-                const version = await storage.workflows.getPublishedVersion(workflowId, 1);
-                expect(version?.digest).toBe(input.digest);
-                expect(version?.canonicalText).toBe(input.canonicalText);
-                expect(version?.interfaceVersion).toBe("v1");
-                expect(version?.revisionId).toBe(created.revision.revisionId);
-                expect(await storage.workflows.getPublishedVersion(workflowId, 2)).toBeNull();
+    test("publishes once per revision and returns the same version", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const document = boundedLoopDocument();
+            const validation = validator.validate(JSON.stringify(document));
+            expect(validation.validForPublication).toBe(true);
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(document),
+                findings: [],
             });
-        },
-    );
+            const input = await preparePublishInput(
+                workflowId,
+                created.revision.revisionId,
+                document,
+            );
 
-    test.skipIf(!databaseAvailable)(
-        "returns typed not-found outcomes for unknown workflows and foreign revisions",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: JSON.stringify(greetDocument()),
-                    findings: [],
-                });
+            const first = await database.workflows.publish(input);
+            expect(first).toEqual({ outcome: "published", versionNumber: 1 });
 
-                // Unknown workflow: 404 via outcome, not a thrown error.
-                expect(
-                    await storage.workflows.publish({
-                        workflowId: mintUuidV7(),
-                        revisionId: created.revision.revisionId,
-                        canonicalText: "{}",
-                        digest: "a".repeat(64),
-                        interfaceVersion: "v1",
-                    }),
-                ).toEqual({ outcome: "not-found" });
+            const repeat = await database.workflows.publish(input);
+            expect(repeat).toEqual({ outcome: "already-published", versionNumber: 1 });
 
-                // The workflow exists, but the revision belongs to another one.
-                const other = await storage.workflows.createDraft({
+            const concurrent = await Promise.all([
+                database.workflows.publish(input),
+                database.workflows.publish(input),
+            ]);
+            expect(
+                concurrent.map((entry) =>
+                    entry.outcome === "published" || entry.outcome === "already-published"
+                        ? entry.versionNumber
+                        : -1,
+                ),
+            ).toEqual([1, 1]);
+
+            const version = await database.workflows.getPublishedVersion(workflowId, 1);
+            expect(version?.digest).toBe(input.digest);
+            expect(version?.canonicalText).toBe(input.canonicalText);
+            expect(version?.interfaceVersion).toBe("v1");
+            expect(version?.revisionId).toBe(created.revision.revisionId);
+            expect(await database.workflows.getPublishedVersion(workflowId, 2)).toBeNull();
+        });
+    });
+
+    test("returns typed not-found outcomes for unknown workflows and foreign revisions", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(boundedLoopDocument()),
+                findings: [],
+            });
+
+            // Unknown workflow: 404 via outcome, not a thrown error.
+            expect(
+                await database.workflows.publish({
                     workflowId: mintUuidV7(),
-                    content: JSON.stringify(greetDocument("Other")),
-                    findings: [],
-                });
-                expect(
-                    await storage.workflows.publish({
-                        workflowId,
-                        revisionId: other.revision.revisionId,
-                        canonicalText: "{}",
-                        digest: "a".repeat(64),
-                        interfaceVersion: "v1",
-                    }),
-                ).toEqual({ outcome: "revision-not-found" });
+                    revisionId: created.revision.revisionId,
+                    canonicalText: "{}",
+                    digest: "a".repeat(64),
+                    interfaceVersion: "v1",
+                }),
+            ).toEqual({ outcome: "not-found" });
 
-                // A revision id that never existed hits the same branch.
-                expect(
-                    await storage.workflows.publish({
-                        workflowId,
-                        revisionId: mintUuidV7(),
-                        canonicalText: "{}",
-                        digest: "a".repeat(64),
-                        interfaceVersion: "v1",
-                    }),
-                ).toEqual({ outcome: "revision-not-found" });
+            // The workflow exists, but the revision belongs to another one.
+            const other = await database.workflows.createDraft({
+                workflowId: mintUuidV7(),
+                content: JSON.stringify(conditionalGroupsDocument("Other")),
+                findings: [],
             });
-        },
-    );
-
-    test.skipIf(!databaseAvailable)(
-        "keeps metadata-only edits digest-stable across versions",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const before = greetDocument("Original name");
-                const created = await storage.workflows.createDraft({
+            expect(
+                await database.workflows.publish({
                     workflowId,
-                    content: JSON.stringify(before),
-                    findings: [],
-                });
-                const firstInput = await preparePublishInput(
-                    workflowId,
-                    created.revision.revisionId,
-                    before,
-                );
-                expect((await storage.workflows.publish(firstInput)).outcome).toBe("published");
+                    revisionId: other.revision.revisionId,
+                    canonicalText: "{}",
+                    digest: "a".repeat(64),
+                    interfaceVersion: "v1",
+                }),
+            ).toEqual({ outcome: "revision-not-found" });
 
-                const after = greetDocument("Renamed display label");
-                const renamed = savedRevision(
-                    await storage.workflows.saveRevision(workflowId, {
-                        baseRevision: created.revision.revisionId,
-                        content: JSON.stringify(after),
-                        findings: [],
-                    }),
-                );
-                const secondInput = await preparePublishInput(
+            // A revision id that never existed hits the same branch.
+            expect(
+                await database.workflows.publish({
                     workflowId,
-                    renamed.revisionId,
-                    after,
-                );
-                expect((await storage.workflows.publish(secondInput)).outcome).toBe("published");
+                    revisionId: mintUuidV7(),
+                    canonicalText: "{}",
+                    digest: "a".repeat(64),
+                    interfaceVersion: "v1",
+                }),
+            ).toEqual({ outcome: "revision-not-found" });
+        });
+    });
 
-                expect(secondInput.digest).toBe(firstInput.digest);
-                expect(secondInput.canonicalText).not.toBe(firstInput.canonicalText);
+    test("keeps metadata-only edits digest-stable across versions", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const before = conditionalGroupsDocument("Original name");
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(before),
+                findings: [],
             });
-        },
-    );
+            const firstInput = await preparePublishInput(
+                workflowId,
+                created.revision.revisionId,
+                before,
+            );
+            expect((await database.workflows.publish(firstInput)).outcome).toBe("published");
 
-    test.skipIf(!databaseAvailable)(
-        "leaves published versions untouched by later draft work",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const document = greetDocument();
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: JSON.stringify(document),
-                    findings: [],
-                });
-                const publishedInput = await preparePublishInput(
-                    workflowId,
-                    created.revision.revisionId,
-                    document,
-                );
-                expect((await storage.workflows.publish(publishedInput)).outcome).toBe("published");
-
-                await storage.workflows.saveRevision(workflowId, {
+            const after = conditionalGroupsDocument("Renamed display label");
+            const renamed = savedRevision(
+                await database.workflows.saveRevision(workflowId, {
                     baseRevision: created.revision.revisionId,
-                    content: JSON.stringify(greetDocument("Edited after publish")),
+                    content: JSON.stringify(after),
                     findings: [],
-                });
+                }),
+            );
+            const secondInput = await preparePublishInput(workflowId, renamed.revisionId, after);
+            expect((await database.workflows.publish(secondInput)).outcome).toBe("published");
 
-                // The published bytes survive the later draft edit unchanged.
-                const version = await storage.workflows.getPublishedVersion(workflowId, 1);
-                expect(version?.canonicalText).toBe(publishedInput.canonicalText);
-                expect(version?.digest).toBe(publishedInput.digest);
+            expect(secondInput.digest).toBe(firstInput.digest);
+            expect(secondInput.canonicalText).not.toBe(firstInput.canonicalText);
+        });
+    });
+
+    test("leaves published versions untouched by later draft work", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const document = boundedLoopDocument();
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(document),
+                findings: [],
             });
-        },
-    );
+            const publishedInput = await preparePublishInput(
+                workflowId,
+                created.revision.revisionId,
+                document,
+            );
+            expect((await database.workflows.publish(publishedInput)).outcome).toBe("published");
 
-    test.skipIf(!databaseAvailable)(
-        "fails verification when stored bytes are tampered with",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const document = greetDocument();
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: JSON.stringify(document),
-                    findings: [],
-                });
-                await storage.workflows.publish(
-                    await preparePublishInput(workflowId, created.revision.revisionId, document),
-                );
-
-                // A flipped digest must fail.
-                await storage.db
-                    .updateTable("publishedVersions")
-                    .set({ digest: "f".repeat(64) })
-                    .where("workflowId", "=", workflowId)
-                    .where("versionNumber", "=", 1)
-                    .execute();
-                await expect(storage.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
-                    DigestVerificationError,
-                );
+            await database.workflows.saveRevision(workflowId, {
+                baseRevision: created.revision.revisionId,
+                content: JSON.stringify(boundedLoopDocument("Edited after publish")),
+                findings: [],
             });
-        },
-    );
 
-    test.skipIf(!databaseAvailable)(
-        "fails verification when stored bytes are non-canonical but the digest matches",
-        async () => {
-            await withStorage(async (storage) => {
-                const workflowId = mintUuidV7();
-                const document = greetDocument();
-                const created = await storage.workflows.createDraft({
-                    workflowId,
-                    content: JSON.stringify(document),
-                    findings: [],
-                });
-                await storage.workflows.publish(
-                    await preparePublishInput(workflowId, created.revision.revisionId, document),
-                );
+            // The published bytes survive the later draft edit unchanged.
+            const version = await database.workflows.getPublishedVersion(workflowId, 1);
+            expect(version?.canonicalText).toBe(publishedInput.canonicalText);
+            expect(version?.digest).toBe(publishedInput.digest);
+        });
+    });
 
-                // Pretty-printed JSON is semantically identical and digest-equal
-                // (the digest covers the canonical form), but it is not the
-                // RFC 8785 canonical text: only the canonical-form branch of the
-                // verification catches this replacement. The digest-flip test
-                // covers the other branch.
-                const stored = await storage.workflows.getPublishedVersion(workflowId, 1);
-                if (!stored) {
-                    throw new Error("expected a published version before tampering");
-                }
-                const pretty = JSON.stringify(JSON.parse(stored.canonicalText), null, 2);
-                await storage.db
-                    .updateTable("publishedVersions")
-                    .set({ canonicalText: pretty })
-                    .where("workflowId", "=", workflowId)
-                    .where("versionNumber", "=", 1)
-                    .execute();
-                await expect(storage.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
-                    /not in RFC 8785 canonical form/,
-                );
+    test("fails verification when stored bytes are tampered with", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const document = boundedLoopDocument();
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(document),
+                findings: [],
             });
-        },
-    );
+            await database.workflows.publish(
+                await preparePublishInput(workflowId, created.revision.revisionId, document),
+            );
+
+            // A flipped digest must fail.
+            await database.db
+                .updateTable("publishedVersions")
+                .set({ digest: "f".repeat(64) })
+                .where("workflowId", "=", workflowId)
+                .where("versionNumber", "=", 1)
+                .execute();
+            await expect(database.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
+                DigestVerificationError,
+            );
+        });
+    });
+
+    test("fails verification when stored bytes are non-canonical but the digest matches", async () => {
+        await withDatabase(async (database) => {
+            const workflowId = mintUuidV7();
+            const document = boundedLoopDocument();
+            const created = await database.workflows.createDraft({
+                workflowId,
+                content: JSON.stringify(document),
+                findings: [],
+            });
+            await database.workflows.publish(
+                await preparePublishInput(workflowId, created.revision.revisionId, document),
+            );
+
+            // Pretty-printed JSON is semantically identical and digest-equal
+            // (the digest covers the canonical form), but it is not the
+            // RFC 8785 canonical text: only the canonical-form branch of the
+            // verification catches this replacement. The digest-flip test
+            // covers the other branch.
+            const stored = await database.workflows.getPublishedVersion(workflowId, 1);
+            if (!stored) {
+                throw new Error("expected a published version before tampering");
+            }
+            const pretty = JSON.stringify(JSON.parse(stored.canonicalText), null, 2);
+            await database.db
+                .updateTable("publishedVersions")
+                .set({ canonicalText: pretty })
+                .where("workflowId", "=", workflowId)
+                .where("versionNumber", "=", 1)
+                .execute();
+            await expect(database.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
+                /not in RFC 8785 canonical form/,
+            );
+        });
+    });
 });
