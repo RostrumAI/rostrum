@@ -265,7 +265,7 @@ describe("drafts and revisions", () => {
 });
 
 describe("rewind", () => {
-    test("deletes newer revisions and repoints the draft", async () => {
+    test("appends a copy of the target and repoints the draft", async () => {
         await withDatabase(async (database) => {
             const created = await database.workflows.createDraft({
                 content: '{"v":1}',
@@ -292,21 +292,33 @@ describe("rewind", () => {
                 created.revision.revisionId,
             );
             expect(rewound.outcome).toBe("rewound");
-            expect(
-                rewound.outcome === "rewound" ? [...rewound.deletedRevisionIds].sort() : [],
-            ).toEqual([second.revisionId, third.revisionId].sort());
+            if (rewound.outcome !== "rewound") {
+                throw new Error("expected a rewound outcome");
+            }
+            // The appended copy carries the target's bytes; nothing was deleted.
+            expect(rewound.revision.revisionId).not.toBe(created.revision.revisionId);
+            expect(rewound.revision.content).toBe('{"v":1}');
+            expect(await countRevisions(database, workflowId)).toBe(4);
+            expect(await revisionIds(database, workflowId)).toEqual([
+                created.revision.revisionId,
+                second.revisionId,
+                third.revisionId,
+                rewound.revision.revisionId,
+            ]);
 
             const current = await database.workflows.getCurrentRevision(workflowId);
-            expect(current?.revisionId).toBe(created.revision.revisionId);
-            expect(await countRevisions(database, workflowId)).toBe(1);
+            expect(current?.revisionId).toBe(rewound.revision.revisionId);
+            expect(current?.content).toBe('{"v":1}');
 
-            // Saves continue after the rewind point.
-            const resumed = await database.workflows.saveRevision(workflowId, {
-                baseRevision: created.revision.revisionId,
-                content: '{"v":4}',
-                findings: [],
-            });
-            expect(resumed.outcome).toBe("saved");
+            // Saves continue from the appended revision.
+            const resumed = savedRevision(
+                await database.workflows.saveRevision(workflowId, {
+                    baseRevision: rewound.revision.revisionId,
+                    content: '{"v":4}',
+                    findings: [],
+                }),
+            );
+            expect(resumed.content).toBe('{"v":4}');
         });
     });
 
@@ -322,7 +334,7 @@ describe("rewind", () => {
         });
     });
 
-    test("refuses targets older than the newest published source", async () => {
+    test("keeps published sources intact when rewinding past them", async () => {
         await withDatabase(async (database) => {
             const document = boundedLoopDocument();
             const created = await database.workflows.createDraft({
@@ -330,15 +342,16 @@ describe("rewind", () => {
                 findings: [],
             });
             const workflowId = created.workflowId;
+            const renamedContent = JSON.stringify(boundedLoopDocument("Renamed"));
             const second = savedRevision(
                 await database.workflows.saveRevision(workflowId, {
                     baseRevision: created.revision.revisionId,
-                    content: JSON.stringify(boundedLoopDocument("Renamed")),
+                    content: renamedContent,
                     findings: [],
                 }),
             );
 
-            // Publish from the second revision, then try to rewind past it.
+            // Publish from the second revision, then rewind past its source.
             const input = await preparePublishInput(
                 workflowId,
                 second.revisionId,
@@ -346,23 +359,50 @@ describe("rewind", () => {
             );
             await database.workflows.publish(input);
 
-            const refused = await database.workflows.rewind(
+            const rewound = await database.workflows.rewind(
                 workflowId,
                 created.revision.revisionId,
             );
-            expect(refused).toEqual({
-                outcome: "refused",
-                publishedSourceRevisionId: input.revisionId,
-            });
-            expect(await revisionIds(database, workflowId)).toEqual([
-                created.revision.revisionId,
-                input.revisionId,
-            ]);
+            expect(rewound.outcome).toBe("rewound");
 
-            // Rewinding TO the published source stays allowed.
-            expect(await database.workflows.rewind(workflowId, input.revisionId)).toEqual({
-                outcome: "no-op",
+            // The published version still verifies against its stored bytes
+            // and its source revision remains retrievable.
+            const version = await database.workflows.getPublishedVersion(workflowId, 1);
+            expect(version?.digest).toBe(input.digest);
+            expect(version?.revisionId).toBe(second.revisionId);
+            const source = await database.workflows.getRevision(workflowId, second.revisionId);
+            expect(source?.content).toBe(renamedContent);
+        });
+    });
+
+    test("appends a fresh copy per rewind", async () => {
+        await withDatabase(async (database) => {
+            const created = await database.workflows.createDraft({
+                content: '{"v":1}',
+                findings: [],
             });
+            const workflowId = created.workflowId;
+            savedRevision(
+                await database.workflows.saveRevision(workflowId, {
+                    baseRevision: created.revision.revisionId,
+                    content: '{"v":2}',
+                    findings: [],
+                }),
+            );
+
+            const first = await database.workflows.rewind(workflowId, created.revision.revisionId);
+            const repeated = await database.workflows.rewind(
+                workflowId,
+                created.revision.revisionId,
+            );
+            if (first.outcome !== "rewound" || repeated.outcome !== "rewound") {
+                throw new Error("expected both rewinds to succeed");
+            }
+            expect(first.revision.revisionId).not.toBe(repeated.revision.revisionId);
+            expect(repeated.revision.content).toBe('{"v":1}');
+            expect(await countRevisions(database, workflowId)).toBe(4);
+            const current = await database.workflows.getCurrentRevision(workflowId);
+            expect(current?.revisionId).toBe(repeated.revision.revisionId);
         });
     });
 

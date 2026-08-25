@@ -66,9 +66,8 @@ export type SaveRevisionResult =
 
 /** The result of one rewind attempt (E1-S3 rewind contract). */
 export type RewindResult =
-    | { outcome: "rewound"; deletedRevisionIds: string[] }
+    | { outcome: "rewound"; revision: StoredRevision }
     | { outcome: "no-op" }
-    | { outcome: "refused"; publishedSourceRevisionId: string }
     | { outcome: "target-not-found" }
     | { outcome: "not-found" };
 

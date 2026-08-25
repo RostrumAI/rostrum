@@ -33,9 +33,9 @@ import type {
  * - publishes take a row lock on the workflow so per-workflow version
  *   numbers stay gapless, and the unique `(workflow_id, revision)` index
  *   makes repeat publishes return the existing single version;
- * - rewind deletes revisions newer than the target but refuses targets
- *   older than the newest published source, keeping every published
- *   version's source revision retrievable.
+ * - rewind appends a copy of the target revision as the newest revision
+ *   and repoints the draft at it; history is never truncated, so every
+ *   published version's source revision always stays retrievable.
  *
  * Published rows have no update or delete path in this class; published
  * versions are immutable by construction (E1-S3).
@@ -174,10 +174,12 @@ export class WorkflowRepository {
     }
 
     /**
-     * Rewinds the draft to an earlier revision: newer revisions are deleted
-     * and the target becomes current. Refuses targets older than the newest
-     * published source so every published version keeps its source revision.
-     * Rewinding to the current revision with nothing newer is a no-op.
+     * Rewinds the draft to an earlier revision by appending a copy of the
+     * target as the newest revision and repointing the current-revision
+     * pointer at it. Nothing is deleted: the target and every newer
+     * revision stay in history, so published versions always keep their
+     * source revisions retrievable. Rewinding to the current revision is a
+     * no-op.
      */
     async rewind(workflowId: string, targetRevisionId: string): Promise<RewindResult> {
         this.assertWorkflowId(workflowId);
@@ -195,53 +197,34 @@ export class WorkflowRepository {
             if (!target) {
                 return { outcome: "target-not-found" } as const;
             }
-            // The newest published source, compared to the target entirely in
-            // SQL: Postgres keeps microsecond precision that JavaScript Dates
-            // truncate, so the floor check and the deletion below must use
-            // the same tuple comparison or a published source could be deleted.
-            const newerPublishedSource = await tx
-                .selectFrom("revisions")
-                .innerJoin("publishedVersions", "publishedVersions.revisionId", "revisions.id")
-                .where("revisions.workflowId", "=", workflowId)
-                .where(
-                    sql<boolean>`(${sql.ref("revisions.created_at")}, ${sql.ref("revisions.id")}) > (
-                        select r2.created_at, r2.id from revisions r2 where r2.id = ${targetRevisionId}
-                    )`,
-                )
-                .select("revisions.id")
-                .orderBy("revisions.createdAt", "desc")
-                .orderBy("revisions.id", "desc")
-                .limit(1)
-                .executeTakeFirst();
-            if (newerPublishedSource?.id) {
-                return {
-                    outcome: "refused",
-                    publishedSourceRevisionId: newerPublishedSource.id,
-                } satisfies RewindResult;
-            }
-            const newer = await tx
-                .selectFrom("revisions")
-                .where("workflowId", "=", workflowId)
-                .where(sql<boolean>`(${sql.ref("created_at")}, ${sql.ref("id")}) > (
-                    select r2.created_at, r2.id from revisions r2 where r2.id = ${targetRevisionId}
-                )`)
-                .select("id")
-                .execute();
-            const deletedRevisionIds = newer
-                .map((row) => row.id)
-                .filter((id): id is string => id !== undefined);
-            if (deletedRevisionIds.length > 0) {
-                await tx.deleteFrom("revisions").where("id", "in", deletedRevisionIds).execute();
-            }
-            if (deletedRevisionIds.length === 0 && draft.currentRevision === target.id) {
+            if (draft.currentRevision === target.id) {
                 return { outcome: "no-op" } satisfies RewindResult;
             }
+            // The copy carries the target's exact bytes and findings
+            // snapshot; both were guarded when the target row was written,
+            // so the input guards do not run again here. The name stays
+            // unset: the rewind action created this checkpoint, not an
+            // author's label.
+            const revisionId = mintUuidV7();
+            await tx
+                .insertInto("revisions")
+                .values({
+                    id: revisionId,
+                    workflowId,
+                    content: target.content,
+                    findings: target.findings,
+                    createdAt: sql<Date>`now()`,
+                })
+                .execute();
             await tx
                 .updateTable("workflows")
-                .set({ currentRevision: target.id, updatedAt: new Date() })
+                .set({ currentRevision: revisionId, updatedAt: new Date() })
                 .where("id", "=", workflowId)
                 .execute();
-            return { outcome: "rewound", deletedRevisionIds } satisfies RewindResult;
+            return {
+                outcome: "rewound",
+                revision: await this.requireRevision(tx, workflowId, revisionId),
+            } satisfies RewindResult;
         });
     }
 

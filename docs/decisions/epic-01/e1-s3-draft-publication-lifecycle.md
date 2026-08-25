@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Decided |
 | Source | [E1-S3: Decide how drafts become published versions](../../tasks/epic-01/e1-s3-define-draft-publication-lifecycle.md) |
-| Last updated | 2026-08-22 |
+| Last updated | 2026-08-25 |
 
 ## Decision
 
@@ -28,7 +28,7 @@ flowchart LR
     P -->|"blocking findings"| E422["422 + findings"]
     P -->|"valid"| V["Version M<br/>canonical text + sha256 hex<br/>immutable, unique (wf, revision)"]
     R -.->|"edit again"| S
-    R -.->|"rewind: current := older revision<br/>(newer revisions deleted)"| S
+    R -.->|"rewind: copy of older revision<br/>becomes newest, current"| S
     V -.->|"repeat publish<br/>same revision"| V
 ```
 
@@ -38,13 +38,15 @@ E1-S1 fixed the authored workflow shape and explicitly excluded lifecycle fields
 
 Epic 01 mandates: drafts save despite blocking findings; single-editor semantics; the draft remains available after publication; published versions are immutable; editing a draft after publication leaves published versions unchanged.
 
-Product review directed the checkpoint model: revisions are named checkpoints, the draft rewinds to any earlier revision (deleting the revisions newer than the target), and publishing releases the draft's current revision — the Google Docs version-history model. Review also directed that the server assigns the workflow `id`; E1-S1's shape is preserved because the server injects the id into the stored document, which remains self-identifying. This record adopts both directions and reconciles the task wording ("an author selects a revision for publication"): an author selects what to publish by rewinding, then publishes the current revision.
+Product review directed the checkpoint model: revisions are named checkpoints, the draft rewinds to any earlier revision (appending a copy of the target as the newest checkpoint), and publishing releases the draft's current revision — the Google Docs version-history model. Review also directed that the server assigns the workflow `id`; E1-S1's shape is preserved because the server injects the id into the stored document, which remains self-identifying. This record adopts both directions and reconciles the task wording ("an author selects a revision for publication"): an author selects what to publish by rewinding, then publishes the current revision.
 
 The consumers of these rules are the Control API (E1-06), the shared workflow library's publication preparation (E1-04), the storage layer (E1-07), the conformance suites (E2-07, E3-08), and the Cloud control plane, which reimplements the same contract — hence the digest must be reproducible across implementations from the document alone.
 
 Full option analysis with per-option pros and cons is recorded in the research doc [E1-S3 lifecycle options](../../research/e1-s3-draft-publication-lifecycle-options.md).
 
 **Amendment (2026-08-17):** per E1-S4 decision 4a, the digest scope excludes metadata. The metadata fields classified by E1-S4 (`name`, `description` in v1) are removed from the document before canonicalization, so a name- or description-only edit never changes the digest — a display-only edit must not masquerade as a definition change in version history. The "Exclude metadata from digest" row that appeared in Alternatives considered under the earlier whole-document scope is removed; it is now the adopted rule.
+
+**Amendment (2026-08-25):** per product direction during E1-07 review, rewind no longer deletes revisions. A rewind appends a new revision carrying the target's exact bytes and findings snapshot and makes that copy the current revision; the target and every newer revision remain in place. The published-source boundary is obsolete because nothing is deletable: every published version's source revision survives by construction. Publishing an appended copy of an already-published revision creates a new version number whose digest equals the earlier version's (uniqueness stays per `(workflow_id, revision)`). The "rewind without deleting newer revisions" row that appeared in Alternatives considered under the earlier destructive model is removed; it is now the adopted behavior.
 
 ## Why these choices
 
@@ -59,7 +61,7 @@ Full option analysis with per-option pros and cons is recorded in the research d
 | Published storage | RFC 8785 canonical text + digest | The published version is one deterministic byte form; verification is `sha256(retrieved) == digest`; the canonical text is valid JSON — the artifact the daemon executes |
 | Publication selection | The draft's current revision, always re-validated at publish | Publishing is "release what I see" — the Google Docs model; an author rewinds first if an earlier state is wanted, so there is no path that publishes state the editor is not showing; re-validation makes "published ⇒ validated" a server-enforced invariant |
 | Repeated publication | At most once per revision; repeat returns the existing version | Idempotent and conflict-free by construction (unique `(workflow_id, revision)`); rollback stays expressible by rewinding the draft, then saving or publishing |
-| Rewind | Current revision := an earlier revision; newer revisions deleted; never past the newest published revision's source | "Going back" is honest and keeps history readable; the published-source boundary keeps every published version's source revision retrievable; rewind plus publish replaces the old "publish any revision" path |
+| Rewind | Appends a copy of an earlier revision as the newest checkpoint; current := the copy; nothing is deleted | "Going back" is honest and keeps history readable while preserving the complete record; published sources stay retrievable by construction; rewind plus publish replaces the old "publish any revision" path |
 | Revision naming | Optional author-supplied checkpoint name | "revision 4" is only useful while numbers are stable; a name survives rewind and reads better in an editor; raw UUIDs are machine-facing |
 | Normalization | RFC 8785 (JCS) | The only standard canonical JSON; every target implementation (Bun runtime, Cloud control plane, conformance harness) has a JCS implementation; digests are reproducible across languages |
 | Hash | SHA-256, lowercase hex | Ubiquitous, FIPS, hardware-accelerated; hex is the content-digest convention (git, Docker) |
@@ -98,9 +100,9 @@ Full option analysis with per-option pros and cons is recorded in the research d
 
 ### Rewind
 
-- **Rewind:** the author may rewind the draft to any earlier revision: the target becomes the draft's current revision, and every revision newer than the target is deleted. The draft then shows the target's content; further saves create new revisions after it.
-- **Boundary:** the target may not be older than the newest revision that a published version was created from. Published versions are immutable, and their source revision must stay retrievable; rewinding past it would delete the source of a version callers may still pull.
-- Rewinding with no newer revisions is a no-op (success). Rewinding is how an author selects an earlier state for publication: rewind, then publish the current revision.
+- **Rewind:** the author may rewind the draft to any earlier revision: the server appends a new revision holding the target's exact bytes and findings snapshot, and that copy becomes the draft's current revision. Nothing is deleted — the target and every newer revision remain, so history stays complete while the editor shows the target's content. Further saves create new revisions after the copy.
+- Rewinding to the current revision is a no-op (success).
+- Rewinding is how an author selects an earlier state for publication: rewind, then publish the current revision.
 
 ### Repeated publication and version conflicts
 
@@ -113,9 +115,8 @@ Full option analysis with per-option pros and cons is recorded in the research d
 | Save with stale `baseRevision` | 409 + current revision/findings; no partial write |
 | Save with embedded `id` ≠ addressed workflow | 400/409 identity conflict |
 | Editing a draft after publication | New revision; published versions byte-unchanged |
-| Rewind to an earlier revision | Target becomes current; newer revisions deleted; published versions unchanged |
-| Rewind past the newest published revision's source | Refused — published versions keep their source revision |
-| Rewind with no newer revisions | No-op |
+| Rewind to an earlier revision | A copy of the target becomes the newest revision and the current one; all existing revisions remain; published versions unchanged |
+| Rewind to the current revision | No-op |
 
 ### Normalization and digest
 
@@ -146,7 +147,7 @@ whose SHA-256 is `e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b3
 
 ### Draft after publication
 
-The draft remains editable; further saves create new revisions, rewind repoints the draft at an earlier revision, and further publishes create new versions. Published rows are immutable and are never touched by draft operations (E1-07). A published revision remains retrievable as a draft revision and as the source of its version — rewind stops at the newest published revision's source.
+The draft remains editable; further saves create new revisions, rewind appends a copy of an earlier revision, and further publishes create new versions. Published rows are immutable and are never touched by draft operations (E1-07). A published revision always remains retrievable as a draft revision and as its version's source; rewind deletes nothing.
 
 ## Alternatives considered
 
@@ -167,7 +168,6 @@ The draft remains editable; further saves create new revisions, rewind repoints 
 | Postgres `jsonb` round-trip as canonical form | Postgres-specific serialization; meaningless to other implementations |
 | Read-only draft after publication, or delete draft on publish | Contradicts Epic 01: "the draft remains available for later revisions after publication" |
 | Rollback by saving old content as a new revision | Duplicates content into history and hides what happened; a rewind is honest about "we went back" and keeps a single content copy |
-| Rewind without deleting newer revisions | Leaves dead revisions in the history and makes the draft's ancestry ambiguous; deletion matches the checkpoint model the editor presents |
 
 ## Deferred decisions
 
@@ -185,7 +185,7 @@ This record is complete when a reviewer can confirm, by reading it, that:
 - every identifier (workflow `id`, draft, revision, revision name, published version, digest, timestamps) is named with its assignment and change rules;
 - save semantics are explicit: syntactically valid JSON saves despite blocking findings, parse failures are errors, the identity rule, the `baseRevision` check (UUID equality), atomicity, and byte-exact draft storage in the revision row;
 - publish semantics are explicit: current-revision publication, re-validation, blocking-finding rejection, canonicalization, immutability, and response content;
-- rewind semantics are explicit: the target becomes the draft's current revision, newer revisions are deleted, and the target cannot precede the newest published revision's source;
+- rewind semantics are explicit: the appended copy of the target becomes the current revision, no revision is ever deleted, and history remains complete;
 - repeated publication and every version-conflict case have defined results;
 - the digest rules pin the canonicalization standard, hash algorithm, encoding, digest scope (definitional content — metadata excluded per E1-S4's field classification), and the duplicate-key constraint, with fixture vectors from the E1-S1 examples and a stated requirement for independent reproduction;
 - draft-after-publication behavior is stated;

@@ -16,7 +16,7 @@ This task implements the Postgres store selected by [E1-S0](../../decisions/epic
 - Storage for workflow JSON, identifiers, interface versions, digests, and creation metadata (`createdAt`/`updatedAt`).
 - Transactional revision checks that prevent silent overwrites: one transaction inserts the revision row and conditionally updates `workflows.current_revision` where `current_revision = baseRevision` (no row means 409). Unique index on `(workflow_id, revision)` backstops idempotent publish; revision `id` values are server-minted UUID v7.
 - Immutable published-version records with per-workflow monotonic integer version numbers and unique `(workflow_id, revision)` — a revision publishes at most once; concurrent publishes of the same revision return the same single version via the unique-index race.
-- Rewind semantics: setting the current revision to an earlier revision and deleting newer revisions, refusing rewind past the newest published revision's source so every published version's source revision remains retrievable.
+- Rewind semantics: appending a copy of an earlier revision as the newest revision and making it current; no revision is deleted, so every published version's source revision remains retrievable.
 - Digest verification: recomputed `sha256(retrieved canonical bytes) == digest` over definitional content (metadata excluded).
 - Data access used by the Control API to retrieve drafts, revisions, and published versions, including byte-exact draft retrieval and canonical published retrieval that survive Control API restarts.
 
@@ -41,7 +41,7 @@ Local development uses the Docker Compose Postgres service via `DATABASE_URL`. M
 - Drafts, their revisions, findings, and published workflows remain available after a Control API restart.
 - Draft retrieval returns the selected revision bytes unchanged; findings' line and column remain anchored to the stored text.
 - Revision checks prevent an older draft state from overwriting newer work; stale `baseRevision` returns 409 with the current revision and findings.
-- Rewind marks the target as current, deletes newer revisions, and refuses a target older than the newest published revision's source.
+- Rewind appends a copy of the target as the newest revision and makes it current; existing revisions are never deleted.
 - Published versions cannot be changed or deleted through draft operations; they are immutable rows with per-workflow integer versions.
 - Editing a draft after publication leaves the published version byte-unchanged.
 - Metadata-only edits leave the digest unchanged; digest reproduction from the stored canonical bytes matches the stored digest.
