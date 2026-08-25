@@ -26,12 +26,6 @@ export interface StoredRevision {
 
 /** Input to `WorkflowRepository.createDraft`. */
 export interface CreateDraftInput {
-    /**
-     * The server-minted workflow `id`, already injected into `content`.
-     * The caller mints it (the `uuid` package's `v7`) before serializing
-     * the document, so storage never rewrites bytes.
-     */
-    workflowId: string;
     /** The exact submitted bytes, stored and returned unchanged. */
     content: string;
     /** The findings snapshot to store with the revision. */

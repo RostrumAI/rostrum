@@ -57,39 +57,42 @@ export class WorkflowRepository {
     }
 
     /**
-     * Creates the draft: inserts the workflow row and stores the submitted
-     * document as its first revision, so every draft has at least one
-     * revision (E1-S3 identity rule; creation is the first save).
+     * Creates the draft: mints the workflow `id`, inserts the workflow row,
+     * and stores the submitted document as its first revision, so every
+     * draft has at least one revision (E1-S3 identity rule; creation is
+     * the first save). Every identifier is minted here — the workflow `id`
+     * below and each revision id in saves — never accepted from callers.
      */
     async createDraft(input: CreateDraftInput): Promise<CreatedDraft> {
-        this.assertWorkflowId(input.workflowId);
         return this.db.transaction().execute(async (tx) => {
+            const workflowId = mintUuidV7();
             const revisionId = mintUuidV7();
             try {
                 await tx
                     .insertInto("workflows")
-                    .values({ id: input.workflowId, createdAt: sql`now()`, updatedAt: sql`now()` })
+                    .values({ id: workflowId, createdAt: sql`now()`, updatedAt: sql`now()` })
                     .execute();
             } catch (error) {
-                // A duplicate id surfaces as a driver-level unique violation;
-                // translate it once here so consumers never parse driver errors.
+                // A fresh UUID v7 collides only when the mint itself repeats;
+                // translate the driver-level unique violation so consumers
+                // never parse driver errors.
                 if (isUniqueViolation(error)) {
-                    throw new DuplicateWorkflowIdError(input.workflowId);
+                    throw new DuplicateWorkflowIdError(workflowId);
                 }
                 throw error;
             }
             await tx
                 .insertInto("revisions")
-                .values(this.revisionValues(input.workflowId, revisionId, input))
+                .values(this.revisionValues(workflowId, revisionId, input))
                 .execute();
             await tx
                 .updateTable("workflows")
                 .set({ currentRevision: revisionId })
-                .where("id", "=", input.workflowId)
+                .where("id", "=", workflowId)
                 .execute();
             return {
-                workflowId: input.workflowId,
-                revision: await this.requireRevision(tx, input.workflowId, revisionId),
+                workflowId,
+                revision: await this.requireRevision(tx, workflowId, revisionId),
             };
         });
     }
