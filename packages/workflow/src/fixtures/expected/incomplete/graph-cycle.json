@@ -1,0 +1,19 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.graph.cycle",
+            "blocking": true,
+            "path": "",
+            "line": 1,
+            "column": 1,
+            "details": {
+                "cycle": [
+                    "0192b0a0-7e1d-7000-8000-000000000085",
+                    "0192b0a0-7e1d-7000-8000-000000000086",
+                    "0192b0a0-7e1d-7000-8000-000000000085"
+                ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,10 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.version.missing",
+            "blocking": true,
+            "path": "/interfaceVersion"
+        }
+    ]
+}

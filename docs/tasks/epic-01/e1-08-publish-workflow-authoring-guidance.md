@@ -3,9 +3,9 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-19 |
-| Picked up | No |
-| Owner | Unassigned |
+| Last updated | 2026-08-25 |
+| Picked up | Yes |
+| Owner | Thomas |
 | Blocked by | [E1-05](e1-05-build-workflow-example-validation-suite.md), [E1-06](e1-06-add-control-api-workflow-operations.md) |
 
 ## Task

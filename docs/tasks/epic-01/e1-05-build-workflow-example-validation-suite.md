@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-19 |
+| Status | Done |
+| Last updated | 2026-08-22 |
 | Picked up | Yes |
 | Owner | Stephen |
 | Blocked by | [E1-03](e1-03-write-workflow-interface-v1-specification.md), [E1-04](e1-04-implement-workflow-library-and-validator.md) |

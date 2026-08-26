@@ -1,0 +1,37 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000cc",
+    "name": "Condition references unknown step",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000cd",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000cd",
+            "type": "task",
+            "config": { "operation": "evaluate" },
+            "conditional": "0192b0a0-7e1d-7000-8000-0000000000ce"
+        },
+        { "id": "0192b0a0-7e1d-7000-8000-0000000000cf", "type": "result", "inputs": {} }
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000ce",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-0000000000cd"],
+            "branches": [
+                {
+                    "label": "ghost",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-0000000000ff.score",
+                        "op": "gte",
+                        "value": 80
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-0000000000cf"
+                }
+            ],
+            "default": {
+                "label": "fallback",
+                "next": "0192b0a0-7e1d-7000-8000-0000000000cf"
+            }
+        }
+    ]
+}

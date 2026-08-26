@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.reference.unknown-input",
+            "blocking": true,
+            "path": "/steps/0/inputs/name",
+            "line": 11,
+            "column": 33,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-0000000000d8",
+                "ref": "inputs.username",
+                "input": "username"
+            }
+        }
+    ]
+}

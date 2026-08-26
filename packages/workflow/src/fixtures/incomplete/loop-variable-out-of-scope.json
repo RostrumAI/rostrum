@@ -1,0 +1,37 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000e4",
+    "name": "Loop variable out of scope",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000e5",
+    "inputs": {
+        "files": { "type": "array", "items": { "type": "string" } }
+    },
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000e5",
+            "type": "task",
+            "config": { "operation": "iterate" },
+            "inputs": { "files": { "ref": "inputs.files" } },
+            "outputs": { "files": { "type": "array", "items": { "type": "string" } } },
+            "loop": {
+                "collection": { "ref": "step.0192b0a0-7e1d-7000-8000-0000000000e5.files" },
+                "maxIterations": 10,
+                "variable": "file",
+                "body": "0192b0a0-7e1d-7000-8000-0000000000e6"
+            },
+            "successors": ["0192b0a0-7e1d-7000-8000-0000000000e7"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000e6",
+            "type": "task",
+            "config": { "operation": "analyze-file" },
+            "inputs": { "file": { "ref": "loop.file" } },
+            "outputs": { "analysis": { "type": "string" } }
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000e7",
+            "type": "result",
+            "inputs": { "lastFile": { "ref": "loop.file" } }
+        }
+    ]
+}

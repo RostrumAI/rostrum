@@ -35,14 +35,16 @@ describe("valid examples pass schema validation", () => {
     }
 });
 
-describe("incomplete drafts pass schema validation", () => {
-    // Incomplete drafts are syntactically valid and shape-valid; their blocking
-    // findings (unknown successor target, unknown step type) come from stages 3
-    // and later of the validation pipeline (E1-04), so they save as drafts.
+describe("incomplete drafts are saveable documents", () => {
+    // Any syntactically valid JSON saves as a draft (E1-S3), so a draft may
+    // carry blocking findings from any pipeline stage. The schema stage may
+    // report missing members for a fresh workflow, but nothing else: an
+    // incomplete document is never malformed beyond omission.
     for (const file of loadCategory("incomplete")) {
         test(file, () => {
             const document = loadFixture("incomplete", file);
-            expect(validator.Check(document)).toBe(true);
+            const errors = [...validator.Errors(document)];
+            expect(errors.every((error) => error.keyword === "required")).toBe(true);
         });
     }
 });
@@ -106,39 +108,5 @@ describe("invalid shape examples fail for the expected reason", () => {
         const document = loadFixture("invalid-shape", "conditional-default-missing.json");
         const pointers = [...validator.Errors(document)].map((error) => error.instancePath);
         expect(pointers).toContain("/conditionals/0");
-    });
-});
-
-describe("digest vectors match the E1-S3 fixture table", () => {
-    // SHA-256 hex over the RFC 8785 canonical form with `name` and
-    // `description` removed, per E1-S3 as amended by E1-S4 decision 4a.
-    const expectedDigests: Record<string, string> = {
-        "sequential.json": "e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368",
-        "conditional-branching.json":
-            "62060162c41188816562fcca6c75899f212f46fbda8ab41ebe458bfd93f8698a",
-        "bounded-loop.json": "5003b9d73650da0605ffbdd11c61f2e370f10f23070f2ff136f01f679808fa92",
-        "conditional-groups.json":
-            "5793efea91c0206dc646b845b5656162906c70f2cf6ce88f8fb0e59bda4ea04b",
-    };
-
-    for (const [file, expected] of Object.entries(expectedDigests)) {
-        test(file, async () => {
-            const document = loadFixture("valid", file);
-            expect(await digestWorkflow(document)).toBe(expected);
-        });
-    }
-
-    test("a metadata-only edit leaves the digest unchanged", async () => {
-        const document = loadFixture("valid", "sequential.json");
-        const renamed = {
-            ...document,
-            name: "Renamed workflow",
-            description: "Different description.",
-        };
-        const expected = expectedDigests["sequential.json"];
-        if (expected === undefined) {
-            throw new Error("missing sequential digest vector");
-        }
-        expect(await digestWorkflow(renamed as Record<string, unknown>)).toBe(expected);
     });
 });

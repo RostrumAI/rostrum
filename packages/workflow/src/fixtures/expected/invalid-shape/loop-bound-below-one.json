@@ -1,0 +1,20 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.constraint",
+            "blocking": true,
+            "path": "/steps/0/loop/maxIterations",
+            "line": 18,
+            "column": 34,
+            "details": {
+                "schemaPath": "#/properties/steps/items/properties/loop/properties/maxIterations",
+                "keyword": "minimum",
+                "params": {
+                    "comparison": ">=",
+                    "limit": 1
+                }
+            }
+        }
+    ]
+}

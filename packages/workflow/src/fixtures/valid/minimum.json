@@ -1,0 +1,7 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000005",
+    "name": "Minimum workflow",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000006",
+    "steps": [{ "id": "0192b0a0-7e1d-7000-8000-000000000006", "type": "result", "inputs": {} }]
+}

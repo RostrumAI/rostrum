@@ -1,0 +1,29 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.required-field",
+            "blocking": true,
+            "path": "/firstNode",
+            "details": {
+                "schemaPath": "#",
+                "keyword": "required",
+                "params": {
+                    "requiredProperties": ["firstNode", "steps"]
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.required-field",
+            "blocking": true,
+            "path": "/steps",
+            "details": {
+                "schemaPath": "#",
+                "keyword": "required",
+                "params": {
+                    "requiredProperties": ["firstNode", "steps"]
+                }
+            }
+        }
+    ]
+}

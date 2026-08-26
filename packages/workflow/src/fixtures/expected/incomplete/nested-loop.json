@@ -1,0 +1,16 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.loop.nested",
+            "blocking": true,
+            "path": "/steps/1/loop",
+            "line": 30,
+            "column": 21,
+            "details": {
+                "outerLoop": "0192b0a0-7e1d-7000-8000-00000000008e",
+                "innerLoop": "0192b0a0-7e1d-7000-8000-00000000008f"
+            }
+        }
+    ]
+}

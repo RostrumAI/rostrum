@@ -1,0 +1,21 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.step.invalid-config",
+            "blocking": true,
+            "path": "/steps/0/config",
+            "line": 10,
+            "column": 23,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-0000000000b5",
+                "type": "task",
+                "schemaPath": "#/properties/operation",
+                "keyword": "type",
+                "params": {
+                    "type": "string"
+                }
+            }
+        }
+    ]
+}

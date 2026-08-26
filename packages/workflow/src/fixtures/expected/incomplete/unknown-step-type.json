@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.step.unknown-type",
+            "blocking": true,
+            "path": "/steps/0/type",
+            "line": 6,
+            "column": 71,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-000000000061",
+                "received": "no-such-type",
+                "supported": ["result", "task"]
+            }
+        }
+    ]
+}

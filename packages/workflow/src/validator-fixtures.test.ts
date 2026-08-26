@@ -1,98 +1,113 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { compareFindings, type Finding } from "./findings";
+import { JsonSourceParser } from "./parse/json-source-parser";
 import { createWorkflowValidator } from "./workflow-validator";
 
+/**
+ * The shared E1-05 fixture suite: every non-valid fixture asserts its
+ * full expected validator output from a committed manifest, so the
+ * workflow library, the Control API, and any future consumer prove
+ * their behavior against the same input files and expected results.
+ *
+ * Each expected finding records `code`, `blocking`, `path`,
+ * `relatedLocations`, `details`, and — because fixtures are text — the
+ * `line` and `column` the source map assigns. Message text is not part
+ * of the contract (E1-S2) and is not asserted.
+ */
+
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");
+const CATEGORIES = ["incomplete", "invalid-shape", "invalid-parse"] as const;
 const validator = createWorkflowValidator();
 
-function loadFixture(...segments: string[]): string {
-    return readFileSync(join(FIXTURES_DIR, ...segments), "utf8");
-}
-
-function fixtureFiles(category: string): string[] {
-    return readdirSync(join(FIXTURES_DIR, category))
+for (const category of CATEGORIES) {
+    const files = readdirSync(join(FIXTURES_DIR, category))
         .filter((file) => file.endsWith(".json"))
         .sort();
+
+    for (const file of files) {
+        test(`${category}/${file}`, () => {
+            const text = readFileSync(join(FIXTURES_DIR, category, file), "utf8");
+            const result = validator.validate(text);
+            const expected = JSON.parse(
+                readFileSync(join(FIXTURES_DIR, "expected", category, file), "utf8"),
+            ) as { validForPublication: boolean; findings: Omit<Finding, "message">[] };
+
+            expect(result.findings.map(({ message: _message, ...finding }) => finding)).toEqual(
+                expected.findings,
+            );
+            expect(result.validForPublication).toBe(expected.validForPublication);
+            expect([...result.findings].sort(compareFindings)).toEqual(result.findings);
+
+            // Line and column come from the parse-time source map; verify each
+            // finding's location against the map entry for its pointer so a
+            // stale manifest cannot survive an edit to the fixture text.
+            const parsed = new JsonSourceParser(text).parse();
+            if (parsed.ok) {
+                for (const finding of result.findings) {
+                    const location = parsed.sourceMap[finding.path];
+                    if (location) {
+                        expect(finding.line).toBe(location.value.line);
+                        expect(finding.column).toBe(location.value.column);
+                    }
+                }
+            }
+        });
+    }
 }
 
-describe("valid fixtures validate cleanly from text", () => {
-    for (const file of fixtureFiles("valid")) {
-        test(file, () => {
-            const result = validator.validate(loadFixture("valid", file));
-            expect(result.findings).toEqual([]);
-            expect(result.validForPublication).toBe(true);
-        });
-    }
-});
-
-describe("incomplete fixtures save as drafts with blocking findings", () => {
-    test("unfinished-connection.json reports the unknown successor target", () => {
-        const result = validator.validate(loadFixture("incomplete", "unfinished-connection.json"));
-        expect(result.validForPublication).toBe(false);
-        expect(result.findings.map((finding) => finding.code)).toContain(
-            "workflow.reference.unknown-target",
-        );
-        expect(
-            result.findings.every((finding) => !finding.code.startsWith("workflow.shape.")),
-        ).toBe(true);
-    });
-
-    test("unknown-step-type.json reports the unregistered type", () => {
-        const result = validator.validate(loadFixture("incomplete", "unknown-step-type.json"));
+describe("parse failures are errors, never drafts", () => {
+    test("duplicate-key.json parses leniently but the pipeline rejects it", () => {
+        const text = readFileSync(join(FIXTURES_DIR, "invalid-parse/duplicate-key.json"), "utf8");
+        expect(() => JSON.parse(text)).not.toThrow();
+        const result = validator.validate(text);
         expect(result.validForPublication).toBe(false);
         expect(result.findings.map((finding) => finding.code)).toEqual([
-            "workflow.step.unknown-type",
+            "workflow.parse.duplicate-key",
         ]);
-        expect(result.findings[0]?.details?.supported).toEqual(["result", "task"]);
+    });
+
+    test("malformed-syntax.json is invalid JSON with one parse finding", () => {
+        const result = validator.validate(
+            readFileSync(join(FIXTURES_DIR, "invalid-parse/malformed-syntax.json"), "utf8"),
+        );
+        expect(result.findings.map((finding) => finding.code)).toEqual([
+            "workflow.parse.json-invalid",
+        ]);
     });
 });
 
-describe("invalid-shape fixtures fail with their shape or version finding", () => {
-    const expected: Record<string, string> = {
-        "unknown-interface-version.json": "workflow.version.unknown",
-        "missing-required-field.json": "workflow.shape.required-field",
-        "unknown-field.json": "workflow.shape.unknown-field",
-        "malformed-uuid.json": "workflow.shape.format",
-        "empty-steps.json": "workflow.shape.constraint",
-        "loop-bound-below-one.json": "workflow.shape.constraint",
-        "loop-missing-collection.json": "workflow.shape.required-field",
-        "conditional-default-missing.json": "workflow.shape.required-field",
-    };
-
-    for (const [file, code] of Object.entries(expected)) {
-        test(file, () => {
-            const result = validator.validate(loadFixture("invalid-shape", file));
-            expect(result.validForPublication).toBe(false);
-            expect(result.findings.map((finding) => finding.code)).toContain(code);
-        });
-    }
-
-    test("unknown-interface-version.json produces only the version finding", () => {
+describe("interface versions", () => {
+    test("a supported version validates cleanly (valid/minimum.json)", () => {
         const result = validator.validate(
-            loadFixture("invalid-shape", "unknown-interface-version.json"),
+            readFileSync(join(FIXTURES_DIR, "valid/minimum.json"), "utf8"),
+        );
+        expect(result.validForPublication).toBe(true);
+        expect(result.findings).toEqual([]);
+    });
+
+    test("an unsupported version is blocking with no fallback", () => {
+        const result = validator.validate(
+            readFileSync(
+                join(FIXTURES_DIR, "invalid-shape/unknown-interface-version.json"),
+                "utf8",
+            ),
         );
         expect(result.findings).toHaveLength(1);
+        expect(result.findings[0]?.code).toBe("workflow.version.unknown");
         expect(result.findings[0]?.details?.supported).toEqual(["v1"]);
     });
-});
 
-describe("findings carry source locations from text", () => {
-    test("the unknown-field finding points at the offending line", () => {
-        const result = validator.validate(loadFixture("invalid-shape", "unknown-field.json"));
-        const finding = result.findings.find(
-            (candidate) => candidate.code === "workflow.shape.unknown-field",
+    test("a missing version is blocking before shape runs", () => {
+        const result = validator.validate(
+            readFileSync(
+                join(FIXTURES_DIR, "invalid-shape/missing-interface-version.json"),
+                "utf8",
+            ),
         );
-        expect(finding?.line).toBeGreaterThan(0);
-        expect(finding?.column).toBeGreaterThan(0);
-    });
-
-    test("the unfinished-connection finding carries a pointer and location", () => {
-        const result = validator.validate(loadFixture("incomplete", "unfinished-connection.json"));
-        const finding = result.findings.find(
-            (candidate) => candidate.code === "workflow.reference.unknown-target",
-        );
-        expect(finding?.path).toBe("/steps/0/successors/0");
-        expect(finding?.line).toBeGreaterThan(0);
+        expect(result.findings.map((finding) => finding.code)).toEqual([
+            "workflow.version.missing",
+        ]);
     });
 });

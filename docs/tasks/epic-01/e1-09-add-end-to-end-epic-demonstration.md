@@ -3,9 +3,9 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-19 |
-| Picked up | No |
-| Owner | Unassigned |
+| Last updated | 2026-08-25 |
+| Picked up | Yes |
+| Owner | Thomas |
 | Blocked by | [E1-06](e1-06-add-control-api-workflow-operations.md), [E1-07](e1-07-add-workflow-draft-version-storage.md), [E1-08](e1-08-publish-workflow-authoring-guidance.md) |
 
 ## Task

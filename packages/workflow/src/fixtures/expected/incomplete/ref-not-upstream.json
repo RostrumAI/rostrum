@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.reference.not-upstream",
+            "blocking": true,
+            "path": "/steps/0/inputs/early",
+            "line": 14,
+            "column": 34,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-0000000000e1",
+                "ref": "step.0192b0a0-7e1d-7000-8000-0000000000e3.total",
+                "targetStep": "0192b0a0-7e1d-7000-8000-0000000000e3"
+            }
+        }
+    ]
+}
