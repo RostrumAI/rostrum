@@ -6,7 +6,7 @@
             "!node_modules",
             "!dist",
             "!tmp",
-            "!packages/workflow/tests/fixtures/invalid-parse",
+            "!packages/workflow/src/fixtures/invalid-parse",
             "!*.dump",
             "!bun.lock",
             "!apps/control-api/openapi.json",
