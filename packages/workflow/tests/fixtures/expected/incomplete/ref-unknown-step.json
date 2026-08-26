@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.reference.unknown-step",
+            "blocking": true,
+            "path": "/steps/0/inputs/value",
+            "line": 11,
+            "column": 34,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-0000000000db",
+                "ref": "step.0192b0a0-7e1d-7000-8000-0000000000fc.out",
+                "targetStep": "0192b0a0-7e1d-7000-8000-0000000000fc"
+            }
+        }
+    ]
+}

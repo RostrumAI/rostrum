@@ -1,0 +1,21 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.identity.duplicate-step-id",
+            "blocking": true,
+            "path": "/steps/1/id",
+            "line": 12,
+            "column": 17,
+            "relatedLocations": [
+                {
+                    "path": "/steps/0/id",
+                    "message": "first occurrence"
+                }
+            ],
+            "details": {
+                "duplicateId": "0192b0a0-7e1d-7000-8000-000000000098"
+            }
+        }
+    ]
+}

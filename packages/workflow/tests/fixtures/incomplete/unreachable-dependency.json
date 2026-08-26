@@ -1,0 +1,41 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000087",
+    "name": "Unreachable dependency",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000088",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000088",
+            "type": "task",
+            "config": { "operation": "classify" },
+            "successors": [
+                "0192b0a0-7e1d-7000-8000-000000000089",
+                "0192b0a0-7e1d-7000-8000-00000000008a"
+            ]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000089",
+            "type": "task",
+            "config": { "operation": "audit" },
+            "outputs": { "report": { "type": "string" } }
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000008a",
+            "type": "task",
+            "config": { "operation": "prepare" },
+            "successors": ["0192b0a0-7e1d-7000-8000-00000000008b"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000008b",
+            "type": "task",
+            "config": { "operation": "join" },
+            "dependencies": ["0192b0a0-7e1d-7000-8000-000000000089"],
+            "successors": ["0192b0a0-7e1d-7000-8000-00000000008c"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000008c",
+            "type": "result",
+            "inputs": {}
+        }
+    ]
+}

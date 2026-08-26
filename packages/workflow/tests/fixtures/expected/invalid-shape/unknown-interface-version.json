@@ -1,0 +1,16 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.version.unknown",
+            "blocking": true,
+            "path": "/interfaceVersion",
+            "line": 2,
+            "column": 25,
+            "details": {
+                "received": "v2",
+                "supported": ["v1"]
+            }
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.mutually-exclusive",
+            "blocking": true,
+            "path": "/steps/0",
+            "line": 7,
+            "column": 9,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-00000000009e",
+                "fields": ["successors", "conditional"]
+            }
+        }
+    ]
+}

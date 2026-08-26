@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.reference.unknown-target",
+            "blocking": true,
+            "path": "/steps/0/successors/0",
+            "line": 10,
+            "column": 28,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-000000000051",
+                "target": "0192b0a0-7e1d-7000-8000-000000000099",
+                "field": "successors"
+            }
+        }
+    ]
+}

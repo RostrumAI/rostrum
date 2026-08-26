@@ -1,0 +1,18 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.reference.unknown-output",
+            "blocking": true,
+            "path": "/steps/1/inputs/message",
+            "line": 17,
+            "column": 36,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-0000000000df",
+                "ref": "step.0192b0a0-7e1d-7000-8000-0000000000de.farewell",
+                "targetStep": "0192b0a0-7e1d-7000-8000-0000000000de",
+                "output": "farewell"
+            }
+        }
+    ]
+}

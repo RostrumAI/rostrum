@@ -1,0 +1,38 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000081",
+    "name": "Unfinished branch",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000082",
+    "inputs": {
+        "score": { "type": "number" }
+    },
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000082",
+            "type": "task",
+            "config": { "operation": "threshold" },
+            "inputs": { "score": { "ref": "inputs.score" } },
+            "outputs": { "decision": { "type": "string" } },
+            "conditional": "0192b0a0-7e1d-7000-8000-000000000083"
+        }
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000083",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-000000000082"],
+            "branches": [
+                {
+                    "label": "high-score",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000082.decision",
+                        "op": "eq",
+                        "value": "high"
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-0000000000fe"
+                }
+            ],
+            "default": { "label": "fallback" }
+        }
+    ]
+}

@@ -1,0 +1,19 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.parse.duplicate-key",
+            "blocking": true,
+            "path": "/name",
+            "line": 5,
+            "column": 5,
+            "details": {
+                "key": "name",
+                "firstOccurrence": {
+                    "line": 4,
+                    "column": 5
+                }
+            }
+        }
+    ]
+}

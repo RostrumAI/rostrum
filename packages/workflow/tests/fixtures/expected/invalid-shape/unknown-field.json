@@ -1,0 +1,19 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.unknown-field",
+            "blocking": true,
+            "path": "",
+            "line": 1,
+            "column": 1,
+            "details": {
+                "schemaPath": "#",
+                "keyword": "additionalProperties",
+                "params": {
+                    "additionalProperties": ["revisions"]
+                }
+            }
+        }
+    ]
+}

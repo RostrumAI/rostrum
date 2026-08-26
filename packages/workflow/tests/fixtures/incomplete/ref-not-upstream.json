@@ -1,0 +1,31 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000e0",
+    "name": "Reference to a downstream step",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000e1",
+    "inputs": {
+        "count": { "type": "number" }
+    },
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000e1",
+            "type": "task",
+            "config": { "operation": "start" },
+            "inputs": { "early": { "ref": "step.0192b0a0-7e1d-7000-8000-0000000000e3.total" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-0000000000e3"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000e3",
+            "type": "task",
+            "config": { "operation": "total" },
+            "inputs": { "count": { "ref": "inputs.count" } },
+            "outputs": { "total": { "type": "number" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-0000000000e2"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000e2",
+            "type": "result",
+            "inputs": { "total": { "ref": "step.0192b0a0-7e1d-7000-8000-0000000000e3.total" } }
+        }
+    ]
+}

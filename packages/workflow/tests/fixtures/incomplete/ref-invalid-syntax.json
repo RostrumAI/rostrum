@@ -1,0 +1,16 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000d4",
+    "name": "Malformed reference syntax",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000d5",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000d5",
+            "type": "task",
+            "config": { "operation": "work" },
+            "inputs": { "value": { "ref": "somewhere.value" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-0000000000d6"]
+        },
+        { "id": "0192b0a0-7e1d-7000-8000-0000000000d6", "type": "result", "inputs": {} }
+    ]
+}

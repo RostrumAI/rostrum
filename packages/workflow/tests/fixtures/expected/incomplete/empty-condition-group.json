@@ -1,0 +1,15 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.conditional.empty-group",
+            "blocking": true,
+            "path": "/conditionals/0/branches/0/condition/all",
+            "line": 24,
+            "column": 43,
+            "details": {
+                "conditionalId": "0192b0a0-7e1d-7000-8000-0000000000d2"
+            }
+        }
+    ]
+}

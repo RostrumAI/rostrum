@@ -1,0 +1,20 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-0000000000dd",
+    "name": "Reference to undeclared output",
+    "firstNode": "0192b0a0-7e1d-7000-8000-0000000000de",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000de",
+            "type": "task",
+            "config": { "operation": "greet" },
+            "outputs": { "greeting": { "type": "string" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-0000000000df"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000df",
+            "type": "result",
+            "inputs": { "message": { "ref": "step.0192b0a0-7e1d-7000-8000-0000000000de.farewell" } }
+        }
+    ]
+}

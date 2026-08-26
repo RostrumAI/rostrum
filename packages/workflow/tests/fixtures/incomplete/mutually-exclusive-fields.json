@@ -1,0 +1,39 @@
+{
+    "interfaceVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-00000000009d",
+    "name": "Successors and conditional together",
+    "firstNode": "0192b0a0-7e1d-7000-8000-00000000009e",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000009e",
+            "type": "task",
+            "config": { "operation": "route" },
+            "outputs": { "decision": { "type": "string" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-00000000009f"],
+            "conditional": "0192b0a0-7e1d-7000-8000-0000000000a0"
+        },
+        { "id": "0192b0a0-7e1d-7000-8000-00000000009f", "type": "result", "inputs": {} }
+    ],
+    "conditionals": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-0000000000a0",
+            "dependencies": ["0192b0a0-7e1d-7000-8000-00000000009e"],
+            "branches": [
+                {
+                    "label": "matched",
+                    "priority": 0,
+                    "condition": {
+                        "ref": "step.0192b0a0-7e1d-7000-8000-00000000009e.decision",
+                        "op": "eq",
+                        "value": "go"
+                    },
+                    "next": "0192b0a0-7e1d-7000-8000-00000000009f"
+                }
+            ],
+            "default": {
+                "label": "fallback",
+                "next": "0192b0a0-7e1d-7000-8000-00000000009f"
+            }
+        }
+    ]
+}
