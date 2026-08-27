@@ -3,14 +3,14 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Proposed — awaiting approval |
-| Last updated | 2026-08-26 |
+| Last updated | 2026-08-27 |
 | Picked up | Yes |
 | Owner | Stephen |
 | Blocked by | [Epic 01](../../epics/epic-01-shape-of-a-workflow.md) |
 
 ## Task
 
-Research and owner decisions are recorded in [E2-S1 local execution semantics options](../../research/e2-s1-local-execution-semantics-options.md). The [execution semantics proof of concept](../../results/epic-02/e2-s1-proof-of-concept.md) verifies the proposed scheduler, structured fan-out rules, capacity-bound dispatch, sequential loops with structured graph bodies, failure ordering, and large synthetic graphs. The product owner has resolved all questions Q1 through Q18.
+Research and owner decisions are recorded in [E2-S1 local execution semantics options](../../research/e2-s1-local-execution-semantics-options.md). The [execution semantics proof of concept](../../results/epic-02/e2-s1-proof-of-concept.md) verifies the proposed scheduler, required-join fan-out rules, capacity-bound dispatch, sequential loops with structured graph bodies, failure ordering, and large synthetic graphs. The product owner has resolved Q1 through Q18 and assigned the workflow-configured loop failure contract in Q19 to E2-02.
 
 This SPIKE decides how a local run starts, advances, and ends. It answers:
 
@@ -18,8 +18,9 @@ This SPIKE decides how a local run starts, advances, and ends. It answers:
 - Which run and active-step states (`currentSteps`) are visible through the Control API?
 - When is a step ready to execute?
 - How are required and optional inputs bound, and how are exact outputs recorded?
-- How does the executor evaluate conditionals, single-entry single-exit fan-out/fan-in regions, and sequential loops?
+- How does the executor evaluate conditionals, fan-out paths with a required join, and sequential loops?
 - What completes or fails a run, and how are multiple observed failures aggregated?
+
 ## End state
 
 - One reviewed decision record ([E2-S1 local execution semantics](../../decisions/epic-02/e2-s1-local-execution-semantics.md)) and example traces define local execution behavior.
@@ -35,7 +36,7 @@ This SPIKE decides how a local run starts, advances, and ends. It answers:
 
 ## Acceptance criteria
 
-- The decision record defines every state transition and terminal outcome.
+- The decision record defines every state transition and terminal outcome, with the loop failure-policy contract explicitly assigned to E2-02.
 - Sequential, branching, success, and failure examples have expected execution traces.
 - Binding and branch rules are deterministic and testable.
 - Unsupported steps, invalid outcomes, and unresolved references have stable failures.

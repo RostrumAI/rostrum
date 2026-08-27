@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-26 |
+| Last updated | 2026-08-27 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [E2-S1](e2-s1-define-local-execution-semantics.md), [E2-S2](e2-s2-select-local-daemon-transport.md), [E2-S3](e2-s3-define-reference-step-set.md) |
@@ -17,11 +17,13 @@ This task combines the decisions from E2-S1, E2-S2, and E2-S3 into one specifica
 - How does the Control API project `currentSteps` (ready and running instances) and complete failure arrays?
 - How are workflow inputs and step outputs referenced?
 - What does a step handler receive and return (required inputs, optional inputs, and exact output schema enforcement)?
-- How do sequential steps, executor-evaluated conditionals, structured single-entry single-exit fan-out/fan-in regions, and sequential bounded loops execute?
-- What constitutes success or failure (including fail-fast with drain and stable multi-failure sorting)?
+- How do sequential steps, executor-evaluated conditionals, fan-out paths with a required join, and sequential bounded loops execute?
+- How does workflow configuration control loop error tolerance, and how do captured iteration errors appear in ordered loop results and run-level failures?
+- What constitutes success or an unhandled run failure, including fail-fast dispatch, active-handler drain, and stable multi-failure sorting?
 - What trace and result should each example workflow produce?
 
-It also specifies the shared fixture format covering sequential, branching, fan-out/fan-in, loop, invalid-invocation, output-validation failure, and concurrent-failure scenarios.
+It also specifies the shared fixture format covering sequential, branching, fan-out/fan-in, fail-fast and error-tolerant loops, invalid invocation, output-validation failure, and concurrent-failure scenarios.
+
 ## End state
 
 - The daemon, Control API, executor, and tests can implement the same behavior from one specification and shared fixtures.
@@ -39,8 +41,9 @@ It also specifies the shared fixture format covering sequential, branching, fan-
 ## Acceptance criteria
 
 - One reviewed specification contains the approved decisions from all three SPIKEs.
-- Run requests, `currentSteps` projection, states, references, handler input/output contracts, branches, structured fan-out/fan-in, sequential loops, results, and failure arrays are defined.
+- Run requests, `currentSteps` projection, states, references, handler input/output contracts, branches, fan-out/fan-in, sequential loops, results, and failure arrays are defined.
 - Reference steps have complete schemas and validation rules (required inputs, optional inputs, exact outputs, configuration, failures).
-- Sequential, branching, fan-out/fan-in, loop, invalid-invocation, output mismatch, and step-failure fixtures include their expected traces and results.
+- Loop failure policies define the configuration field and values, the default policy, capturable error classes, the ordered success-or-error result entry schema, downstream binding behavior, and run-level failure reporting.
+- Sequential, branching, fan-out/fan-in, representative fail-fast and error-tolerant loop policies, invalid-invocation, output-mismatch, and step-failure fixtures include their expected traces and results.
 - API and daemon messages in the fixtures match the E2-S2 transport contract.
 - Epic 01 validation accepts valid workflow fixtures and rejects invalid definitions.

@@ -5,12 +5,12 @@
 | Status | Verified expanded research result, not an approved decision |
 | Source | [E2-S1: Decide how a local run advances](../../tasks/epic-02/e2-s1-define-local-execution-semantics.md) |
 | Research | [E2-S1 local execution options](../../research/e2-s1-local-execution-semantics-options.md) |
-| Last updated | 2026-08-26 |
+| Last updated | 2026-08-27 |
 | Proof location | `tmp/e2-s1-poc` |
 
 ## What the proof establishes
 
-The proof implements the recommended explicit scheduler and transition reducer, a structured fan-out validator, and a focused sequential-loop controller. The execution plan indexes steps, dependency consumers, and conditionals once. Each run then stores activation, readiness, active work, committed outputs, and terminal state separately from the immutable plan.
+The proof implements the recommended explicit scheduler and transition reducer, a required-join fan-out validator, and a focused sequential-loop controller. The execution plan indexes steps, dependency consumers, and conditionals once. Each run then stores activation, readiness, active work, committed outputs, and terminal state separately from the immutable plan.
 
 The proof establishes these properties for the reduced model:
 
@@ -18,9 +18,9 @@ The proof establishes these properties for the reduced model:
 - Missing and undeclared invocation inputs are rejected.
 - Static handler contracts distinguish required and optional inputs and reject nonexact output declarations.
 - Duplicate branch priorities and conditional outcomes without `next` are rejected before execution.
-- A conditional or terminal step inside an open fan-out region is rejected.
-- A valid fan-out has one matching fan-in with dependencies equal to its branch exits.
-- Mutually exclusive conditional paths can each contain a structured fan-out and a distinct joined result.
+- A conditional or terminal step inside an open fan-out is rejected.
+- A valid fan-out has one matching fan-in with dependencies equal to its path exits.
+- Mutually exclusive conditional paths can each contain a fan-out and a distinct joined result.
 - An accepted run advances through explicit run and step states.
 - A step becomes ready only after it is activated and all declared dependencies succeed.
 - Capacity changes handler start width without changing the joined output.
@@ -33,7 +33,7 @@ The proof establishes these properties for the reduced model:
 - If concurrent steps fail in different orders, the same stable ordered failure array contains every observed failure.
 - Readiness uses a remaining-dependency counter. It does not rescan every dependency after every completion.
 
-The focused loop proof isolates iteration ordering and failure. The integrated proof composes the same controller with the graph reducer and runs a structured fan-out body in each iteration. The temporary model does not parse an authored `loop` field.
+The focused loop proof isolates iteration ordering and fail-fast behavior. The integrated proof composes the same controller with the graph reducer and runs a fan-out body in each iteration. The temporary model does not parse an authored `loop` field. It does not prove workflow-configured error tolerance or mixed success-or-error result entries; E2-02 owns that contract and its fixtures.
 
 ## Proof scenarios
 
@@ -116,7 +116,7 @@ The model separates four operations:
 
 Compilation of the execution indexes takes $O(V + E)$ time and space for $V$ steps and $E$ control and dependency edges before any optional ordering of ready work. Dependency-count maintenance across a successful run also takes $O(V + E)$. A scan-all-steps loop would require up to $O(V^2)$ readiness work on a long chain. Rechecking every dependency after each branch completion would do the same on a wide join. The proof uses neither approach. Its ready set sorts step IDs for stable demonstration output, and that sorting cost is not part of the counters. A production FIFO ready queue needs constant-time insertion and removal because v1 gives parallel successors no execution order. A priority queue would add $O(\log V)$ per operation if a later contract requires ordered dispatch.
 
-The proof's structured-region validator favors clarity over asymptotic performance and computes reachability from each fan-out branch. Production validation must compute immediate common post-dominators and single-entry, single-exit regions once for the graph rather than repeat whole-graph searches per branch. This validation cost occurs when the immutable plan is compiled, not on every step transition.
+The proof's required-join validator favors clarity over asymptotic performance and computes reachability from each fan-out path. Production validation must compute the first common post-dominator and matching join for each fan-out once rather than repeat whole-graph searches per path. This validation cost occurs when the immutable plan is compiled, not on every step transition.
 
 At larger deployment scale, the same transition contract can sit behind a queue or durable store:
 

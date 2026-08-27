@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-26 |
+| Last updated | 2026-08-27 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [E2-01](e2-01-build-local-daemon-foundation.md), [E2-02](e2-02-specify-executable-workflow-behavior.md) |
@@ -13,7 +13,7 @@
 This task creates the interface used to execute one workflow step. It adds:
 
 - a registry that selects a handler by step type;
-- one handler interface accepting resolved required and optional inputs and returning explicit exact outputs or a structured failure;
+- one handler interface returning `{ type: "success", outputs }` or `{ type: "failure", error }` after receiving resolved required and optional inputs;
 - runtime schema validation for exact output shapes;
 - the reference handlers selected by E2-S3;
 - stable failures for unknown, misconfigured, or schema-violating handlers.
@@ -32,7 +32,7 @@ This task creates the interface used to execute one workflow step. It adds:
 
 - The runtime selects handlers by the documented step type.
 - Handlers receive only resolved required and provided optional inputs and declared configuration.
-- Handler outcomes are validated against declared exact output schemas (forbidding missing or undeclared keys and type mismatches).
+- Handler outcomes use the `type` discriminator and are validated against declared exact output schemas, forbidding missing or undeclared keys and type mismatches.
 - Reference handlers return the documented outcomes for every fixture.
 - Handler failures retain their stable code and step identity.
 - Unit tests prove registration, selection, success, output validation, and failure behavior.

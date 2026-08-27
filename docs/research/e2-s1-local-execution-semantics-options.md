@@ -2,16 +2,16 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Owner decisions recorded; ready for decision record |
+| Status | Owner decisions recorded; loop failure contract assigned to E2-02 |
 | Source | [E2-S1: Decide how a local run advances](../tasks/epic-02/e2-s1-define-local-execution-semantics.md) |
 | Proof | [E2-S1 local execution proof of concept](../results/epic-02/e2-s1-proof-of-concept.md) |
-| Last updated | 2026-08-26 |
+| Last updated | 2026-08-27 |
 
 ## Purpose
 
-This research identifies the decisions needed to define how a local run starts, advances, completes, and fails. It compares execution models, records the product owner's execution decisions, proposes a decision method, and preserves one remaining topology question.
+This research identifies the decisions needed to define how a local run starts, advances, completes, and fails. It compares execution models, records the product owner's execution decisions, and assigns the remaining loop failure-policy contract to E2-02.
 
-The working architecture is an immutable compiled execution plan plus a per-run transition reducer and ready queue. The proof of concept demonstrates sequential flow, conditional paths, structured fan-out and fan-in, capacity-limited dispatch, sequential loop iterations with structured graph bodies, complete failure lists, current-step projection, static handler contracts, structured runtime failures, and edge-indexed graph advancement. All topology and semantic questions, including Q18, are resolved.
+The working architecture is an immutable compiled execution plan plus a per-run transition reducer and ready queue. The proof of concept demonstrates sequential flow, conditional paths, fan-out and fan-in, capacity-limited dispatch, sequential loop iterations with a fail-fast controller, complete failure lists, current-step projection, static handler contracts, structured runtime failures, and edge-indexed graph advancement. The topology questions are resolved. E2-02 owns the remaining loop failure-policy and result-entry details.
 
 ## Inputs from approved and planned work
 
@@ -39,18 +39,18 @@ Epic 02 adds constraints of its own:
 
 ### Product owner decisions and Epic 01 impact
 
-The product owner resolved the blocking execution questions on 2026-08-25.
+The product owner resolved Q1 through Q10 on 2026-08-25. Q19, recorded below, assigns the loop failure-policy contract to E2-02.
 
 | ID | Decision | Runtime consequence |
 | --- | --- | --- |
 | Q1 | Epic 02 executes every control-flow construct that Epic 01 can publish. | The daemon cannot accept only a sequential subset of workflow interface v1. |
 | Q2 | Every name in `workflow.inputs` is required when a run is invoked. Every step input must resolve before that step runs. | Missing workflow inputs reject invocation. A missing workflow or upstream-step reference fails the consumer before its handler starts. The undeclared-input policy remains Q16. |
 | Q3 | Conditional branch priorities are unique. | Duplicate priorities are blocking publication findings; array order never breaks a tie. |
-| Q4 | Fan-out is structured. A fan-out region cannot contain a conditional, and every branch must reach one matching fan-in before an explicit result. Different mutually exclusive conditional paths may each have their own result step. | A selected path produces exactly one run result. Multiple result steps can exist statically when conditionals make them mutually exclusive. |
-| Q5 | A step inside an open fan-out region cannot be terminal. | Every fan-out branch must reach the matching fan-in. |
-| Q6 | Each loop iteration produces exactly one output, under the same structured-path rule. | The loop collects one terminal output object per iteration. |
-| Q7 | Loop iterations execute sequentially. | Iteration $n + 1$ starts only after iteration $n$ commits its result. The `results` array follows collection order. |
-| Q8 | Fan-out requests simultaneous handler invocation subject to available capacity. Execution order and actual overlap are not guaranteed. | All branch roots become ready as one cohort. The dispatcher starts as many as capacity allows, and the fan-in waits for every branch to succeed. |
+| Q4 | Every fan-out path reaches one matching fan-in before an explicit result. A path cannot contain a conditional, but it can contain sequential steps or nested fan-outs that rejoin within the path. Different mutually exclusive conditional paths may each have their own result step. | A selected path produces exactly one run result. Multiple result steps can exist statically when conditionals make them mutually exclusive. |
+| Q5 | A step inside an open fan-out cannot be terminal. The matching fan-in may be the selected `result` step. | Every path reaches the matching fan-in before the workflow finishes. |
+| Q6 | Each successful loop iteration produces exactly one output under the same required-join rule. | The loop records one ordered entry per completed iteration. E2-02 defines the entry shape when the workflow captures an iteration error. |
+| Q7 | Loop iterations execute sequentially. | Iteration $n + 1$ starts only after iteration $n$ commits its outcome. The workflow's loop policy decides whether an error is captured so iteration $n + 1$ can start. |
+| Q8 | Fan-out requests simultaneous handler invocation subject to available capacity. Execution order and actual overlap are not guaranteed. | All path roots become ready as one cohort. The dispatcher starts as many as capacity allows, and the fan-in waits for every path to succeed. |
 | Q9 | A missing registered handler rejects invocation. | The daemon returns no run ID for a statically unsupported workflow. |
 | Q10 | Every successful handler outcome contains an explicit output object. An empty object is a valid explicit output. | A handler cannot signal success without `outputs`; `{ "outputs": {} }` represents no values. Exact declared-versus-undeclared output handling remains Q17. |
 
@@ -58,10 +58,10 @@ These decisions require amendments to the current Epic 01 specification and vali
 
 - Require unique conditional priorities.
 - Require `next` on every conditional branch and default so terminal results are explicit result steps.
-- Define structured single-entry, single-exit fan-out regions with one matching fan-in.
-- Reject conditionals and terminal steps inside an open fan-out region.
-- Permit multiple result steps only on mutually exclusive conditional paths.
-- Require each loop iteration to select one terminal body output and execute iterations sequentially.
+- Require every fan-out path to reach one matching fan-in.
+- Reject conditionals and terminal steps while a fan-out remains open.
+- Allow sequential steps and properly nested fan-outs before the matching fan-in.
+- Require each loop iteration to execute sequentially and contribute one ordered outcome entry. E2-02 defines how captured errors appear in that entry.
 
 Until those amendments land, Epic 01 can publish graphs that the owner-decided Epic 02 semantics reject. Q1 prohibits leaving that mismatch in the implementation contract.
 
@@ -237,15 +237,13 @@ A handler returns one discriminated outcome:
 
 ```ts
 interface StepSuccess {
-    kind: "success";
+    type: "success";
     outputs: Record<string, JsonValue>;
 }
 
 interface StepFailure {
-    kind: "failure";
-    code: string;
-    message: string;
-    details: Record<string, JsonValue>;
+    type: "failure";
+    error: StructuredError;
 }
 
 type StepOutcome = StepSuccess | StepFailure;
@@ -253,7 +251,7 @@ type StepOutcome = StepSuccess | StepFailure;
 
 The executor converts a thrown exception, rejected promise, malformed outcome, non-JSON value, or schema mismatch into a runtime failure. Public failure details must not depend on exception class names or stack text. Internal logs can retain the original cause with the run and step IDs.
 
-A handler cannot omit `outputs` on success. Returning `{ kind: "success", outputs: {} }` explicitly records that the handler produced no values.
+A handler cannot omit `outputs` on success. Returning `{ type: "success", outputs: {} }` explicitly records that the handler produced no values.
 
 Each step registry entry supplies configuration, required-input, optional-input, and output schemas. Publication checks that every required handler input has a binding, every provided binding names a required or optional input, and statically known binding types match. Optional inputs can be omitted; any provided optional binding must resolve before the handler starts.
 
@@ -267,23 +265,23 @@ The executor, not the handler, evaluates the conditional after the owner step's 
 
 Every conditional priority is unique. Reject duplicates during publication. Select the matching branch with the lowest priority; array order, map iteration, completion order, and visual position never break a tie.
 
-Select exactly one matching branch with the lowest priority. If none matches, select the required default. Record the conditional ID and selected label in the trace, then activate its required `next` step.
+Select exactly one matching branch with the lowest priority. If none matches, select the required default. The default makes selection total: a successful evaluation always activates one `next` step instead of producing a no-match failure. Record the conditional ID and selected label in the trace, then activate the target.
 
 There is no handler-produced branch result. Only the executor evaluates a declared conditional. The phrase "invalid branch result" in Epic 02 is stale and must be removed. Routing can still fail if a committed value cannot be evaluated under the declared operator contract, but a handler never returns a branch label.
 
 Type mismatches and unsupported operators are routing failures. JavaScript coercion must not decide `eq`, `gt`, `contains`, or membership behavior. Each operator needs a total type table in the decision record.
 
-### Structured fan-out and fan-in
+### Fan-out and fan-in
 
-A step with more than one entry in `successors` opens a fan-out region. Its successor steps are branch roots. The region closes at one matching fan-in step.
+A step with more than one entry in `successors` opens a fan-out. Its successors are the path roots. Every path must reach one matching fan-in step.
 
-The matching fan-in is the unique first common post-dominator of every branch root. Each branch is single-entry and single-exit, and the fan-in `dependencies` list contains exactly one exit step from each branch. Branches cannot cross or merge before the matching fan-in.
+The matching fan-in is the first step common to every path. Its `dependencies` list contains one exit step from each path. Paths cannot cross or merge before the fan-in.
 
-An open fan-out region cannot contain a conditional, a `result` step, or a conditional outcome without `next`. The matching fan-in also cannot own a conditional. Route to a later conditional step if execution needs another decision after joining.
+An open fan-out cannot contain a conditional or `result` step. The matching fan-in also cannot own a conditional. Route to a later conditional step if execution needs another decision after joining.
 
-Nested fan-out is valid when each nested region closes before its containing branch reaches the outer fan-in. A fan-in can be a normal task or the selected path's `result` step.
+A path may contain a sequence of steps. Nested fan-out is valid when the nested paths rejoin before the containing path reaches the outer fan-in. The outer fan-in can be a normal task or the selected path's `result` step.
 
-When a fan-out step succeeds, all branch roots become ready in the same scheduler turn. The dispatcher invokes as many handlers as its remaining capacity permits. Pending cohort members start as capacity becomes available. The contract does not promise wall-clock overlap or start order. The fan-in becomes ready only after every listed branch exit commits success.
+When a fan-out step succeeds, all path roots become ready in the same scheduler turn. The dispatcher invokes as many handlers as its remaining capacity permits. Pending cohort members start as capacity becomes available. The contract does not promise wall-clock overlap or start order. The fan-in becomes ready only after every listed path exit commits success.
 
 ### Completion
 
@@ -297,11 +295,11 @@ Graph validation rejects a result or any other terminal step inside an open fan-
 
 A loop resolves its collection and checks `maxIterations` before starting its body. A collection longer than the limit fails without starting iteration zero.
 
-Iterations execute in collection order. Iteration $n + 1$ cannot start until iteration $n$ reaches one valid terminal body output and commits it to the loop's result array. Only one iteration is active at a time, although steps inside that iteration can use structured fan-out and fan-in.
+Iterations execute in collection order. Iteration $n + 1$ cannot start until iteration $n$ commits its outcome. Only one iteration is active at a time, although steps inside that iteration can use fan-out and fan-in.
 
-Each body step instance is keyed by the loop step ID, iteration index, and body step ID. `loop.<variable>` resolves to the current collection item. The reserved loop output `results` is an array with one terminal output object per collection item in the same order. An explicit empty object is a valid iteration result.
+Each body step instance is keyed by the loop step ID, iteration index, and body step ID. `loop.<variable>` resolves to the current collection item. The reserved loop output `results` preserves iteration order.
 
-If an iteration fails, the loop and run fail, and no later iteration starts. Sequential execution preserves committed prior results internally. Exposing prior iteration results to a later iteration requires a future reference shape and is not part of v1.
+The workflow configures whether an iteration error stops the loop or is captured so later iterations can run. E2-02 must define the policy field and values, its default, which errors can be captured, the success-or-error entry schema, downstream binding behavior, and whether captured errors appear in the run-level `failures` array.
 
 ### Failure semantics
 
@@ -446,7 +444,7 @@ The temporary proof at `tmp/e2-s1-poc` covers the first research pass. It is not
 
 ## Additional product owner decisions
 
-The product owner resolved Q11 through Q17 after the control-flow decisions.
+The product owner resolved Q11 through Q18 and assigned the loop failure-policy details in Q19 to E2-02.
 
 | ID | Decision | Contract consequence |
 | --- | --- | --- |
@@ -458,6 +456,8 @@ The product owner resolved Q11 through Q17 after the control-flow decisions.
 | Q16 | Invocation rejects undeclared workflow inputs. | Invocation input keys exactly match `workflow.inputs`. |
 | Q17 | Handler outputs exactly match their declaration, with static analysis where possible. | Publication compares the concrete registry output schema with the authored declaration; runtime validates returned values and rejects missing or undeclared outputs. |
 | Q18 | The matching fan-in step cannot own a conditional. | The fan-in step is a normal task or explicit result step. To branch after joining, route to a separate conditional-owning successor. |
+| Q19 | Loop error tolerance is workflow-configured; its contract is deferred within Epic 02. | E2-02 defines the configuration and ordered success-or-error result entries before executor implementation. |
+
 ### Proof status
 
 The expanded proof demonstrates the owner-decided behavior:
@@ -465,8 +465,8 @@ The expanded proof demonstrates the owner-decided behavior:
 | Decisions | Proof status |
 | --- | --- |
 | Q2, Q3, Q9, Q10, Q15, Q16, Q17 | Demonstrated: exact invocation inputs, duplicate-priority rejection, preflight handler support, required and optional handler input contracts, static exact output contracts, and runtime exact output validation. |
-| Q4, Q5 | Demonstrated: conditionals and terminals inside fan-out reject; structured branches join once; mutually exclusive conditional paths each reach their own joined result. |
-| Q6, Q7 | Demonstrated: one output object per iteration, collection-order execution, maximum one active iteration, ordered results, failure stops later iterations, and structured fan-out works inside each iteration. |
+| Q4, Q5 | Demonstrated: conditionals and terminals inside an open fan-out reject; each path joins once; nested fan-outs close before the outer join; mutually exclusive conditional paths each reach their own joined result. |
+| Q6, Q7 | Demonstrated: one output object per successful iteration, collection-order execution, maximum one active iteration, ordered results, fail-fast behavior, and fan-out inside an iteration. Configurable continuation and mixed success-or-error entries remain E2-02 work. |
 | Q8, Q12 | Demonstrated: capacity one exposes one running and one ready branch; capacity two dispatches both; both produce the same joined output; terminal `currentSteps` is empty. |
 | Q11 | Demonstrated: handlers return only outputs or failure; the executor selects the conditional path. |
 | Q13 | Demonstrated: opposite concurrent completion orders return the same ordered array containing both observed failures. |
@@ -474,16 +474,18 @@ The expanded proof demonstrates the owner-decided behavior:
 
 ## Topology decision
 
-**E2-S1-Q18, conditional fan-in:** Can the matching fan-in step itself own a conditional? **Decision:** No. The fan-in is a normal task or explicit result step. To branch after joining, route to a separate conditional-owning successor. This keeps the rule "fan-out cannot connect to a conditional" literal, preserves single-entry single-exit boundaries, and keeps the structured region boundary visible.
+**E2-S1-Q18, conditional fan-in:** Can the matching fan-in step itself own a conditional? **Decision:** No. The fan-in is a normal task or explicit result step. To branch after joining, route to a separate successor that owns the conditional. This keeps the rule "an open fan-out cannot contain a conditional" literal and makes the join boundary visible.
+
 ## Documents needed to close the spike
 
-With all product-owner questions resolved, E2-S1 delivers these artifacts:
+With the loop failure-policy details assigned to E2-02, E2-S1 delivers these artifacts:
 
 1. The approved decision record at [E2-S1 local execution semantics](../decisions/epic-02/e2-s1-local-execution-semantics.md) defining states, guards, transitions, failure catalog, scale model, required Epic 01 amendments, and Epic 03 handoffs.
 2. Complete example execution traces in the decision record for sequential, both conditional branch outcomes, structured fan-out/fan-in, sequential loop success, concurrent failures with drain, invocation rejection, and output schema validation failure.
 3. The verified proof of concept at [E2-S1 proof of concept](../results/epic-02/e2-s1-proof-of-concept.md) and `tmp/e2-s1-poc` demonstrating all approved constructs and scale bounds.
 4. Updated task specifications across Epic 02 and Epic 03 reconciling implementation scope with the approved execution semantics.
 5. Inputs for E2-02's executable-workflow specification and shared fixture schema.
+
 ## Primary sources
 
 - [AWS Step Functions error handling](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html)
