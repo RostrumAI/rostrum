@@ -13,9 +13,9 @@
 This SPIKE selects the minimum side-effect-free steps needed to prove local execution. It answers:
 
 - Which steps can consume workflow inputs and earlier step outputs?
-- Which steps can produce structured outputs?
-- Which step outcome can select a branch?
-- What configuration, validation, and failure rules does each step require?
+- Which steps can produce structured outputs that declared conditionals can evaluate?
+- Which required-input, optional-input, output, configuration, and failure schemas does each step register?
+- How does each handler return an explicit exact output object, including `{}` when it produces no values?
 
 ## End state
 
@@ -33,6 +33,6 @@ This SPIKE selects the minimum side-effect-free steps needed to prove local exec
 
 - The selected set proves sequential and branching execution.
 - Every step is deterministic, side-effect-free, and bounded.
-- Schemas and examples define valid configuration, inputs, outputs, and failures.
-- The steps use the extension rules established by workflow interface v1.
+- Schemas and examples define configuration, required and optional inputs, exact outputs, and failures.
+- Every authored output declaration exactly matches the concrete registry output schema, and every handler result validates against it.
 - The proposal explains why each step is necessary for the Epic demonstration.

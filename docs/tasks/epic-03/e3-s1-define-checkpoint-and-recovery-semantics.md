@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-05 |
+| Last updated | 2026-08-26 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [Epic 02](../../epics/epic-02-local-workflow-execution.md) |
@@ -13,13 +13,13 @@
 This SPIKE decides which execution records commit together and how one local daemon recovers a nonterminal run. It answers:
 
 - When is an invocation durably accepted?
+- How is invocation idempotency enforced durably (key format, scope, repeated identical requests, and conflict handling for payload/workflow version mismatches)?
 - Which run, graph, step, attempt, outcome, and event records form a checkpoint?
 - What happens when the daemon stops before, during, or after a handler invocation?
 - How is an interrupted attempt distinguished from completed work?
 - Which pending records must startup recovery process before scheduling work?
 - Which records can the Control API read while the daemon is unavailable?
 - How do both processes share one persistence contract without sharing execution ownership?
-
 ## End state
 
 - One reviewed decision record and restart fixture matrix define checkpoint atomicity, recovery ordering, and execution-state ownership.
@@ -33,8 +33,8 @@ This SPIKE decides which execution records commit together and how one local dae
 - [E3-01: Specify durable execution behavior and fixtures](e3-01-specify-durable-execution-behavior.md)
 
 ## Acceptance criteria
-
-- The decision record defines durable acceptance and every checkpoint boundary.
+- The decision record defines durable acceptance, invocation idempotency semantics, and every checkpoint boundary.
+- The idempotency contract defines key format, scope, response replay for identical requests, and deterministic conflict rejection for mismatched invocations.
 - A restart matrix covers interruption before invocation commit, before handler start, during a handler, after handler return, and after outcome commit.
 - Recovery never interprets an uncommitted outcome as completed work.
 - The design permits at-least-once handler attempts and explains the Epic 04 side-effect boundary.

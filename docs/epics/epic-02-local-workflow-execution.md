@@ -8,7 +8,7 @@ Unlocks: Epic 03, durable runs and human control
 
 This Epic adds the first Rostrum daemon and executes published workflows locally through the Control API.
 
-It is complete when a caller can invoke an exact published workflow version with valid structured inputs, receive a run ID, and retrieve a successful result or structured failure after the daemon executes sequential, branching, and terminal control flow.
+It is complete when a caller can invoke an exact published workflow version with valid structured inputs, receive a run ID, and retrieve current step instances, a successful result, or a structured failure list after the daemon executes every workflow interface v1 control-flow construct.
 
 ## Why this comes next
 
@@ -17,7 +17,7 @@ Epic 01 defines what a workflow is. Rostrum must now prove that definition is ex
 - workflow inputs must bind to step inputs;
 - step outputs must bind to later steps;
 - graph connections must determine execution order;
-- branch results must select one declared path;
+- the executor's declared conditional logic must select one path;
 - terminal results must produce workflow outputs;
 - the Control API must remain the caller's execution boundary;
 - the daemon must own execution independently of the caller.
@@ -48,10 +48,10 @@ The Control API accepts and exposes runs. The daemon owns graph execution and mu
 | --- | --- | --- |
 | Executable-workflow specification | One specification and fixture set defining run requests, states, references, handlers, branches, results, and failures | Gives the API, daemon, executor, and tests the same behavior to implement |
 | Local daemon | A separately runnable process with configuration, logging, health, version reporting, transport, startup, and shutdown | Provides the process that owns local execution |
-| Execution state | In-memory run status, step outcomes, available values, final output, and structured failure | Records what a run knows and produces the inputs for each step |
-| Step registry and handlers | One handler interface plus deterministic, side-effect-free reference handlers | Executes a configured step and returns a standard outcome |
-| Graph executor | A loop that follows sequential connections, selected branches, and terminal results | Moves a run from its starting step to completion or failure |
-| Control API run operations | Operations to start a run and retrieve its status or result | Gives callers one public execution boundary |
+| Execution state | In-memory run status, ready and running step instances, step outcomes, available values, final output, and structured failures | Records what a run knows and produces the inputs for each step |
+| Step registry and handlers | One handler interface plus deterministic, side-effect-free reference handlers with required-input, optional-input, and exact-output schemas | Executes a configured step and returns explicit outputs or a structured failure |
+| Graph executor | A reducer and bounded dispatcher that execute sequential flow, conditionals, structured fan-out and fan-in, sequential loops, and terminal results | Moves a run from its starting step to completion or failure |
+| Control API run operations | Operations to start a run and retrieve its status, current step instances, result, or failures | Gives callers one public execution boundary |
 | Examples and conformance tests | Shared sequential, branching, success, and failure fixtures run across each execution layer | Detects disagreement between the specification, daemon, and API |
 
 ## How a local run works
@@ -60,12 +60,12 @@ The Control API accepts and exposes runs. The daemon owns graph execution and mu
 2. The Control API resolves the immutable workflow and sends it with the inputs to the daemon.
 3. The daemon validates the invocation, creates a run record, and returns its ID.
 4. The runtime binds workflow inputs and starts at the declared first step.
-5. Each step receives resolved inputs and returns a typed outcome or structured failure.
-6. The runtime records the outcome and follows the declared connection or selected branch.
-7. A terminal result binds the workflow outputs and completes the run.
-8. The caller retrieves the run status and result through the Control API.
+5. Each ready step resolves every provided input and returns explicit outputs or a structured failure.
+6. The runtime records the outcome, follows the declared connection or executor-selected conditional path, and coordinates structured fan-out, fan-in, and sequential loop iterations.
+7. One selected terminal result binds the workflow outputs and completes the run.
+8. The caller retrieves run status, current ready and running steps, final output, or failures through the Control API.
 
-Invalid workflow inputs fail before a step runs. An unsupported step, unresolved binding, invalid branch result, or step failure ends the run with a stable machine-readable failure.
+Missing or undeclared workflow inputs and unsupported handlers reject invocation before a run is created. An accepted run fails with stable machine-readable entries when a binding cannot resolve, a handler fails or returns an invalid outcome, an output violates its exact contract, conditional evaluation fails, or loop execution fails.
 
 ## Runtime boundaries
 
@@ -159,14 +159,14 @@ Epic 02 is complete when all of the following are true:
 
 - A caller starts a run with an exact workflow version and structured inputs.
 - The start operation returns a stable run ID.
-- The caller retrieves current status, final output, or structured failure through the Control API.
+- The caller retrieves current status, ready and running step instances, final output, or the stable ordered failure list through the Control API.
 - Invalid inputs and unavailable execution services produce documented errors.
 
 ### Failures are explicit
 
-- Unsupported steps, unresolved bindings, invalid branch results, and handler failures cannot report success.
-- Failures identify the run, step when applicable, stable code, and actionable details.
-- A failed run does not execute later steps.
+- Unresolved bindings, invalid handler outcomes, output-contract violations, conditional evaluation failures, loop failures, and handler failures cannot report success.
+- Every failure identifies the run, step when applicable, stable code, and actionable details; no failure is designated primary.
+- After the first failure is observed, the daemon dispatches no new handlers, drains handlers that are already running, and returns every observed failure in stable order.
 
 ### The end state is demonstrated
 

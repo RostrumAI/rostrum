@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-02 |
+| Last updated | 2026-08-26 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [E2-05](e2-05-implement-local-graph-executor.md) |
@@ -13,10 +13,17 @@
 This task gives callers two Control API operations:
 
 - start a run for an exact published workflow version and structured inputs;
-- retrieve the run's current status, final output, or structured failure.
+- retrieve the run's current status, active and ready step instances (`currentSteps`), final output, or complete structured failures array.
 
 Both operations communicate with the daemon through the E2-S2 transport contract.
 
+### Run projection contract
+
+Per the E2-S1 decision:
+
+1. A running execution exposes `currentSteps`: an array of active step instances with `stepId`, `state` (`ready` | `running`), and `iteration` index (for loops).
+2. A queued run and terminal run expose an empty `currentSteps` array.
+3. Run failure returns a complete, ordered `failures` array containing all failures observed across handlers and graph evaluation. Succeeded runs expose an empty `failures` array.
 ## End state
 
 - A caller can start and inspect a local run without connecting directly to the daemon.
@@ -34,7 +41,7 @@ Both operations communicate with the daemon through the E2-S2 transport contract
 ## Acceptance criteria
 
 - A valid request returns a run ID without requiring the connection to remain open.
-- Retrieval returns the documented current or terminal run representation.
+- Retrieval returns the documented current or terminal run representation, including `currentSteps` and the complete `failures` array.
 - Unknown workflows, invalid inputs, unknown runs, and unavailable daemon behavior match the API contract.
 - Published workflow resolution uses the immutable version requested by the caller.
 - API integration tests do not execute graph logic inside the Control API.

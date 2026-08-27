@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-02 |
+| Last updated | 2026-08-26 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [E2-S1](e2-s1-define-local-execution-semantics.md), [E2-S2](e2-s2-select-local-daemon-transport.md), [E2-S3](e2-s3-define-reference-step-set.md) |
@@ -12,15 +12,16 @@
 
 This task combines the decisions from E2-S1, E2-S2, and E2-S3 into one specification and fixture set. It answers:
 
-- What does a run request contain?
-- What states can a run enter?
+- What does a run request contain, and how are undeclared inputs rejected?
+- What states can a run and step instances enter?
+- How does the Control API project `currentSteps` (ready and running instances) and complete failure arrays?
 - How are workflow inputs and step outputs referenced?
-- What does a step handler receive and return?
-- What constitutes success or failure?
+- What does a step handler receive and return (required inputs, optional inputs, and exact output schema enforcement)?
+- How do sequential steps, executor-evaluated conditionals, structured single-entry single-exit fan-out/fan-in regions, and sequential bounded loops execute?
+- What constitutes success or failure (including fail-fast with drain and stable multi-failure sorting)?
 - What trace and result should each example workflow produce?
 
-It also extends the workflow specification and schema for the reference step set where required.
-
+It also specifies the shared fixture format covering sequential, branching, fan-out/fan-in, loop, invalid-invocation, output-validation failure, and concurrent-failure scenarios.
 ## End state
 
 - The daemon, Control API, executor, and tests can implement the same behavior from one specification and shared fixtures.
@@ -38,8 +39,8 @@ It also extends the workflow specification and schema for the reference step set
 ## Acceptance criteria
 
 - One reviewed specification contains the approved decisions from all three SPIKEs.
-- Run requests, states, references, handler outcomes, branches, results, and failures are defined.
-- Reference steps have complete schemas and validation rules.
-- Sequential, branching, invalid-invocation, and step-failure fixtures include their expected traces and results.
+- Run requests, `currentSteps` projection, states, references, handler input/output contracts, branches, structured fan-out/fan-in, sequential loops, results, and failure arrays are defined.
+- Reference steps have complete schemas and validation rules (required inputs, optional inputs, exact outputs, configuration, failures).
+- Sequential, branching, fan-out/fan-in, loop, invalid-invocation, output mismatch, and step-failure fixtures include their expected traces and results.
 - API and daemon messages in the fixtures match the E2-S2 transport contract.
 - Epic 01 validation accepts valid workflow fixtures and rejects invalid definitions.
