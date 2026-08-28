@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { createDatabase, migrateToLatest } from "@rostrum/database";
+import { startTestPostgres, type TestPostgres } from "@rostrum/database/testing";
+import minimumJson from "@rostrum/workflow/fixtures/valid/minimum.json";
 import pkg from "../package.json" with { type: "json" };
 
 /**
  * Boots the real Control API process over HTTP and runs the foundation
- * assertions. No database is required: the foundation has no storage;
- * storage arrives with the workflow operations.
+ * assertions. No database is required for the foundation suite: storage
+ * arrives with the workflow operations, exercised by the database-backed
+ * describe below.
  */
 interface BootedServer {
     baseUrl: string;
@@ -15,10 +19,10 @@ interface BootedServer {
     drained: Promise<void>;
 }
 
-async function bootServer(): Promise<BootedServer> {
+async function bootServer(extraEnv: Record<string, string> = {}): Promise<BootedServer> {
     const proc = Bun.spawn(["bun", "run", "src/index.ts"], {
         cwd: join(import.meta.dir, ".."),
-        env: { ...process.env, PORT: "0", LOG_LEVEL: "info" },
+        env: { ...process.env, PORT: "0", LOG_LEVEL: "info", ...extraEnv },
         stdout: "pipe",
         stderr: "pipe",
     });
@@ -132,5 +136,78 @@ describe("real process over HTTP", () => {
         const shutdownLines = second.output.filter((line) => line.includes("shutdown"));
         expect(shutdownLines.some((line) => line.includes("shutdown started"))).toBe(true);
         expect(shutdownLines.some((line) => line.includes("shutdown complete"))).toBe(true);
+    });
+});
+
+/** The create response: the draft's first revision. */
+interface RevisionResponse {
+    workflowId: string;
+    revisionId: string;
+    content: string;
+}
+
+/** The publish response. */
+interface PublishResponse {
+    workflowId: string;
+    versionNumber: number;
+    interfaceVersion: string;
+    digest: string;
+}
+
+/**
+ * One create-to-publish smoke over actual HTTP, with the real process
+ * pointed at a disposable Postgres. The embedded fallback needs no Docker,
+ * so this runs unconditionally.
+ */
+describe("real process with a database", () => {
+    let database: TestPostgres;
+    let booted: BootedServer;
+
+    beforeAll(async () => {
+        database = await startTestPostgres();
+        const db = createDatabase(database.url);
+        try {
+            await migrateToLatest(db);
+        } finally {
+            await db.destroy();
+        }
+        booted = await bootServer({ DATABASE_URL: database.url });
+    }, 120_000);
+
+    afterAll(async () => {
+        if (booted?.proc) {
+            booted.proc.kill();
+            await booted.proc.exited.catch(() => undefined);
+        }
+        await database?.stop();
+    }, 60_000);
+
+    test("creates, saves, and publishes a workflow over HTTP", async () => {
+        const created = await fetch(`${booted.baseUrl}/api/v1/workflows`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(minimumJson),
+        });
+        expect(created.status).toBe(201);
+        const draft = (await created.json()) as RevisionResponse;
+        expect(JSON.parse(draft.content).id).toBe(draft.workflowId);
+
+        const published = await fetch(
+            `${booted.baseUrl}/api/v1/workflows/${draft.workflowId}/publish`,
+            { method: "POST" },
+        );
+        expect(published.status).toBe(200);
+        const version = (await published.json()) as PublishResponse;
+        expect(version.workflowId).toBe(draft.workflowId);
+        expect(version.versionNumber).toBe(1);
+        expect(version.interfaceVersion).toBe("v1");
+        expect(version.digest).toMatch(/^[0-9a-f]{64}$/);
+
+        const retrieved = await fetch(
+            `${booted.baseUrl}/api/v1/workflows/${draft.workflowId}/versions/1`,
+        );
+        expect(retrieved.status).toBe(200);
+        const stored = (await retrieved.json()) as PublishResponse;
+        expect(stored.digest).toBe(version.digest);
     });
 });

@@ -104,13 +104,21 @@ describe("socket-free app.fetch() harness", () => {
 });
 
 describe("OpenAPI document", () => {
-    test("is OpenAPI 3.1 with the foundation paths documented", async () => {
+    test("is OpenAPI 3.1 with the foundation and workflow paths documented", async () => {
         const { res, body } = await fetchJson(await makeApp(), "/openapi.json");
         expect(res.status).toBe(200);
         const doc = body as unknown as OpenApiDoc;
         expect(doc.openapi).toBe("3.1.0");
         expect(doc.paths["/api/v1/system/health"]).toBeDefined();
         expect(doc.paths["/api/v1/system/version"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/validate"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/{workflowId}"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/{workflowId}/revisions"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/{workflowId}/revisions/{revisionId}"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/{workflowId}/rewind"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/{workflowId}/publish"]).toBeDefined();
+        expect(doc.paths["/api/v1/workflows/{workflowId}/versions/{versionNumber}"]).toBeDefined();
     });
 
     test("TypeBox schemas round-trip unchanged into the components", async () => {
@@ -125,7 +133,13 @@ describe("OpenAPI document", () => {
             "ErrorResponse",
             "Finding",
             "Health",
+            "PublishResponse",
+            "PublishedVersionResponse",
+            "RewindRequest",
+            "ValidateResponse",
             "Version",
+            "WorkflowDocument",
+            "WorkflowRevision",
         ]);
     });
 

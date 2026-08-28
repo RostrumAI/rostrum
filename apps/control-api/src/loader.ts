@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Handler } from "hono";
-import type { TObject } from "typebox";
+import type { TSchema } from "typebox";
 
 /** HTTP methods a feature route can bind to. */
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -13,17 +13,22 @@ export type HttpMethod = (typeof HTTP_METHODS)[number];
  * Route binding a feature module must export as `route`. The loader joins
  * `path` with the module's folder inside `src/features` and the `/api/v1`
  * prefix, so a module at `features/system/health.ts` with path `/health`
- * serves `GET /api/v1/system/health`.
+ * serves `GET /api/v1/system/health`. A module whose folder is the whole
+ * route binds `path: "/"`; the collection route of a feature area.
  */
 export interface FeatureRoute {
     method: HttpMethod;
-    /** Path relative to the feature folder; starts with `/`. */
+    /** Path relative to the feature folder; starts with `/`, or exactly `/` for the folder route. */
     path: string;
     /**
      * Documented responses keyed by status code. A response naming a
      * `schemaName` is documented with a `$ref` into the OpenAPI components.
      */
     responses?: Record<string, ResponseDefinition>;
+    /** Documented path and header parameters, surfaced in the generated contract. */
+    parameters?: ParameterDefinition[];
+    /** Documented request body, for operations that read one. */
+    requestBody?: RequestBodyDefinition;
 }
 
 /** One documented route response. */
@@ -33,8 +38,32 @@ export interface ResponseDefinition {
     schemaName?: string;
 }
 
+/** One documented path or header parameter of a feature route. */
+export interface ParameterDefinition {
+    /** Parameter name: a path token such as `workflowId`, or a header such as `Base-Revision`. */
+    name: string;
+    /** Where the parameter travels. */
+    in: "path" | "header";
+    /** Whether the operation fails without it. Path parameters are always required. */
+    required?: boolean;
+    /** Human-readable description surfaced in the generated contract. */
+    description: string;
+    /** JSON Schema of the value; a TypeBox schema serializes directly. */
+    schema?: TSchema;
+}
+
+/** One documented request body of a feature route. */
+export interface RequestBodyDefinition {
+    /** Human-readable description surfaced in the generated contract. */
+    description: string;
+    /** Whether the operation fails without a body. Default: true. */
+    required?: boolean;
+    /** Component name exported by this module's `schema` record for the body schema. */
+    schemaName?: string;
+}
+
 /** Named TypeBox schemas a feature module contributes (`schema`). */
-export type FeatureSchemas = Record<string, TObject>;
+export type FeatureSchemas = Record<string, TSchema>;
 
 /** Request handler for a feature route (`handler`). */
 export type FeatureHandler = Handler;
@@ -57,13 +86,17 @@ export interface LoadedFeature {
     method: HttpMethod;
     /** Documented responses keyed by status, as declared by the module. */
     responses: FeatureRoute["responses"];
+    /** Documented path and header parameters, as declared by the module. */
+    parameters: ParameterDefinition[];
+    /** Documented request body, as declared by the module. */
+    requestBody: RequestBodyDefinition | undefined;
     handler: FeatureHandler;
 }
 
 /** Validated features plus their contributed OpenAPI components. */
 export interface FeatureBundle {
     features: LoadedFeature[];
-    components: Record<string, TObject>;
+    components: Record<string, TSchema>;
 }
 
 const ROUTE_FILE_PATTERN = /\.ts$/;
@@ -128,7 +161,7 @@ function validateModule(
             if (typeof value !== "object" || value === null || Array.isArray(value)) {
                 fail(`schema.${name} must be a TypeBox schema object`);
             }
-            schema[name] = value as TObject;
+            schema[name] = value as TSchema;
         }
     }
 
@@ -147,6 +180,44 @@ function validateModule(
         }
     }
 
+    if (route.parameters !== undefined) {
+        if (!Array.isArray(route.parameters)) fail("route.parameters must be an array");
+        route.parameters.forEach((parameter, index) => {
+            if (typeof parameter !== "object" || parameter === null || Array.isArray(parameter)) {
+                fail(`route.parameters.${index} must be an object`);
+            }
+            if (typeof parameter.name !== "string" || parameter.name === "") {
+                fail(`route.parameters.${index}.name must be a non-empty string`);
+            }
+            if (parameter.in !== "path" && parameter.in !== "header") {
+                fail(`route.parameters.${index}.in must be "path" or "header"`);
+            }
+            if (typeof parameter.description !== "string") {
+                fail(`route.parameters.${index}.description must be a string`);
+            }
+            if (parameter.in === "path" && parameter.required === false) {
+                fail(`route.parameters.${index}: a path parameter cannot be optional`);
+            }
+        });
+    }
+
+    if (route.requestBody !== undefined) {
+        if (typeof route.requestBody !== "object" || route.requestBody === null) {
+            fail("route.requestBody must be an object");
+        }
+        if (typeof route.requestBody.description !== "string") {
+            fail("route.requestBody.description must be a string");
+        }
+        if (
+            route.requestBody.schemaName !== undefined &&
+            !(route.requestBody.schemaName in schema)
+        ) {
+            fail(
+                `route.requestBody references schema "${route.requestBody.schemaName}" but the module does not export it`,
+            );
+        }
+    }
+
     return { route: route as FeatureRoute, schema, handler: candidate.handler as FeatureHandler };
 }
 
@@ -158,7 +229,7 @@ function validateModule(
  */
 export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> {
     const features: LoadedFeature[] = [];
-    const components: Record<string, TObject> = {};
+    const components: Record<string, TSchema> = {};
     const seenPaths = new Map<string, string>();
     const seenComponents = new Map<string, string>();
 
@@ -179,7 +250,7 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
             .map((segment) => `/${segment}`)
             .join("");
 
-        const boundPath = `${folderPath}${route.path}`;
+        const boundPath = route.path === "/" ? folderPath : `${folderPath}${route.path}`;
         const previousFile = seenPaths.get(boundPath);
         if (previousFile !== undefined) {
             throw new Error(
@@ -191,6 +262,10 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
         for (const [name, component] of Object.entries(schema)) {
             const owner = seenComponents.get(name);
             if (owner !== undefined) {
+                // Feature areas share schemas (every workflow route documents
+                // the same error shape): the identical object contributed
+                // again is the same component, not a conflict.
+                if (components[name] === component) continue;
                 throw new Error(
                     `component name conflict on "${name}": ${owner} and ${file} both export it`,
                 );
@@ -205,6 +280,8 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
             tag: segments[0] ?? "",
             method: route.method as HttpMethod,
             responses: route.responses,
+            parameters: route.parameters ?? [],
+            requestBody: route.requestBody,
             handler,
         });
     }

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
 import { type Context, Hono } from "hono";
-import { describeRoute, generateSpecs } from "hono-openapi";
+import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
 import type { FeatureBundle, LoadedFeature } from "./loader";
 import { loadFeatures } from "./loader";
@@ -107,9 +107,38 @@ export class ControlApiApp {
      * the feature area folder; each documented response references its module
      * component by name.
      */
-    private describeFeature(feature: LoadedFeature) {
+    private describeFeature(feature: LoadedFeature): DescribeRouteOptions {
         return {
             tags: [feature.tag],
+            ...(feature.parameters.length === 0
+                ? {}
+                : {
+                      parameters: feature.parameters.map((parameter) => ({
+                          name: parameter.name,
+                          in: parameter.in,
+                          required: parameter.required ?? parameter.in === "path",
+                          description: parameter.description,
+                          ...(parameter.schema === undefined ? {} : { schema: parameter.schema }),
+                      })),
+                  }),
+            ...(feature.requestBody === undefined
+                ? {}
+                : {
+                      requestBody: {
+                          required: feature.requestBody.required ?? true,
+                          description: feature.requestBody.description,
+                          content: {
+                              "application/json": {
+                                  schema:
+                                      feature.requestBody.schemaName === undefined
+                                          ? {}
+                                          : {
+                                                $ref: `#/components/schemas/${feature.requestBody.schemaName}`,
+                                            },
+                              },
+                          },
+                      },
+                  }),
             responses: Object.fromEntries(
                 Object.entries(feature.responses ?? {}).map(([status, response]) => [
                     status,

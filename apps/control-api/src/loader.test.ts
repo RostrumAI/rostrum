@@ -103,4 +103,115 @@ describe("feature loader", () => {
 
         expect(loadFeatures(root)).rejects.toThrow('component name conflict on "Pong"');
     });
+
+    test("binds a collection route from path / and documents its parameters", async () => {
+        const root = makeRoot();
+        roots.push(root);
+        writeSlice(
+            root,
+            "things/collection.ts",
+            `export const SHARED = { type: "object" };
+       export const route = {
+         method: "POST",
+         path: "/",
+         parameters: [
+           { name: "thingId", in: "path", description: "The thing.", schema: { type: "string" } },
+           { name: "Trace-Id", in: "header", required: false, description: "Optional trace." },
+         ],
+         requestBody: { description: "The thing.", required: true, schemaName: "Thing" },
+         responses: { "201": { description: "Created", schemaName: "Thing" } },
+       };
+       export const schema = { Thing: SHARED };
+       export const handler = (c) => c.json({}, 201);`,
+        );
+
+        const { features } = await loadFeatures(root);
+
+        const feature = features[0];
+        expect(feature?.path).toBe("/things");
+        expect(feature?.parameters).toHaveLength(2);
+        expect(feature?.parameters[0]?.name).toBe("thingId");
+        expect(feature?.parameters[0]?.in).toBe("path");
+        expect(feature?.parameters[0]?.required).toBeUndefined();
+        expect(feature?.parameters[1]).toMatchObject({
+            name: "Trace-Id",
+            in: "header",
+            required: false,
+        });
+        expect(feature?.requestBody).toMatchObject({ description: "The thing.", required: true });
+    });
+
+    test("rejects malformed parameters and request bodies", async () => {
+        const badParameter = `export const route = {
+         method: "GET", path: "/x",
+         parameters: [{ name: "p", in: "query", description: "d" }],
+       };
+       export const handler = (c) => c.json({});`;
+        const badPathParameter = `export const route = {
+         method: "GET", path: "/x",
+         parameters: [{ name: "p", in: "path", required: false, description: "d" }],
+       };
+       export const handler = (c) => c.json({});`;
+        const badBody = `export const route = {
+         method: "POST", path: "/x",
+         requestBody: { description: "d", schemaName: "Missing" },
+       };
+       export const schema = {};
+       export const handler = (c) => c.json({});`;
+
+        for (const slice of [badParameter, badPathParameter, badBody]) {
+            const root = makeRoot();
+            roots.push(root);
+            writeSlice(root, "demo/broken.ts", slice);
+            expect(loadFeatures(root)).rejects.toThrow("invalid feature");
+        }
+    });
+
+    test("accepts the same schema object shared by several slices under one name", async () => {
+        const root = makeRoot();
+        roots.push(root);
+        // A slice exports a module-level object; another slice re-exports
+        // the identical reference (how feature areas share error shapes).
+        writeSlice(
+            root,
+            "one/ping.ts",
+            `export const SHARED = { type: "object" };
+       export const route = { method: "GET", path: "/ping", responses: { "200": { description: "Pong", schemaName: "Pong" } } };
+       export const schema = { Pong: SHARED };
+       export const handler = (c) => c.json({ pong: true });`,
+        );
+        writeSlice(
+            root,
+            "two/ping.ts",
+            `import { SHARED } from "../one/ping.ts";
+       export const route = { method: "GET", path: "/ping", responses: { "200": { description: "Pong", schemaName: "Pong" } } };
+       export const schema = { Pong: SHARED };
+       export const handler = (c) => c.json({ pong: true });`,
+        );
+        const { features, components } = await loadFeatures(root);
+
+        expect(features).toHaveLength(2);
+        expect(Object.keys(components)).toEqual(["Pong"]);
+    });
+
+    test("rejects two distinct schema objects claiming one component name", () => {
+        const root = makeRoot();
+        roots.push(root);
+        writeSlice(
+            root,
+            "one/ping.ts",
+            `export const route = { method: "GET", path: "/ping", responses: { "200": { description: "Pong", schemaName: "Pong" } } };
+       export const schema = { Pong: { type: "object", properties: { a: { type: "string" } } } };
+       export const handler = (c) => c.json({});`,
+        );
+        writeSlice(
+            root,
+            "two/ping.ts",
+            `export const route = { method: "GET", path: "/ping", responses: { "200": { description: "Pong", schemaName: "Pong" } } };
+       export const schema = { Pong: { type: "object", properties: { a: { type: "string" } } } };
+       export const handler = (c) => c.json({});`,
+        );
+
+        expect(loadFeatures(root)).rejects.toThrow('component name conflict on "Pong"');
+    });
 });

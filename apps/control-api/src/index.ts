@@ -2,6 +2,7 @@ import { getLogger } from "@logtape/logtape";
 import { ControlApiApp } from "./app";
 import { loadConfig } from "./env";
 import { configureLogging } from "./logger";
+import { closeWorkflowService } from "./workflows/service";
 
 const config = loadConfig();
 await configureLogging(config.logLevel);
@@ -30,6 +31,7 @@ async function shutdown(signal: string) {
     shuttingDown = true;
     logger.info("shutdown started", { signal });
     server.stop(true);
+    await closeWorkflowService();
     logger.info("shutdown complete", { signal });
     process.exit(0);
 }

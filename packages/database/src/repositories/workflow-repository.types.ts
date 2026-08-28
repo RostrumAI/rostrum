@@ -29,6 +29,14 @@ export interface StoredRevision {
 
 /** Input to `WorkflowRepository.createDraft`. */
 export interface CreateDraftInput {
+    /**
+     * The workflow `id` to create the draft under, when the caller has
+     * already minted it — the Control API mints the id first so it can
+     * inject it into the stored document. When absent the repository
+     * mints one. Either way the id is a server-minted UUID v7, never an
+     * author-supplied value.
+     */
+    workflowId?: string;
     /** The exact submitted bytes, stored and returned unchanged. */
     content: string;
     /** The findings snapshot to store with the revision. */
