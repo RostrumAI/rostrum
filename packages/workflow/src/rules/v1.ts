@@ -14,12 +14,11 @@ import { StepTypeRegistry } from "./step-type-registry";
  * The workflow interface v1 rule set.
  *
  * The rule set is frozen: every future release ships it forward
- * unchanged, so a v1 document keeps validating identically forever
- * (E1-S1, E1-S4). It carries the document schema, the demonstrative
- * step-type registry (`task` requires an `operation` in its config;
- * `result` accepts any config object), the metadata members the digest
- * excludes per E1-S4's field classification, and stages 2 through 8 of
- * the validation pipeline. Stage 0 (parse) and stage 1 (version
+ * unchanged, so a v1 document keeps validating identically forever.
+ * It carries the document schema, the demonstrative step-type registry
+ * (`task` requires an `operation` in its config; `result` accepts any
+ * config object), the metadata members the digest excludes, and stages
+ * 2 through 8 of the validation pipeline. Stage 0 (parse) and stage 1 (version
  * selection) are version-independent and run before the rule set's
  * stages.
  */

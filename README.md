@@ -35,6 +35,7 @@ the `DATABASE_URL` environment variable.
 | `bun run test` | Runs unit and integration tests with `bun test` |
 | `bun run db:up` | Starts the local Postgres service |
 | `bun run db:down` | Stops the local Postgres service |
+| `bun run db:migrate` | Applies pending workflow-database migrations to the `DATABASE_URL` target |
 
 The repository has no build step: Bun runs TypeScript directly. Integration
 tests that use Postgres skip with a message when the database is unreachable;
@@ -45,8 +46,8 @@ container.
 ## Control API
 
 The Control API is the standalone service process for workflow authoring
-operations, which arrive in [E1-06](docs/tasks/epic-01/e1-06-add-control-api-workflow-operations.md).
-It runs on Bun's native HTTP server with Hono routing ([Decision E1-S0](docs/decisions/epic-01/e1-s0-implementation-stack.md)).
+operations: draft saves, validation, rewind, and publish. It runs on Bun's
+native HTTP server with Hono routing and TypeBox schemas.
 
 ### Run
 
@@ -88,7 +89,7 @@ port: 8080
 | `HOST` / `host` | `127.0.0.1` | Address to bind |
 | `NODE_ENV` / `nodeEnv` | `development` | One of `development`, `test`, `production`; selects the default log level |
 | `LOG_LEVEL` / `logLevel` | `debug` in development and test, `info` in production | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
-| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the Control API does not open a connection until storage arrives in [E1-07](docs/tasks/epic-01/e1-07-add-workflow-draft-version-storage.md) |
+| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the database package's migrations and the Control API's workflow database in `apps/control-api/src/workflows` use it |
 
 Logging uses [LogTape](https://logtape.org/). Records are one JSON object
 per line on the console with `time`, `level`, `msg`, and any extra fields.
@@ -108,7 +109,7 @@ with `method`, `path`, `status`, and `durationMs`.
 Routes live under the `/api/v1` path prefix. A breaking change to the API or
 the workflow interface creates a new prefix and leaves existing prefixes
 served unchanged. The version route reports the workflow interface version
-as the exact-match token `v1` ([Decision E1-S1](docs/decisions/epic-01/e1-s1-workflow-interface-v1.md)).
+as the exact-match `v1` token of the workflow interface.
 
 Each route is one feature slice under
 `apps/control-api/src/features/`: a slice exports `route`, `schema`, and
@@ -126,8 +127,8 @@ Every error response uses one shape: `{"code","message","findings"}`.
 | `internal_error` | 500 | The handler failed; the error is logged |
 
 The `findings` array is empty until validation findings are reported with the
-workflow operations (E1-06); the finding element shape is finalized by
-[E1-S2](docs/tasks/epic-01/e1-s2-define-validation-behavior.md).
+workflow operations; its element shape follows the validation findings
+contract.
 
 ### OpenAPI document
 
@@ -146,13 +147,12 @@ A test asserts that the served document matches the checked-in copy.
 | Path | Contents |
 | --- | --- |
 | `apps/` | Runnable applications; `control-api/` is the Control API process |
-| `packages/` | Shared libraries; `workflow/` is the shared workflow library |
+| `packages/` | Shared libraries; `workflow/` is the shared workflow library and `database/` owns Postgres persistence |
 | `docs/` | Research, strategy, epics, decisions, results, and tasks |
 | `scripts/` | One-off repository scripts |
 | `tmp/` | Scratch space for proof-of-concept work, excluded from lint and format |
 
 ## Documentation
 
-Start with `docs/README.md` for the document flow, and
-`docs/decisions/epic-01/e1-s0-implementation-stack.md` for the implementation
-stack decisions.
+All project documentation lives in `docs/`, including the workflow interface
+v1 specification under `docs/specs/`.

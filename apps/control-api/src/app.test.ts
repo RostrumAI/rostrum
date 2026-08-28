@@ -22,7 +22,7 @@ interface OpenApiDoc {
     components: { schemas: Record<string, Record<string, unknown>> };
 }
 
-/** One error response in the single error shape (E1-02 contract). */
+/** One error response in the single error shape. */
 interface ErrorBody {
     code: string;
     message: string;
@@ -34,7 +34,7 @@ async function fetchJson(app: Hono, path: string, init?: RequestInit) {
     return { res, body: (await res.json()) as Record<string, unknown> };
 }
 
-describe("socket-free app.fetch() harness (E1-02)", () => {
+describe("socket-free app.fetch() harness", () => {
     test("health returns the documented response", async () => {
         const { res, body } = await fetchJson(await makeApp(), "/api/v1/system/health");
         expect(res.status).toBe(200);
@@ -159,7 +159,7 @@ if (!databaseAvailable) {
     );
 }
 
-describe("Postgres seam (E1-01 foundation)", () => {
+describe("Postgres seam", () => {
     test.skipIf(!databaseAvailable)("connects to DATABASE_URL and runs a query", async () => {
         const sql = postgres(databaseUrl, { max: 1 });
         try {

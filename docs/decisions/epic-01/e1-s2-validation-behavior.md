@@ -2,7 +2,7 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Proposed — awaiting approval |
+| Status | Decided |
 | Source | [E1-S2: Decide validation checks and findings](../../tasks/epic-01/e1-s2-define-validation-behavior.md) |
 | Depends on | [E1-S1: Workflow JSON v1 shape](e1-s1-workflow-interface-v1.md) |
 | Last updated | 2026-08-16 |

@@ -24,7 +24,7 @@ interface ReferenceConsumer {
  * existing step, or `loop.<variable>` to the variable of the enclosing
  * loop body. A producer must also complete before its consumer; loop
  * collections may name the loop step itself, whose handler runs before
- * iteration begins (E1-S2). A ref to a loop step also resolves to the
+ * iteration begins. A ref to a loop step also resolves to the
  * reserved `results` output — the array of collected iteration results.
  */
 export class ReferencesStage implements ValidationStage {

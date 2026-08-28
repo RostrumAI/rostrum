@@ -23,7 +23,7 @@ describe("package boundary", () => {
     });
 });
 
-describe("toolchain seam (E1-S0 proof-of-concept rows)", () => {
+describe("toolchain seam (TypeBox proof-of-concept)", () => {
     test("TypeBox schemas validate through Compile", () => {
         const compiled = Compile(WorkflowDocument);
         expect(compiled.Check({ interfaceVersion: "v2" })).toBe(false);

@@ -11,7 +11,7 @@ import type { ValidationStage } from "../validation-stage";
  * typed `result`; a loop body's terminal step may be any type, and its
  * outputs are collected per iteration. Dependency edges are included
  * when enumerating reachable paths, so parallel predecessors that join
- * through `dependencies` are not reported as unterminated (E1-S2).
+ * through `dependencies` are not reported as unterminated.
  */
 export class TerminationStage implements ValidationStage {
     readonly id = "termination";

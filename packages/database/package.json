@@ -1,0 +1,20 @@
+{
+    "name": "@rostrum/database",
+    "private": true,
+    "type": "module",
+    "exports": "./src/index.ts",
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "migrate": "bun src/scripts/migrate.ts"
+    },
+    "dependencies": {
+        "@rostrum/workflow": "workspace:*",
+        "kysely": "^0.29.0",
+        "kysely-postgres-js": "^4.0.0",
+        "postgres": "^3.4.9",
+        "uuid": "^11.1.0"
+    },
+    "devDependencies": {
+        "embedded-postgres": "^18.4.0-beta.17"
+    }
+}

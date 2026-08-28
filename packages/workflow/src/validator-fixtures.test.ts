@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { compareFindings, type Finding } from "../src/findings";
-import { JsonSourceParser } from "../src/parse/json-source-parser";
-import { createWorkflowValidator } from "../src/workflow-validator";
+import { compareFindings, type Finding } from "./findings";
+import { JsonSourceParser } from "./parse/json-source-parser";
+import { createWorkflowValidator } from "./workflow-validator";
 
 /**
- * The shared E1-05 fixture suite: every non-valid fixture asserts its
+ * The shared validator fixture suite: every non-valid fixture asserts its
  * full expected validator output from a committed manifest, so the
  * workflow library, the Control API, and any future consumer prove
  * their behavior against the same input files and expected results.
@@ -14,7 +14,7 @@ import { createWorkflowValidator } from "../src/workflow-validator";
  * Each expected finding records `code`, `blocking`, `path`,
  * `relatedLocations`, `details`, and — because fixtures are text — the
  * `line` and `column` the source map assigns. Message text is not part
- * of the contract (E1-S2) and is not asserted.
+ * of the contract and is not asserted.
  */
 
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");

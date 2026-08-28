@@ -3,11 +3,10 @@ import { type Static, Type } from "typebox";
 /**
  * Workflow interface v1 document schema.
  *
- * Source of truth for the public JSON Schema 2020-12 artifact in
- * docs/specs/workflow-interface-v1.schema.json. The shape follows E1-S1.
- * The schema expresses exactly the stage 2 (document shape) contract from
- * E1-S2: required fields, types, UUID v7 string formats, array bounds,
- * `maxIterations >= 1`, and `additionalProperties: false`.
+ * Source of truth for the interface's public JSON Schema 2020-12
+ * artifact. The schema expresses exactly the stage 2 (document shape)
+ * contract: required fields, types, UUID v7 string formats, array
+ * bounds, `maxIterations >= 1`, and `additionalProperties: false`.
  *
  * Rules that later validation stages own are intentionally absent from this
  * schema so their findings carry the right stage codes: mutual exclusions

@@ -2,7 +2,7 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Proposed — awaiting approval |
+| Status | Decided |
 | Source | [E1-S4: Decide versioning methodology and runtime impact](../../tasks/epic-01/e1-s4-define-versioning-methodology.md) |
 | Last updated | 2026-08-18 |
 

@@ -1,8 +1,7 @@
 # apps
 
 Runnable applications (Bun workspaces). Each app is independently runnable
-and may share code from `packages/` — see the repository-layout decision in
-[docs/decisions/epic-01/e1-s0-implementation-stack.md](../../docs/decisions/epic-01/e1-s0-implementation-stack.md).
+and may share code from `packages/`.
 
 - `control-api/` — the standalone Control API process: versioned `/api/v1`
   routes, one error shape, code-first OpenAPI 3.1 documentation, and

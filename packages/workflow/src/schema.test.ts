@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Compile } from "typebox/compile";
-import { WorkflowDocument } from "../src/schema";
+import { WorkflowDocument } from "./schema";
 
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");
 
@@ -35,7 +35,7 @@ describe("valid examples pass schema validation", () => {
 });
 
 describe("incomplete drafts are saveable documents", () => {
-    // Any syntactically valid JSON saves as a draft (E1-S3), so a draft may
+    // Any syntactically valid JSON saves as a draft, so a draft may
     // carry blocking findings from any pipeline stage. The schema stage may
     // report missing members for a fresh workflow, but nothing else: an
     // incomplete document is never malformed beyond omission.

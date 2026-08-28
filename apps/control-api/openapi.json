@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Rostrum Control API",
-    "description": "Code-first OpenAPI 3.1 document generated from TypeBox schemas (Decision e1-s0).",
+    "description": "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
     "version": "0.1.0"
   },
   "tags": [

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildDocument, resultStep, taskStep } from "../tests/helpers/documents";
+import { buildDocument, resultStep, taskStep } from "./testing/documents";
 import { createWorkflowValidator } from "./workflow-validator";
 
 const validator = createWorkflowValidator();

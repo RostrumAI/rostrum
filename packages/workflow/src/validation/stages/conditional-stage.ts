@@ -30,7 +30,7 @@ const COMPOSITE_KEYS = ["all", "any"] as const;
  * enforces both; the stage re-checks defensively), every step referenced
  * in a branch condition is listed in the conditional's `dependencies`,
  * predicate operators come from the allowed set, and leaf refs have the
- * `step.<stepId>.<outputName>` shape and name an existing step (E1-S2).
+ * `step.<stepId>.<outputName>` shape and name an existing step.
  */
 export class ConditionalStage implements ValidationStage {
     readonly id = "conditional";

@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { digestWorkflow } from "../../tests/helpers/digest";
 import { V1_RULE_SET } from "../rules/v1";
+import { digestWorkflow } from "../testing/digest";
 import { CanonicalizationError, canonicalize } from "./canonical-json";
 import { PublicationPreparer } from "./publication-preparer";
 
-const FIXTURES_DIR = join(import.meta.dir, "..", "..", "tests", "fixtures");
+const FIXTURES_DIR = join(import.meta.dir, "..", "fixtures");
 const preparer = new PublicationPreparer(V1_RULE_SET);
 
-// The committed E1-S3 vectors are the single source of truth for the
+// The committed digest vectors are the single source of truth for the
 // digest suite; this file consumes the same manifest as the tests that
 // ship them (tests/digest-vectors.test.ts).
 const DIGEST_MANIFEST = JSON.parse(
@@ -37,7 +37,7 @@ function loadValidFixture(file: string): Record<string, unknown> {
 
 describe("PublicationPreparer digest vectors", () => {
     for (const [file, expected] of Object.entries(EXPECTED_DIGESTS)) {
-        test(`reproduces the E1-S3 vector for ${file}`, async () => {
+        test(`reproduces the published digest vector for ${file}`, async () => {
             const preparation = await preparer.prepare(loadValidFixture(file));
             expect(preparation.digest).toBe(expected);
         });

@@ -15,8 +15,7 @@ import type { ValidationStage } from "../validation-stage";
  * owns the registry rules the schema cannot express: `type` must be
  * registered for the selected interface version, a step carries at most
  * one of `successors`/`conditional` and of `loop`/`conditional`, and a
- * present `config` validates against the registered config schema
- * (E1-S2).
+ * present `config` validates against the registered config schema.
  */
 export class IdentityStage implements ValidationStage {
     readonly id = "identity";

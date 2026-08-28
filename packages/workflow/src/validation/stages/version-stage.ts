@@ -11,7 +11,7 @@ import type { ValidationStage } from "../validation-stage";
  * registered rule set claims is `workflow.version.unknown` with the
  * supported versions in `details`. Both are blocking, and every later
  * stage is gated on this one, so an unknown version never falls back to
- * another rule set (E1-S1, E1-S4).
+ * another rule set.
  */
 export class VersionStage implements ValidationStage {
     readonly id = "version";

@@ -2,7 +2,7 @@ import type { SourceMap } from "./source-map";
 
 /**
  * Validation findings, the shared result of draft saves, explicit
- * validation, and publication (E1-S2).
+ * validation, and publication.
  *
  * A finding carries a stable dot-namespaced `code` — the contract automated
  * authors match on — plus a human-readable message, a blocking flag, a JSON
