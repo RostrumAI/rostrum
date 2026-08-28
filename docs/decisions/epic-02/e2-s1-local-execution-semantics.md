@@ -18,7 +18,7 @@ The runtime enforces these execution rules:
 2. **Explicit result steps for workflow completion:** A workflow finishes successfully only when execution reaches an explicit `result` step. Step handlers and conditional branches cannot finish a workflow implicitly. The `result` step takes the outputs produced by earlier steps and defines the final payload returned to the caller.
 3. **Engine-evaluated conditionals:** The execution engine evaluates conditional rules and selects which branch to execute based on step outputs. Step handlers only execute their own unit of work and return data; handlers never make routing decisions or return branch names.
 4. **Fan-out paths with a required join:** When a workflow splits into parallel paths, every path must reach one matching fan-in step. A path may contain a sequence of steps or a nested fan-out that rejoins before the outer fan-in. While a fan-out remains open, its paths cannot cross, end early, or contain a conditional. The matching fan-in can end the workflow as a `result` step or continue to another step. A conditional after the join must be a separate successor step.
-5. **Sequential bounded loops:** Loops process items in an array one at a time in collection order ($0, 1, \dots, n-1$). Iteration 1 starts only after iteration 0 finishes and commits its outcome. Successful iterations produce ordered result entries. The workflow configures whether an iteration error stops the loop or is captured so later iterations can run. Captured errors must preserve their iteration position. E2-02 defines the configuration field, the allowed policies, and the result entry schema.
+5. **Sequential bounded loops:** Loops process items in an array one at a time in collection order ($0, 1, \dots, n-1$). Iteration 1 starts only after iteration 0 finishes and commits its outcome. Successful iterations produce ordered result entries. The workflow configures whether an iteration error stops the loop or is captured so later iterations can run. Captured errors must preserve their iteration position. E2-03 defines the configuration field, the allowed policies, and the result entry schema.
 6. **Strict step input and output contracts:** Every step type in the registry defines its required inputs, optional inputs, and an exact schema for its outputs. The engine validates outputs at runtime and rejects missing fields, extra fields, or unexpected data types.
 7. **Active step visibility (`currentSteps`):** The Control API exposes currently active work as a `currentSteps` list. Each entry shows the step ID, whether the step is waiting for an available worker (`ready`) or currently executing (`running`), and the loop iteration index if applicable.
 8. **Complete failure reporting:** The engine does not pick a single primary failure when unhandled errors occur. When a step failure is not captured by a loop policy, the engine stops dispatching new steps, allows currently running steps to finish, and returns an array of all observed run failures sorted consistently by step ID, iteration, error code, and document path.
@@ -27,7 +27,7 @@ The runtime enforces these execution rules:
 
 ## Context
 
-Epic 01 defines the shape and validation of a workflow document, but it does not specify how a workflow executes. E2-S1 defines the execution semantics for in-memory execution in the local daemon before the executor (E2-05) and Control API run operations (E2-06) are implemented.
+Epic 01 defines the shape and validation of a workflow document, but it does not specify how a workflow executes. E2-S1 defines the execution semantics for in-memory execution in the local daemon before E2-07 through E2-09 implement the executor and E2-10 adds the Control API run operations.
 
 The execution model must satisfy four requirements:
 
@@ -53,7 +53,7 @@ The following table summarizes each specific choice by aspect.
 | Conditionals | Engine-evaluated by priority with mandatory `default` and explicit `next` targets | Makes branch selection total: every valid evaluation selects one successor instead of stalling or introducing a separate no-match failure. |
 | Parallel paths | Fan-out paths with one required join | Lets each path run a sequence or a properly nested fan-out while preventing crossing paths, early termination, and ambiguous workflow results. |
 | Post-join routing (Q18) | Fan-in step cannot own a conditional; routing uses a separate successor step | Keeps the join boundary explicit and makes the rule that an open fan-out cannot contain a conditional simple to validate. |
-| Loops | Sequential bounded iterations with workflow-configured error tolerance | Preserves collection order while letting the workflow choose whether an iteration error stops the loop or becomes part of its ordered output. E2-02 defines the policy and output schema. |
+| Loops | Sequential bounded iterations with workflow-configured error tolerance | Preserves collection order while letting the workflow choose whether an iteration error stops the loop or becomes part of its ordered output. E2-03 defines the policy and output schema. |
 | Completion | Explicit `result` step required on every reachable path | Makes the final output payload explicit, testable, and schema-verifiable. |
 | Step contracts | Explicit schemas for required inputs, optional inputs, and exact outputs | Catches data mapping errors early and prevents undeclared or malformed data from moving downstream. |
 | Run monitoring | `currentSteps` array showing ready and running step instances | Gives callers clear visibility into active work during parallel execution across worker pools. |
@@ -186,7 +186,7 @@ The dependency array defines the readiness rule; the countdown is its runtime in
 - Iteration $k+1$ starts only after iteration $k$ finishes and commits its outcome. Only one iteration runs at a time.
 - Each successful iteration contributes one ordered entry to the loop's `results` array.
 - The workflow declares how the loop handles iteration errors. A fail-fast policy stops later iterations. An error-tolerant policy captures eligible errors at their iteration positions in `results` and continues.
-- E2-02 defines the policy field and values, the default policy, which error classes a loop may capture, the success-or-error result entry schema, downstream binding rules, and whether captured errors also appear in the run-level `failures` array.
+- E2-03 defines the policy field and values, the default policy, which error classes a loop may capture, the success-or-error result entry schema, downstream binding rules, and whether captured errors also appear in the run-level `failures` array.
 
 ### 5. Explicit result steps
 
@@ -203,7 +203,7 @@ The dependency array defines the readiness rule; the countdown is its runtime in
    * In-flight handlers currently executing on workers continue until they finish or time out.
    * Any additional unhandled failures returned by in-flight handlers are collected into the run's failure set.
 
-   An iteration error captured by a loop's configured policy is not automatically an unhandled run failure. E2-02 defines which errors a loop can capture and how captured errors affect `results` and run-level `failures`.
+   An iteration error captured by a loop's configured policy is not automatically an unhandled run failure. E2-03 defines which errors a loop can capture and how captured errors affect `results` and run-level `failures`.
 3. **Deterministic failure sorting:** When all active handlers finish, the collected failures are converted into an array sorted deterministically by:
    * `stepId` (alphabetical ascending);
    * `iteration` (numerical ascending, if present);
@@ -266,16 +266,16 @@ The Control API provides a read-only projection of the in-memory execution state
    * 10,000-task linear chain: exactly 10,001 readiness checks and 10,000 successor edge traversals.
    * 5,000-way parallel join: exactly 10,003 readiness checks, 5,000 dependency decrements, and 10,001 successor edge traversals.
 
-## Required amendments to Epic 01 contracts
+## Required Epic 02 workflow-contract updates
 
-These execution semantics clarify and refine several provisional rules from Epic 01:
+These execution semantics replace several provisional rules in the current workflow interface. Epic 02 owns the specification, schema, validator, and fixture changes required to apply them:
 
-| Area | Epic 01 provisional rule | E2-S1 final execution rule | Required amendment |
+| Area | Current workflow rule | E2-S1 execution rule | Epic 02 update |
 | --- | --- | --- | --- |
 | Conditionals | Branches without `next` could finish a workflow implicitly | Every branch and default rule must specify an explicit `next` step | Update workflow schema and validator to require `next` on all branch rules. |
 | Conditional priorities | Priorities were numeric without uniqueness enforcement | Branch priorities must be unique | Update validator to reject duplicate branch priorities. |
 | Parallel paths | Unstructured graph connections were permitted | Fan-out paths must reach one matching fan-in before continuing or finishing | Update the validator to require a matching join, allow sequential steps and properly nested fan-outs within each path, and reject conditionals, early terminals, crossing paths, and conditionals on fan-in steps. |
-| Loops | Loop execution and result shapes were left open | Iterations are sequential and bounded; the workflow configures iteration error tolerance | Specify the loop policy and ordered success-or-error result entry schema in E2-02 before implementation. |
+| Loops | Loop execution and result shapes were left open | Iterations are sequential and bounded; the workflow configures iteration error tolerance | Specify the loop policy and ordered success-or-error result entry schema in E2-03 before implementation. |
 | Terminal results | Implicit termination was allowed | Explicit `result` step required on every reachable path | Update validator to require an explicit `result` step. |
 
 ## Epic 03 persistence and idempotency handoff

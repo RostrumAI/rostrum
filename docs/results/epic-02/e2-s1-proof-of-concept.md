@@ -5,7 +5,7 @@
 | Status | Verified expanded research result, not an approved decision |
 | Source | [E2-S1: Decide how a local run advances](../../tasks/epic-02/e2-s1-define-local-execution-semantics.md) |
 | Research | [E2-S1 local execution options](../../research/e2-s1-local-execution-semantics-options.md) |
-| Last updated | 2026-08-27 |
+| Last updated | 2026-08-28 |
 | Proof location | `tmp/e2-s1-poc` |
 
 ## What the proof establishes
@@ -33,7 +33,7 @@ The proof establishes these properties for the reduced model:
 - If concurrent steps fail in different orders, the same stable ordered failure array contains every observed failure.
 - Readiness uses a remaining-dependency counter. It does not rescan every dependency after every completion.
 
-The focused loop proof isolates iteration ordering and fail-fast behavior. The integrated proof composes the same controller with the graph reducer and runs a fan-out body in each iteration. The temporary model does not parse an authored `loop` field. It does not prove workflow-configured error tolerance or mixed success-or-error result entries; E2-02 owns that contract and its fixtures.
+The focused loop proof isolates iteration ordering and fail-fast behavior. The integrated proof composes the same controller with the graph reducer and runs a fan-out body in each iteration. The temporary model does not parse an authored `loop` field. It does not prove workflow-configured error tolerance or mixed success-or-error result entries; E2-03 owns that contract and its fixtures.
 
 ## Proof scenarios
 
@@ -66,7 +66,7 @@ The scripts at `tmp/e2-s1-poc/run-proof.ts`, `tmp/e2-s1-poc/run-loop-proof.ts`, 
 | 10,000-task chain | Succeeded; 10,001 readiness checks and 10,000 successor-edge visits |
 | 5,000-way join | Succeeded; 10,003 readiness checks, 5,000 dependency-edge visits, and 10,001 successor-edge visits |
 
-The large synthetic cases are structural checks, not latency or throughput benchmarks. Their counters show that graph advancement is proportional to visited steps and edges. They do not establish production capacity.
+The large synthetic cases are structural checks, not latency or throughput benchmarks. Their counters show that graph advancement is proportional to visited steps and edges. They do not establish deployment capacity.
 
 ## Error behavior demonstrated
 
@@ -103,7 +103,7 @@ The observed binding failure was:
 }
 ```
 
-The proof does not expose stack traces through this contract. A production implementation can retain an internal cause for logs while keeping the public failure stable and safe to serialize.
+The proof does not expose stack traces through this contract. The final implementation can retain an internal cause for logs while keeping the public failure stable and safe to serialize.
 
 ## Scale argument
 
@@ -114,9 +114,9 @@ The model separates four operations:
 3. Decrement an integer for each completed dependency edge.
 4. Put an activated step in the ready set when its remaining dependency count reaches zero.
 
-Compilation of the execution indexes takes $O(V + E)$ time and space for $V$ steps and $E$ control and dependency edges before any optional ordering of ready work. Dependency-count maintenance across a successful run also takes $O(V + E)$. A scan-all-steps loop would require up to $O(V^2)$ readiness work on a long chain. Rechecking every dependency after each branch completion would do the same on a wide join. The proof uses neither approach. Its ready set sorts step IDs for stable demonstration output, and that sorting cost is not part of the counters. A production FIFO ready queue needs constant-time insertion and removal because v1 gives parallel successors no execution order. A priority queue would add $O(\log V)$ per operation if a later contract requires ordered dispatch.
+Compilation of the execution indexes takes $O(V + E)$ time and space for $V$ steps and $E$ control and dependency edges before any optional ordering of ready work. Dependency-count maintenance across a successful run also takes $O(V + E)$. A scan-all-steps loop would require up to $O(V^2)$ readiness work on a long chain. Rechecking every dependency after each branch completion would do the same on a wide join. The proof uses neither approach. Its ready set sorts step IDs for stable demonstration output, and that sorting cost is not part of the counters. The final FIFO ready queue needs constant-time insertion and removal because v1 gives parallel successors no execution order. A priority queue would add $O(\log V)$ per operation if a later contract requires ordered dispatch.
 
-The proof's required-join validator favors clarity over asymptotic performance and computes reachability from each fan-out path. Production validation must compute the first common post-dominator and matching join for each fan-out once rather than repeat whole-graph searches per path. This validation cost occurs when the immutable plan is compiled, not on every step transition.
+The proof's required-join validator favors clarity over asymptotic performance and computes reachability from each fan-out path. The final validator must compute the first common post-dominator and matching join for each fan-out once rather than repeat whole-graph searches per path. This validation cost occurs when the immutable plan is compiled, not on every step transition.
 
 At larger deployment scale, the same transition contract can sit behind a queue or durable store:
 
@@ -133,7 +133,7 @@ Epic 03 can persist the same projection and transition inputs. It does not need 
 
 The proof is temporary research code. It does not implement the complete v1 condition operator set, JSON Schema validation, daemon transport, persistence, retries, cancellation, or side effects. It composes the loop controller with graph runs but does not parse the authored `loop` field. Those omissions are implementation and proof boundaries, not evidence that the missing behavior is safe.
 
-The proof uses short fixture IDs instead of UUID v7 values and a reduced type checker instead of the shared TypeBox schemas. Production code must use the workflow package and approved step registry.
+The proof uses short fixture IDs instead of UUID v7 values and a reduced type checker instead of the shared TypeBox schemas. The final implementation must use the workflow package and approved step registry.
 All semantic and topology questions are resolved, including Q18: the matching fan-in step cannot own a conditional and branching after fan-in uses a separate successor.
 
 Durable invocation idempotency is assigned to E3-S1. Control API transport, persistence, complete condition operators, authored `loop` parsing, retries, cancellation, and side effects remain outside this temporary proof.

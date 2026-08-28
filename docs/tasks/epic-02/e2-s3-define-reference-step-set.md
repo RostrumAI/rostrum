@@ -1,38 +1,23 @@
-# E2-S3: Select the reference steps for local execution
+# E2-S3: Reference step selection
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-02 |
+| Status | Closed, absorbed by E2-06 |
+| Last updated | 2026-08-28 |
 | Picked up | No |
 | Owner | Unassigned |
-| Blocked by | [E2-S1](e2-s1-define-local-execution-semantics.md) |
+| Blocked by | None |
 
-## Task
+## Outcome
 
-This SPIKE selects the minimum side-effect-free steps needed to prove local execution. It answers:
+Epic 02 no longer needs a separate SPIKE to select reference steps. The E2-S1 decision defines the handler boundary and the execution behaviors the reference steps must prove. Selecting a small deterministic step set is a bounded implementation decision.
 
-- Which steps can consume workflow inputs and earlier step outputs?
-- Which steps can produce structured outputs that declared conditionals can evaluate?
-- Which required-input, optional-input, output, configuration, and failure schemas does each step register?
-- How does each handler return an explicit exact output object, including `{}` when it produces no values?
+[E2-06: Build the step interface and reference steps](e2-06-build-step-interface-and-reference-steps.md) now owns:
 
-## End state
+- required and optional handler inputs;
+- configuration and exact output schemas;
+- explicit handler success and failure responses;
+- the minimum deterministic, side-effect-free reference steps;
+- test-only controlled handlers for reliable concurrency tests.
 
-- The reference step schemas and examples can prove sequential data flow and branching without executing arbitrary code.
-
-## Why
-
-- The graph executor needs concrete handlers that can prove execution safely and deterministically.
-
-## Blocks
-
-- [E2-02: Specify executable workflow behavior and fixtures](e2-02-specify-executable-workflow-behavior.md)
-
-## Acceptance criteria
-
-- The selected set proves sequential and branching execution.
-- Every step is deterministic, side-effect-free, and bounded.
-- Schemas and examples define configuration, required and optional inputs, exact outputs, and failures.
-- Every authored output declaration exactly matches the concrete registry output schema, and every handler result validates against it.
-- The proposal explains why each step is necessary for the Epic demonstration.
+Keeping this closed record preserves existing links from earlier planning documents while making E2-06 the only active owner of the work.

@@ -2,16 +2,16 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Owner decisions recorded; loop failure contract assigned to E2-02 |
+| Status | Owner decisions recorded; loop failure contract assigned to E2-03 |
 | Source | [E2-S1: Decide how a local run advances](../tasks/epic-02/e2-s1-define-local-execution-semantics.md) |
 | Proof | [E2-S1 local execution proof of concept](../results/epic-02/e2-s1-proof-of-concept.md) |
-| Last updated | 2026-08-27 |
+| Last updated | 2026-08-28 |
 
 ## Purpose
 
-This research identifies the decisions needed to define how a local run starts, advances, completes, and fails. It compares execution models, records the product owner's execution decisions, and assigns the remaining loop failure-policy contract to E2-02.
+This research identifies the decisions needed to define how a local run starts, advances, completes, and fails. It compares execution models, records the product owner's execution decisions, and assigns the remaining loop failure-policy contract to E2-03.
 
-The working architecture is an immutable compiled execution plan plus a per-run transition reducer and ready queue. The proof of concept demonstrates sequential flow, conditional paths, fan-out and fan-in, capacity-limited dispatch, sequential loop iterations with a fail-fast controller, complete failure lists, current-step projection, static handler contracts, structured runtime failures, and edge-indexed graph advancement. The topology questions are resolved. E2-02 owns the remaining loop failure-policy and result-entry details.
+The working architecture is an immutable compiled execution plan plus a per-run transition reducer and ready queue. The proof of concept demonstrates sequential flow, conditional paths, fan-out and fan-in, capacity-limited dispatch, sequential loop iterations with a fail-fast controller, complete failure lists, current-step projection, static handler contracts, structured runtime failures, and edge-indexed graph advancement. The topology questions are resolved. E2-03 owns the remaining loop failure-policy and result-entry details.
 
 ## Inputs from approved and planned work
 
@@ -37,9 +37,9 @@ Epic 02 adds constraints of its own:
 - Runs are in memory in Epic 02.
 - Persistence, recovery, attempts, retries, waits, pause, cancellation, and durable events belong to Epic 03.
 
-### Product owner decisions and Epic 01 impact
+### Product owner decisions and Epic 02 contract updates
 
-The product owner resolved Q1 through Q10 on 2026-08-25. Q19, recorded below, assigns the loop failure-policy contract to E2-02.
+The product owner resolved Q1 through Q10 on 2026-08-25. Q19, recorded below, assigns the loop failure-policy contract to E2-03.
 
 | ID | Decision | Runtime consequence |
 | --- | --- | --- |
@@ -48,22 +48,22 @@ The product owner resolved Q1 through Q10 on 2026-08-25. Q19, recorded below, as
 | Q3 | Conditional branch priorities are unique. | Duplicate priorities are blocking publication findings; array order never breaks a tie. |
 | Q4 | Every fan-out path reaches one matching fan-in before an explicit result. A path cannot contain a conditional, but it can contain sequential steps or nested fan-outs that rejoin within the path. Different mutually exclusive conditional paths may each have their own result step. | A selected path produces exactly one run result. Multiple result steps can exist statically when conditionals make them mutually exclusive. |
 | Q5 | A step inside an open fan-out cannot be terminal. The matching fan-in may be the selected `result` step. | Every path reaches the matching fan-in before the workflow finishes. |
-| Q6 | Each successful loop iteration produces exactly one output under the same required-join rule. | The loop records one ordered entry per completed iteration. E2-02 defines the entry shape when the workflow captures an iteration error. |
+| Q6 | Each successful loop iteration produces exactly one output under the same required-join rule. | The loop records one ordered entry per completed iteration. E2-03 defines the entry shape when the workflow captures an iteration error. |
 | Q7 | Loop iterations execute sequentially. | Iteration $n + 1$ starts only after iteration $n$ commits its outcome. The workflow's loop policy decides whether an error is captured so iteration $n + 1$ can start. |
 | Q8 | Fan-out requests simultaneous handler invocation subject to available capacity. Execution order and actual overlap are not guaranteed. | All path roots become ready as one cohort. The dispatcher starts as many as capacity allows, and the fan-in waits for every path to succeed. |
 | Q9 | A missing registered handler rejects invocation. | The daemon returns no run ID for a statically unsupported workflow. |
 | Q10 | Every successful handler outcome contains an explicit output object. An empty object is a valid explicit output. | A handler cannot signal success without `outputs`; `{ "outputs": {} }` represents no values. Exact declared-versus-undeclared output handling remains Q17. |
 
-These decisions require amendments to the current Epic 01 specification and validator before Epic 02 implementation treats published v1 documents as executable:
+These decisions require Epic 02 to update the current workflow specification and validator before the daemon treats published v1 documents as executable:
 
 - Require unique conditional priorities.
 - Require `next` on every conditional branch and default so terminal results are explicit result steps.
 - Require every fan-out path to reach one matching fan-in.
 - Reject conditionals and terminal steps while a fan-out remains open.
 - Allow sequential steps and properly nested fan-outs before the matching fan-in.
-- Require each loop iteration to execute sequentially and contribute one ordered outcome entry. E2-02 defines how captured errors appear in that entry.
+- Require each loop iteration to execute sequentially and contribute one ordered outcome entry. E2-03 defines how captured errors appear in that entry.
 
-Until those amendments land, Epic 01 can publish graphs that the owner-decided Epic 02 semantics reject. Q1 prohibits leaving that mismatch in the implementation contract.
+Until Epic 02 applies those updates, the shared workflow library can publish graphs that the owner-decided execution semantics reject. Q1 prohibits leaving that mismatch in the implementation contract.
 
 ## Comparative research
 
@@ -108,7 +108,7 @@ Store one current step ID. Resolve its inputs, call its handler, record its outp
 | Persistence later | Cursor does not record multiple active or completed branches |
 | Scale | One active step per run; no natural backpressure or worker queue boundary |
 
-This option matches the wording in the current E2-05 task, but it cannot implement the complete v1 graph without a later semantic rewrite.
+This option matched the superseded single-cursor executor task, but it cannot implement the complete v1 graph without a later semantic rewrite.
 
 ### Option B: Compiled plan plus transition reducer and ready queue
 
@@ -299,7 +299,7 @@ Iterations execute in collection order. Iteration $n + 1$ cannot start until ite
 
 Each body step instance is keyed by the loop step ID, iteration index, and body step ID. `loop.<variable>` resolves to the current collection item. The reserved loop output `results` preserves iteration order.
 
-The workflow configures whether an iteration error stops the loop or is captured so later iterations can run. E2-02 must define the policy field and values, its default, which errors can be captured, the success-or-error entry schema, downstream binding behavior, and whether captured errors appear in the run-level `failures` array.
+The workflow configures whether an iteration error stops the loop or is captured so later iterations can run. E2-03 must define the policy field and values, its default, which errors can be captured, the success-or-error entry schema, downstream binding behavior, and whether captured errors appear in the run-level `failures` array.
 
 ### Failure semantics
 
@@ -440,11 +440,11 @@ Keep a small pure model beside the decision until implementation replaces it. Ru
 - every accepted valid finite workflow with terminating handlers reaches a terminal state;
 - scheduler work is bounded by visited nodes and edges.
 
-The temporary proof at `tmp/e2-s1-poc` covers the first research pass. It is not the production reference model.
+The temporary proof at `tmp/e2-s1-poc` covers the first research pass. It is not the final implementation.
 
 ## Additional product owner decisions
 
-The product owner resolved Q11 through Q18 and assigned the loop failure-policy details in Q19 to E2-02.
+The product owner resolved Q11 through Q18 and assigned the loop failure-policy details in Q19 to E2-03.
 
 | ID | Decision | Contract consequence |
 | --- | --- | --- |
@@ -452,11 +452,11 @@ The product owner resolved Q11 through Q18 and assigned the loop failure-policy 
 | Q12 | The Control API exposes the execution's current step position. | Use a `currentSteps` array because fan-out can have several ready and running step instances. |
 | Q13 | A run has all observed failures or none; no failure is primary. | A failed run returns a stable ordered `failures` array. Fail-fast stops new dispatch and drains active handlers. |
 | Q14 | Invocation needs idempotency, owned by Epic 03. | E3-S1 must define the key, duplicate behavior, request mismatch conflict, and durable acceptance boundary. |
-| Q15 | Step registry entries include runtime input and output schemas. | E2-S3 owns required and optional handler inputs plus output contracts. |
+| Q15 | Step registry entries include runtime input and output schemas. | E2-06 owns required and optional handler inputs plus output contracts. |
 | Q16 | Invocation rejects undeclared workflow inputs. | Invocation input keys exactly match `workflow.inputs`. |
 | Q17 | Handler outputs exactly match their declaration, with static analysis where possible. | Publication compares the concrete registry output schema with the authored declaration; runtime validates returned values and rejects missing or undeclared outputs. |
 | Q18 | The matching fan-in step cannot own a conditional. | The fan-in step is a normal task or explicit result step. To branch after joining, route to a separate conditional-owning successor. |
-| Q19 | Loop error tolerance is workflow-configured; its contract is deferred within Epic 02. | E2-02 defines the configuration and ordered success-or-error result entries before executor implementation. |
+| Q19 | Loop error tolerance is workflow-configured; its contract is deferred within Epic 02. | E2-03 defines the configuration and ordered success-or-error result entries before executor implementation. |
 
 ### Proof status
 
@@ -466,7 +466,7 @@ The expanded proof demonstrates the owner-decided behavior:
 | --- | --- |
 | Q2, Q3, Q9, Q10, Q15, Q16, Q17 | Demonstrated: exact invocation inputs, duplicate-priority rejection, preflight handler support, required and optional handler input contracts, static exact output contracts, and runtime exact output validation. |
 | Q4, Q5 | Demonstrated: conditionals and terminals inside an open fan-out reject; each path joins once; nested fan-outs close before the outer join; mutually exclusive conditional paths each reach their own joined result. |
-| Q6, Q7 | Demonstrated: one output object per successful iteration, collection-order execution, maximum one active iteration, ordered results, fail-fast behavior, and fan-out inside an iteration. Configurable continuation and mixed success-or-error entries remain E2-02 work. |
+| Q6, Q7 | Demonstrated: one output object per successful iteration, collection-order execution, maximum one active iteration, ordered results, fail-fast behavior, and fan-out inside an iteration. Configurable continuation and mixed success-or-error entries remain E2-03 work. |
 | Q8, Q12 | Demonstrated: capacity one exposes one running and one ready branch; capacity two dispatches both; both produce the same joined output; terminal `currentSteps` is empty. |
 | Q11 | Demonstrated: handlers return only outputs or failure; the executor selects the conditional path. |
 | Q13 | Demonstrated: opposite concurrent completion orders return the same ordered array containing both observed failures. |
@@ -478,13 +478,13 @@ The expanded proof demonstrates the owner-decided behavior:
 
 ## Documents needed to close the spike
 
-With the loop failure-policy details assigned to E2-02, E2-S1 delivers these artifacts:
+With the loop failure-policy details assigned to E2-03, E2-S1 delivers these artifacts:
 
-1. The approved decision record at [E2-S1 local execution semantics](../decisions/epic-02/e2-s1-local-execution-semantics.md) defining states, guards, transitions, failure catalog, scale model, required Epic 01 amendments, and Epic 03 handoffs.
+1. The approved decision record at [E2-S1 local execution semantics](../decisions/epic-02/e2-s1-local-execution-semantics.md) defining states, guards, transitions, failure catalog, scale model, required Epic 02 workflow-contract updates, and Epic 03 handoffs.
 2. Complete example execution traces in the decision record for sequential, both conditional branch outcomes, structured fan-out/fan-in, sequential loop success, concurrent failures with drain, invocation rejection, and output schema validation failure.
 3. The verified proof of concept at [E2-S1 proof of concept](../results/epic-02/e2-s1-proof-of-concept.md) and `tmp/e2-s1-poc` demonstrating all approved constructs and scale bounds.
 4. Updated task specifications across Epic 02 and Epic 03 reconciling implementation scope with the approved execution semantics.
-5. Inputs for E2-02's executable-workflow specification and shared fixture schema.
+5. Inputs for E2-03's executable-workflow specification and shared fixture schema.
 
 ## Primary sources
 

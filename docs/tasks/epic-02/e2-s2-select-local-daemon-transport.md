@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-25 |
+| Last updated | 2026-08-28 |
 | Picked up | Yes |
 | Owner | Stephen |
 | Blocked by | [Epic 01](../../epics/epic-01-shape-of-a-workflow.md) |
@@ -12,28 +12,32 @@
 
 This SPIKE selects how the separately running Control API and daemon communicate locally. It answers:
 
-- How does the Control API submit a run?
-- How does it retrieve run status and results?
+- How does the Control API submit a run request?
+- How does it retrieve a current or terminal run?
 - How are requests and responses correlated?
 - How are health checks, timeouts, and daemon unavailability reported?
+- How does the transport carry structured invocation rejection, `currentSteps`, output, and failures without redefining them?
+
+The transport owns message delivery and correlation. E2-03 owns workflow and run semantics.
 
 ## End state
 
-- One transport, message contract, and configuration approach are approved for implementation.
+One transport, message envelope, error mapping, and configuration approach are approved for implementation.
 
 ## Why
 
-- The two established processes need one communication mechanism that can be configured and tested locally.
+The Control API and daemon need one testable local connection while remaining independently runnable processes.
 
 ## Blocks
 
-- [E2-01: Create the local daemon process](e2-01-build-local-daemon-foundation.md)
-- [E2-02: Specify executable workflow behavior and fixtures](e2-02-specify-executable-workflow-behavior.md)
+- [E2-03: Define the executable workflow contract](e2-03-define-executable-workflow-contract.md)
+- [E2-05: Build the local daemon](e2-05-build-local-daemon.md)
 
 ## Acceptance criteria
 
-- The decision record selects the local transport and explains the tradeoffs.
+- The decision selects the local transport and explains the tradeoffs.
 - Request and response examples cover submission, lookup, rejection, timeout, and daemon unavailability.
+- The transport can carry the complete E2-03 request and run representations without defining graph behavior.
 - The transport supports independent local processes and automated integration tests.
 - The daemon interface remains internal; callers continue to use the Control API.
-- The contract does not duplicate workflow or execution rules.
+- The product owner and implementing engineer approve the decision before E2-03 or E2-05 begins.

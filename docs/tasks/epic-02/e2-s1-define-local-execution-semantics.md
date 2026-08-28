@@ -2,42 +2,45 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Proposed — awaiting approval |
-| Last updated | 2026-08-27 |
+| Status | Proposed, awaiting approval |
+| Last updated | 2026-08-28 |
 | Picked up | Yes |
 | Owner | Stephen |
 | Blocked by | [Epic 01](../../epics/epic-01-shape-of-a-workflow.md) |
 
 ## Task
 
-Research and owner decisions are recorded in [E2-S1 local execution semantics options](../../research/e2-s1-local-execution-semantics-options.md). The [execution semantics proof of concept](../../results/epic-02/e2-s1-proof-of-concept.md) verifies the proposed scheduler, required-join fan-out rules, capacity-bound dispatch, sequential loops with structured graph bodies, failure ordering, and large synthetic graphs. The product owner has resolved Q1 through Q18 and assigned the workflow-configured loop failure contract in Q19 to E2-02.
+This SPIKE decides how a local run starts, advances, completes, and fails. It covers:
 
-This SPIKE decides how a local run starts, advances, and ends. It answers:
+- invocation acceptance and rejection;
+- public run states and internal step states;
+- input binding and exact output handling;
+- engine-evaluated conditionals;
+- parallel paths and matching joins;
+- bounded sequential loops;
+- explicit workflow results;
+- progress reporting through `currentSteps`;
+- complete ordered failure reporting.
 
-- When is an invocation accepted or rejected?
-- Which run and active-step states (`currentSteps`) are visible through the Control API?
-- When is a step ready to execute?
-- How are required and optional inputs bound, and how are exact outputs recorded?
-- How does the executor evaluate conditionals, fan-out paths with a required join, and sequential loops?
-- What completes or fails a run, and how are multiple observed failures aggregated?
+Research and owner decisions are recorded in [E2-S1 local execution options](../../research/e2-s1-local-execution-semantics-options.md). The [E2-S1 proof of concept](../../results/epic-02/e2-s1-proof-of-concept.md) verifies the proposed scheduler, join rules, capacity-bound dispatch, structured loop bodies, failure ordering, and large synthetic graphs. E2-03 owns the remaining loop failure-policy and result-entry details.
 
 ## End state
 
-- One reviewed decision record ([E2-S1 local execution semantics](../../decisions/epic-02/e2-s1-local-execution-semantics.md)) and example traces define local execution behavior.
+One approved [local execution decision](../../decisions/epic-02/e2-s1-local-execution-semantics.md) and its example traces define the runtime behavior that Epic 02 implements.
 
 ## Why
 
-- The daemon, Control API, and tests need the same rules for interpreting a v1 workflow graph.
+The daemon, runtime, Control API, and tests need the same meaning for a workflow run before implementation begins.
 
 ## Blocks
 
-- [E2-S3: Select the reference steps for local execution](e2-s3-define-reference-step-set.md)
-- [E2-02: Specify executable workflow behavior and fixtures](e2-02-specify-executable-workflow-behavior.md)
+- [E2-03: Define the executable workflow contract](e2-03-define-executable-workflow-contract.md)
 
 ## Acceptance criteria
 
-- The decision record defines every state transition and terminal outcome, with the loop failure-policy contract explicitly assigned to E2-02.
-- Sequential, branching, success, and failure examples have expected execution traces.
-- Binding and branch rules are deterministic and testable.
-- Unsupported steps, invalid outcomes, and unresolved references have stable failures.
-- The design can add persistence and recovery in Epic 03 without changing successful-run semantics.
+- The decision defines invocation, run, step, binding, conditional, parallel, loop, result, progress, and failure behavior.
+- Every state transition and terminal outcome is explicit.
+- Sequential traces have exact expected order, while concurrent examples state causal constraints.
+- Unsupported handlers, invalid outcomes, unresolved references, routing errors, loop errors, and scheduler errors have stable failure families.
+- The decision assigns the complete loop failure-policy schema to E2-03.
+- The product owner and implementing engineer approve the decision before E2-03 begins.
