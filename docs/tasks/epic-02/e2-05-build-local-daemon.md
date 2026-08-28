@@ -10,17 +10,17 @@
 
 ## Task
 
-This task creates the daemon as a separately runnable local process. It adds:
+This task builds the daemon, a background process that runs independently on the local machine. It adds:
 
-- the transport selected by E2-S2;
+- the transport selected by E2-S2, the communication mechanism used between independently running processes;
 - validated configuration;
 - structured logging;
 - health and version operations;
 - startup and graceful shutdown;
 - extension points for execution services and shutdown handling;
-- an integration-test harness that starts the real process.
+- an integration test setup that starts the real process.
 
-This task establishes the process boundary only. Workflow execution enters the daemon in E2-07.
+This task establishes only the process boundary: the separation between the daemon process and the Control API, the API through which clients control workflow-related operations. Workflow execution enters the daemon in E2-07.
 
 ## End state
 
@@ -38,7 +38,7 @@ The daemon must own workflow execution after the invoking client disconnects. Bu
 
 - Documented commands build, start, inspect, stop, and test the daemon.
 - The daemon reports health and version independently of the Control API.
-- Invalid configuration fails before the daemon accepts requests and returns an actionable error.
-- The transport supports correlated requests between independently running processes.
+- The daemon rejects invalid configuration before accepting requests and returns an actionable error.
+- The transport supports correlated requests, meaning requests matched with their corresponding responses, between independently running processes.
 - Graceful shutdown stops accepting new requests, invokes registered shutdown handlers, and ends cleanly.
 - Integration tests exercise the real process and the selected E2-S2 transport without requiring workflow execution.

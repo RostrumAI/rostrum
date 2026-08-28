@@ -10,20 +10,20 @@
 
 ## Task
 
-This task completes workflow interface v1 execution by adding bounded loops.
+This task completes execution for workflow interface v1 by adding bounded loops.
 
 It implements:
 
-- collection resolution and array validation;
-- a bound check before iteration zero starts;
-- one active iteration at a time in collection order;
-- loop-variable binding within the active iteration;
-- unique identity for every body step and iteration;
-- complete workflow sections inside an iteration, including structured parallel work;
-- one ordered result entry per iteration;
-- fail-fast and error-tolerant loop policies;
-- loop iteration visibility in `currentSteps`;
-- structured handling of one or more failures observed within an iteration.
+- resolving each collection and validating that it is an array;
+- checking the iteration limit before iteration zero starts;
+- running one active iteration at a time, in collection order;
+- making the loop variable available within the active iteration;
+- assigning a unique identity to every body step and iteration;
+- executing complete workflow sections within an iteration, including structured parallel work, which is parallel work represented within the workflow structure;
+- returning one ordered result entry per iteration;
+- supporting fail-fast loops, which stop after an unhandled iteration failure, and error-tolerant loops, which record failures allowed by the policy and continue;
+- making loop iterations visible in `currentSteps`;
+- recording one or more failures observed within an iteration in a structured error entry.
 
 ## End state
 
@@ -45,7 +45,7 @@ Loops are part of the initial workflow language. Deferring them would leave Epic
 - Iteration `n + 1` starts only after iteration `n` commits its result.
 - Successful iterations contribute one exact output entry at their collection position.
 - Fail-fast loops stop before the next iteration after an unhandled iteration failure.
-- Error-tolerant loops capture eligible failures at the correct result position and continue.
+- Error-tolerant loops record failures allowed by the policy at the correct result position and continue.
 - An iteration with multiple observed failures preserves their complete stable order in its error entry.
 - Parallel work inside an iteration follows the E2-08 join and failure rules.
 - `currentSteps` includes the documented iteration identity for active loop-body steps.

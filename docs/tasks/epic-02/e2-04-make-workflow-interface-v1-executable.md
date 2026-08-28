@@ -12,18 +12,18 @@
 
 This task updates the shared workflow specification, schema, validator, and examples so every accepted workflow interface v1 document has the execution meaning defined by E2-03. This is Epic 02 work. It does not reopen Epic 01 tasks.
 
-The task:
+The task performs these actions:
 
-- requires `next` on every conditional branch and default;
-- rejects duplicate conditional priorities;
-- requires every selected path to reach an explicit `result` step;
-- validates one matching join for every parallel split;
-- allows sequences and properly nested parallel work inside a parallel path;
-- rejects crossing paths, early terminals, conditionals inside open parallel sections, and conditionals on matching join steps;
-- adds the loop failure-policy field and ordered result-entry schema;
-- extends step-type definitions with required-input, optional-input, configuration, and exact-output schemas;
-- validates authored step bindings and output declarations against those definitions;
-- updates examples, validation findings, fixtures, generated schema, and digest vectors.
+- Requires `next` on every conditional branch and default target.
+- Rejects duplicate conditional priorities.
+- Requires every selected execution path to reach an explicit `result` step.
+- Validates one matching join (a synchronization step that pairs with a parallel split to rejoin branches) for every parallel split.
+- Allows sequential steps and properly nested parallel work inside a parallel path.
+- Rejects crossing paths, early terminal steps, conditionals inside open parallel sections, and conditionals on matching join steps.
+- Adds the loop failure-policy field and the schema for ordered result entries.
+- Extends step-type definitions with schemas for required inputs, optional inputs, configuration, and exact outputs.
+- Validates authored step bindings and output declarations against those definitions.
+- Updates examples, validation findings (structured diagnostic error reports from the validator), test fixtures, generated schemas, and digest vectors (test vectors that pair input workflows with expected cryptographic hash digests).
 
 ## End state
 
@@ -46,6 +46,6 @@ The current workflow interface permits definitions that conflict with the approv
 - Validation accepts each structured parallel fixture and rejects unmatched, crossing, conditional-containing, and early-terminal parallel paths.
 - Loop definitions validate the documented failure policy and result shape.
 - Step definitions bind every required input, name only registered required or optional inputs, and declare exactly the registered outputs.
-- Statically known producer and consumer types must be compatible.
+- Statically known producer and consumer types are compatible.
 - Every valid E2-03 workflow fixture publishes successfully, and every invalid fixture produces its complete expected finding list.
-- Existing examples and digest vectors are updated through a clean cutover with no compatibility aliases for the superseded forms.
+- Existing examples and digest vectors are updated through a clean cutover with no compatibility aliases for superseded forms.

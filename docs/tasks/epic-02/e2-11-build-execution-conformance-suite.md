@@ -10,13 +10,13 @@
 
 ## Task
 
-This task turns the E2-03 fixture catalog into one reusable black-box conformance suite. The same applicable fixtures run against:
+This task turns the E2-03 fixture catalog into one reusable black-box conformance suite. The catalog contains predefined test inputs and expected behavior or results. A black-box conformance suite checks externally visible behavior without depending on implementation details. All applicable fixtures run against:
 
 - the execution runtime directly;
 - the daemon through the E2-S2 transport;
 - the Control API.
 
-Earlier implementation tasks retain their focused unit and integration tests. This suite proves that every layer interprets the public contract the same way.
+Earlier implementation tasks keep their focused unit and integration tests. This suite proves that every layer interprets the public contract in the same way.
 
 ## End state
 
@@ -24,7 +24,7 @@ Continuous integration detects any disagreement between the execution specificat
 
 ## Why
 
-A workflow can appear correct in one layer while changing shape or meaning at a process boundary. Shared fixtures make those differences observable before later Epics add persistence and remote workers.
+A workflow can appear correct in one layer but change shape or meaning when it crosses a process boundary. A process boundary is an interface between separate processes where data and behavior cross. Shared fixtures make those differences observable before later Epics add persistence and remote workers.
 
 ## Blocks
 
@@ -32,12 +32,12 @@ A workflow can appear correct in one layer while changing shape or meaning at a 
 
 ## Acceptance criteria
 
-- Every E2-03 fixture declares the applicable layers, request, expected state or causal constraints, and terminal result.
+- Every E2-03 fixture declares the applicable layers, request, expected state or causal constraints (ordering relationships that concurrent operations must satisfy without requiring one overall completion order), and terminal result (the final output or failure state produced when a run finishes).
 - The same sequential, conditional, parallel, loop, rejection, and failure fixtures run at every applicable layer.
 - Each layer returns the same public run status, ordered `currentSteps`, output, and ordered failures.
 - Invalid invocation fixtures distinguish rejection from accepted-run failure.
-- Parallel fixtures run under multiple handler limits and controlled completion orders.
+- Parallel fixtures run with multiple handler limits (the maximum number of handlers that parallel execution may run at once) and controlled completion orders.
 - Tests prove that unselected paths do not execute and joins do not start early.
 - Tests prove fail-fast and error-tolerant loop behavior, including ordered mixed results.
-- Concurrent trace checks assert causal relationships instead of one completion order.
+- Concurrent trace checks assert causal relationships instead of requiring one completion order.
 - The complete suite runs in continuous integration with deterministic control points and no timing-based sleeps.

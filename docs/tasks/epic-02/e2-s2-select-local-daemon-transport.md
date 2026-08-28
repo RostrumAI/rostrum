@@ -10,23 +10,23 @@
 
 ## Task
 
-This SPIKE selects how the separately running Control API and daemon communicate locally. It answers:
+This SPIKE is a task that investigates and selects a technical approach. It determines how the separately running Control API and daemon communicate locally. It answers the following questions:
 
 - How does the Control API submit a run request?
-- How does it retrieve a current or terminal run?
-- How are requests and responses correlated?
+- How does it retrieve a current run or a terminal run (a run that has reached its final state)?
+- How are requests and responses correlated (matched so each response is associated with its request)?
 - How are health checks, timeouts, and daemon unavailability reported?
-- How does the transport carry structured invocation rejection, `currentSteps`, output, and failures without redefining them?
+- How does the transport carry structured invocation rejection (a rejection with a defined set of fields), `currentSteps`, output, and failures without redefining them?
 
 The transport owns message delivery and correlation. E2-03 owns workflow and run semantics.
 
 ## End state
 
-One transport, message envelope, error mapping, and configuration approach are approved for implementation.
+The end state is approval of one transport, message envelope (a wrapper that carries a request or response), error mapping (rules for representing errors between the two processes), and configuration approach for implementation.
 
 ## Why
 
-The Control API and daemon need one testable local connection while remaining independently runnable processes.
+The Control API and daemon need one testable local connection so they can remain independently runnable processes.
 
 ## Blocks
 

@@ -10,12 +10,12 @@
 
 ## Task
 
-This task gives callers two Control API operations:
+This task exposes two Control API operations to callers. The Control API is the caller-facing API boundary:
 
 1. Start a run for an exact published workflow version and structured inputs.
-2. Retrieve the run's current or terminal representation.
+2. Retrieve the run's current representation or its terminal representation, the representation after the run reaches a final state.
 
-The Control API resolves the requested immutable workflow version, sends the invocation to the daemon through the E2-S2 transport, and returns the daemon's acceptance or rejection. It does not execute workflow steps or make routing decisions.
+To start a run, the Control API resolves the requested immutable workflow version. It then sends the invocation, a request to start a workflow run, through the E2-S2 transport. The transport carries the invocation to the daemon, the background process. The API returns the daemon's acceptance or rejection. It does not execute workflow steps or make routing decisions.
 
 The run representation includes:
 
@@ -40,12 +40,12 @@ The Control API is the single caller boundary for local and later hosted executi
 
 ## Acceptance criteria
 
-- A valid request names an exact published workflow version and returns HTTP 201 with a run ID and queued representation.
-- Invalid workflow identity, input, interface support, digest, or handler availability returns the documented rejection and no run ID.
+- A valid request names an exact published workflow version and returns `HTTP 201` with a run ID and `queued` representation.
+- A request with an invalid workflow identity, input, interface support, digest (the workflow-content verification value), or handler availability (whether the executable unit for a workflow step is available) returns the documented rejection and no run ID.
 - The invocation connection can close immediately after acceptance without stopping the run.
-- Retrieval returns the documented queued, running, succeeded, or failed representation.
+- Retrieval returns the documented `queued`, `running`, `succeeded`, or `failed` representation.
 - A run remains publicly `running` while already-started handlers drain after an unhandled failure.
-- `currentSteps` matches the daemon projection and is empty for queued and terminal runs.
-- Succeeded runs return output and an empty failure list; failed runs return no output and the complete ordered failure list.
+- `currentSteps` matches the daemon projection (the daemon-generated view of run state) and is empty for `queued` and terminal runs.
+- `succeeded` runs return output and an empty failure list; `failed` runs return no output and the complete ordered failure list.
 - Unknown runs and unavailable daemon behavior match the public error contract.
 - API integration tests prove that no graph or handler logic executes inside the Control API process.

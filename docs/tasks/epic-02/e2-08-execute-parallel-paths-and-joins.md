@@ -10,19 +10,19 @@
 
 ## Task
 
-This task extends the daemon execution engine with bounded parallel paths and matching joins.
+This task extends the daemon execution engine to run bounded parallel paths and matching joins. A join is a step that synchronizes concurrent branches into a single downstream path.
 
-It adds:
+This task adds:
 
-- a configured daemon-wide handler limit;
-- eligibility for every root in a parallel split during the same scheduling turn;
-- waiting state for eligible work that cannot start yet;
+- a configured daemon-wide limit on handlers (registered execution callbacks that run the logic for a step);
+- scheduling eligibility for every root step (the first step in each concurrent branch) in a parallel split (a control-flow construct that divides execution into concurrent branches) during the same scheduling turn (a single scheduling cycle in which the engine evaluates eligible steps);
+- a waiting state for eligible work that cannot start yet;
 - sequential work inside each parallel path;
-- properly nested parallel splits that rejoin before their containing path;
+- properly nested parallel splits that rejoin before their containing path rejoins;
 - dependency tracking that releases a join only after every path succeeds;
 - a fair scheduling rule across active runs;
-- failure handling that stops new work while allowing already-running handlers to finish;
-- stable collection of every failure observed during that drain.
+- failure handling that stops new work while allowing running handlers to finish;
+- stable collection of every failure observed while running handlers drain.
 
 Handler capacity can affect start and completion timing. It cannot affect data binding, conditional selection, joined output, or ordered failures.
 

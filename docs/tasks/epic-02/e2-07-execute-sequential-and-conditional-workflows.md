@@ -14,12 +14,12 @@ This task builds the common in-memory execution engine and proves sequential and
 
 It performs these operations:
 
-- verify the exact published workflow version, digest, interface version, registered handlers, and invocation inputs before accepting a run;
+- verify the exact published workflow version, digest, interface version, registered step handlers (components that execute step logic), and invocation inputs before accepting a run;
 - prepare and cache the immutable workflow information needed during execution;
 - create a run ID and in-memory run state;
-- track pending, waiting, running, succeeded, failed, and unselected step instances;
+- track pending, waiting, running, succeeded, failed, and unselected step instances (instances bypassed by conditional evaluation);
 - resolve workflow inputs and committed step outputs;
-- invoke handlers and commit only validated outputs;
+- invoke step handlers and commit only validated outputs;
 - follow sequential connections;
 - evaluate declared conditional expressions and activate one destination;
 - bind the final output at an explicit `result` step;
@@ -42,7 +42,7 @@ This task establishes the execution behavior shared by parallel paths and loops 
 
 ## Acceptance criteria
 
-- Missing or undeclared inputs, incompatible input values, unsupported interface versions, digest mismatches, and unavailable handlers reject invocation without creating a run.
+- Missing or undeclared inputs, incompatible input values, unsupported interface versions, digest mismatches, and unavailable step handlers reject invocation without creating a run.
 - Every accepted invocation receives a stable run ID and begins independently of the caller connection.
 - Sequential fixtures execute each selected step once and in order.
 - The engine evaluates conditionals by the documented operator and priority rules; handlers never return branch names.

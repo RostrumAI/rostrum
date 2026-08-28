@@ -12,15 +12,15 @@
 
 This task defines how the execution runtime invokes one workflow step. It adds:
 
-- a registry of available step handlers;
-- required-input, optional-input, configuration, and exact-output schemas;
-- one handler request containing only resolved inputs and declared configuration;
-- `{ type: "success", outputs }` and `{ type: "failure", error }` responses;
+- a registry of available step handlers, which are functions or components that execute the logic for specific step types;
+- schemas for required inputs, optional inputs, configuration, and exact outputs;
+- a single handler request containing only resolved inputs and declared configuration;
+- `{ type: "success", outputs }` and `{ type: "failure", error }` response structures;
 - runtime output validation and JSON-serializability checks;
 - normalization of thrown errors, rejected promises, malformed responses, and explicit failures;
-- a small set of deterministic, side-effect-free, bounded reference steps.
+- a small set of reference steps, which are deterministic, side-effect-free step handlers used as baseline building blocks and test fixtures.
 
-The reference steps must exercise workflow inputs, prior step outputs, empty and populated output objects, conditional values, loop items, and controlled failure. Test-only handlers may pause at controlled points so concurrency tests can inspect waiting and running work without relying on timing races.
+The reference steps must exercise workflow inputs, prior step outputs, empty and populated output objects, conditional values, loop items, and controlled failure. Test-only handlers can pause at controlled points so concurrency tests can inspect waiting and running work without relying on timing races.
 
 ## End state
 
@@ -28,7 +28,7 @@ The runtime can invoke one registered step with resolved inputs and receive eith
 
 ## Why
 
-Complete workflow execution needs one stable boundary between orchestration and step behavior. The same boundary later supports side-effecting workers without changing the workflow control-flow rules.
+Complete workflow execution requires a stable boundary between orchestration and step behavior. This boundary also supports side-effecting workers in later tasks without changing workflow control-flow rules.
 
 ## Blocks
 

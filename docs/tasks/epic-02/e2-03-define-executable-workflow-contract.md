@@ -10,7 +10,7 @@
 
 ## Task
 
-This task turns the E2-S1 execution decision and E2-S2 transport decision into one specification and fixture catalog for local workflow execution.
+This task turns the E2-S1 execution decision and E2-S2 transport decision into one specification and fixture catalog (a collection of test workflows and expected trace fixtures) for local workflow execution.
 
 The specification defines:
 
@@ -23,9 +23,9 @@ The specification defines:
 - parallel paths, matching joins, and nested parallel work;
 - bounded loops and their fail-fast and error-tolerant policies;
 - explicit `result` completion;
-- `currentSteps` projection;
-- active-handler drain and stable multi-failure ordering;
-- expected execution traces and causal constraints.
+- `currentSteps` projection (an observable run-state projection of active step instances);
+- active-handler drain (waiting for active handlers to finish) and stable multi-failure ordering;
+- expected execution traces and causal constraints (execution order dependencies that must hold across parallel operations).
 
 Concurrent fixtures do not prescribe one completion order. They state relationships that must always hold, such as a join becoming eligible only after every path succeeds.
 
@@ -51,6 +51,6 @@ Complete local execution crosses several packages and processes. One normative c
 - Conditional operators have explicit type rules and do not use JavaScript coercion.
 - `currentSteps` contents, ordering, loop identity, and terminal behavior are defined.
 - Rejected invocations are distinct from accepted failed runs and never receive a run ID.
-- Sequential traces have exact expected order; concurrent traces use causal constraints and stable terminal values.
+- Sequential traces have exact expected order, and concurrent traces use causal constraints and stable terminal values.
 - Fixtures cover every v1 control-flow construct, valid and invalid joins, both loop policies, invocation rejection, binding failure, handler failure, output failure, routing failure, and concurrent failures.
 - API and daemon messages in the fixtures match the E2-S2 transport contract.
