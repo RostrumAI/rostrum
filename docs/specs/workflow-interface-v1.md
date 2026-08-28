@@ -6,7 +6,7 @@
 | Source | [E1-03: Specify workflow JSON and its lifecycle](../tasks/epic-01/e1-03-write-workflow-interface-v1-specification.md) |
 | Decisions | [E1-S1](../decisions/epic-01/e1-s1-workflow-interface-v1.md), [E1-S2](../decisions/epic-01/e1-s2-validation-behavior.md), [E1-S3](../decisions/epic-01/e1-s3-draft-publication-lifecycle.md), [E1-S4](../decisions/epic-01/e1-s4-interface-versioning-methodology.md) |
 | Machine-readable schema | [workflow-interface-v1.schema.json](workflow-interface-v1.schema.json) |
-| Last updated | 2026-08-22 |
+| Last updated | 2026-08-28 |
 
 ## What this specification defines
 
@@ -168,7 +168,7 @@ A step with a `loop` field performs bounded `forEach` iteration over a collectio
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `collection` | reference object | **required** | Reference to the array value to iterate over: a workflow input (`inputs.<name>`) or a step output (`step.<stepId>.<outputName>`) from a step that completes before iteration begins, including the loop step's own output. Must resolve to a finite array at execution time. |
-| `maxIterations` | integer (≥ 1) | **required** | Hard cap on the number of iterations. If the collection length exceeds this value, the run fails with a structured error. |
+| `maxIterations` | integer (≥ 1) | **required** | Hard cap on the number of iterations. If the collection length exceeds this value, the run fails with a structured error. The upper bound on `maxIterations` itself is set by a configurable platform config variable, defaulting to 1000; a document that declares a larger value is invalid. |
 | `variable` | string | **required** | Name under which the current element is accessible in body step inputs via `loop.<variable>`. |
 | `body` | string (UUID v7) | **required** | Step ID of the body subgraph's first step. The body subgraph is validated as a separate DAG within the same `steps` array. |
 
@@ -235,7 +235,7 @@ Metadata-only edits never bump `interfaceVersion` and never change the digest. A
 
 ## Draft and publication lifecycle
 
-Three objects make up the lifecycle. A **draft** is the workflow's working copy: what the editor shows and what the author edits. Every successful save creates a new **revision**: a checkpoint holding the exact bytes the author submitted plus a snapshot of validation findings. The draft's current revision is the newest one, and only the current revision can be published. A **published version** is an immutable release: the current revision's content, canonicalized and hashed, stored forever under a per-workflow version number. Publishing never removes the draft; rewinding the draft to an earlier revision is how an author selects an earlier state for publication.
+Three objects make up the lifecycle. A **draft** is the workflow's working copy: what the editor shows and what the author edits. Every successful save creates a new **revision**: a checkpoint holding the exact bytes the author submitted plus a snapshot of validation findings. Every revision is typed: `save` for an author save, `rewind` for the checkpoint a rewind appends (see [Rewind](#rewind)). The draft's current revision is the newest one, and only the current revision can be published. A **published version** is an immutable release: the current revision's content, canonicalized and hashed, stored forever under a per-workflow version number. Publishing never removes the draft; rewinding the draft to an earlier revision is how an author selects an earlier state for publication.
 
 ### Identifier model
 
@@ -245,6 +245,7 @@ Three objects make up the lifecycle. A **draft** is the workflow's working copy:
 | Draft | = workflow `id` | — | — |
 | Revision `id` | UUID v7 | Server, per successful save | New id per save; the current one changes on every save and on rewind |
 | Revision name | string, optional | Author | Checkpoint label; editable while the revision exists |
+| Revision type | `save` or `rewind` | Server, when the revision is created | Never |
 | Published version | integer ≥ 1 | Server | Increments by 1 per successful publish |
 | Digest | SHA-256 hex (64 chars) | Server, computed from the document | Deterministic on content; immutable once stored |
 
@@ -256,7 +257,7 @@ Revision ids carry no position, so rewinding never renumbers anything.
 
 - **Eligibility.** Any syntactically valid JSON saves as a draft, including documents with blocking validation findings. Parse failures — invalid JSON, duplicate keys, `NaN`/`Infinity`, invalid UTF-8 — are errors, not drafts.
 - **Revision check.** Updates carry `baseRevision`: the id of the revision the client last saw. The server commits only when it equals the draft's current revision; otherwise the save fails with a conflict carrying the current revision and findings. The first save has no `baseRevision`.
-- **Atomicity.** One transaction inserts the revision row — a fresh server-generated UUID v7 id, the exact submitted bytes, the findings snapshot, the optional name — then conditionally updates the draft's current revision. No locks; a stale save fails cleanly.
+- **Atomicity.** One transaction inserts the revision row — a fresh server-generated UUID v7 id, the exact submitted bytes, the findings snapshot, the optional name, and the `save` revision type — then, under a short row lock, conditionally updates the draft's current revision. A stale save fails cleanly.
 - **Findings.** Recomputed on every save and stored with the revision, so retrieval returns findings without re-validation.
 - **Content.** The exact submitted bytes are stored in the revision row and returned unchanged. This is the only draft-side copy of the author's JSON.
 
@@ -275,17 +276,17 @@ Revision ids carry no position, so rewinding never renumbers anything.
 | Save with stale `baseRevision` | Conflict with current revision and findings; no partial write |
 | Save with embedded `id` ≠ addressed workflow | Identity conflict |
 | Edit a draft after publication | New revision; published versions unchanged |
-| Rewind to an earlier revision | Target becomes current; newer revisions deleted; published versions unchanged |
-| Rewind past the newest published revision's source | Refused — published versions keep their source revision |
-| Rewind with no newer revisions | No-op |
+| Rewind to an earlier revision | A copy of the target becomes current; every revision stays in history; published versions unchanged |
+| Rewind past the newest published revision's source | Succeeds — the published version's source revision stays retrievable |
+| Rewind to the current revision | No-op |
 
 ### Rewind
 
-Rewinding sets the draft's current revision to an earlier target revision and deletes every revision newer than the target. Further saves create new revisions after the target. The target may not be older than the newest revision a published version was created from: published versions are immutable, and their source revisions must stay retrievable.
+Rewinding appends a copy of the earlier target revision as the newest revision and repoints the draft's current-revision pointer at that copy. The copy carries the target's exact bytes and findings snapshot and is stored with the `rewind` type; the target and every newer revision stay in history, so published versions always keep their source revisions retrievable. Further saves create new revisions after the copy.
 
 ### Draft after publication
 
-The draft remains editable after publication. Further saves create new revisions, rewind repoints the draft at an earlier revision, and further publishes create new versions. Published rows are immutable and are never touched by draft operations.
+The draft remains editable after publication. Further saves create new revisions, rewind appends a copy of an earlier revision and repoints the draft at it, and further publishes create new versions. Published rows are immutable and are never touched by draft operations.
 
 ## Digest
 

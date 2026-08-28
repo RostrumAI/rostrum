@@ -1,13 +1,12 @@
 /**
  * RFC 8785 (JSON Canonicalization Scheme) canonicalizer, test-scoped.
  *
- * Implements the subset of RFC 8785 needed to reproduce the E1-S3 digest
- * vectors for the specification examples: UTF-16 code-unit member sorting,
- * ES2020 `Number::toString` number serialization, minimal string escaping,
- * and no whitespace. The E1-04 library ships the production
- * implementation; this copy exists so the committed vectors are reproduced
- * by two independent implementations before E1-05 publishes them, as the
- * E1-S3 decision requires.
+ * Implements the subset of RFC 8785 needed to reproduce the published
+ * digest vectors for the specification examples: UTF-16 code-unit member
+ * sorting, ES2020 `Number::toString` number serialization, minimal string
+ * escaping, and no whitespace. The workflow library ships the production
+ * implementation; this copy exists so the committed vectors are
+ * reproduced by two independent implementations before they ship.
  */
 
 /** Sorts by UTF-16 code units, per RFC 8785 §3.2.2.3. */

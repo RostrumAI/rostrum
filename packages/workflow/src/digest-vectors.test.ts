@@ -6,10 +6,9 @@ import { V1_RULE_SET } from "../src/rules/v1";
 import { digestWorkflow } from "./testing/digest";
 
 /**
- * Digest vectors for the E1-S3 publication contract, as amended by
- * E1-S4 decision 4a: SHA-256 lowercase hex over the RFC 8785 canonical
- * form of the document with the metadata members (`name`, `description`
- * in v1) removed.
+ * Digest vectors for the publication contract: SHA-256 lowercase hex
+ * over the RFC 8785 canonical form of the document with the metadata
+ * members (`name`, `description` in v1) removed.
  *
  * Every vector was reproduced independently before it shipped: once by
  * the library's canonicalizer (`PublicationPreparer`) and once by a

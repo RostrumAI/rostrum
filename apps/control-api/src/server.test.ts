@@ -4,7 +4,8 @@ import pkg from "../package.json" with { type: "json" };
 
 /**
  * Boots the real Control API process over HTTP and runs the foundation
- * assertions. No database is required: E1-02 has no storage (E1-07 adds it).
+ * assertions. No database is required: the foundation has no storage;
+ * storage arrives with the workflow operations.
  */
 interface BootedServer {
     baseUrl: string;

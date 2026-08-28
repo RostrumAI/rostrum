@@ -1,4 +1,5 @@
 import type { Finding } from "@rostrum/workflow";
+import type { RevisionType } from "../schema/revisions";
 
 /**
  * The data contract of {@link WorkflowRepository}: the stored shapes the
@@ -18,7 +19,9 @@ export interface StoredRevision {
     name: string | null;
     /** The exact submitted bytes; byte-identical to what was saved. */
     content: string;
-    /** The validation findings snapshot stored with the revision (E1-S3). */
+    /** The origin of the revision: an author save or a rewind-appended copy. */
+    type: RevisionType;
+    /** The validation findings snapshot stored with the revision. */
     findings: Finding[];
     /** Creation time according to the database clock. */
     createdAt: Date;
@@ -56,15 +59,14 @@ export interface SaveRevisionInput {
 
 /**
  * The result of one save attempt. `conflict` carries the draft's current
- * revision so a caller can answer 409 without a second query (E1-S3 save
- * contract).
+ * revision so a caller can answer 409 without a second query.
  */
 export type SaveRevisionResult =
     | { outcome: "saved"; revision: StoredRevision }
     | { outcome: "conflict"; currentRevision: StoredRevision }
     | { outcome: "not-found" };
 
-/** The result of one rewind attempt (E1-S3 rewind contract). */
+/** The result of one rewind attempt. */
 export type RewindResult =
     | { outcome: "rewound"; revision: StoredRevision }
     | { outcome: "no-op" }
@@ -89,7 +91,7 @@ export interface PublishInput {
  * The result of one publish attempt. `published` and `already-published`
  * return the same version number; `not-found` reports an unknown workflow
  * and `revision-not-found` a revision that does not belong to it, the two
- * 404 cases of the E1-S3 publish contract, typed instead of thrown.
+ * 404 cases of the publish contract, typed instead of thrown.
  */
 export type PublishResult =
     | { outcome: "published"; versionNumber: number }

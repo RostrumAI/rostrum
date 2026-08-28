@@ -3,7 +3,7 @@ import type { ValidationStage } from "../validation/validation-stage";
 import type { StepTypeRegistry } from "./step-type-registry";
 
 /**
- * One frozen interface-version rule set (E1-S1, E1-S4).
+ * One frozen interface-version rule set.
  *
  * Every release ships each supported version's rule set forward unchanged:
  * the document schema, the step-type registry, the metadata members the
@@ -18,7 +18,7 @@ export interface InterfaceRuleSet {
     readonly documentSchema: TSchema;
     /** Step types registered for this version. */
     readonly stepTypes: StepTypeRegistry;
-    /** Top-level metadata members removed before canonicalization (E1-S4). */
+    /** Top-level metadata members removed before canonicalization. */
     readonly metadataMembers: readonly string[];
     /** Validation stages for this version, in execution order. */
     readonly stages: readonly ValidationStage[];

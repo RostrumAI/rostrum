@@ -13,7 +13,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
         .addColumn("id", "uuid", (col) => col.primaryKey())
         .addColumn("workflow_id", "uuid", (col) => col.notNull())
         // The exact submitted bytes; retrieval returns them unchanged and
-        // findings' line and column stay anchored to this text (E1-S3).
+        // findings' line and column stay anchored to this text.
         .addColumn("content", "text", (col) => col.notNull())
         // The validation findings snapshot, serialized JSON.
         .addColumn("findings", "text", (col) => col.notNull())
@@ -24,8 +24,8 @@ export async function up(db: Kysely<Database>): Promise<void> {
         .addForeignKeyConstraint("revisions_workflow_fk", ["workflow_id"], "workflows", ["id"])
         .execute();
 
-    // Per-draft revision identity from E1-S3's save contract: a revision
-    // belongs to exactly one draft, and every workflow-scoped read (the
+    // Per-draft revision identity: a revision belongs to exactly one
+    // draft, and every workflow-scoped read (the
     // current pointer, rewind candidates, publish lookups) filters by
     // workflow_id first. The primary key alone enforces uniqueness across
     // all drafts, so this index carries the scoping and the lookup path.

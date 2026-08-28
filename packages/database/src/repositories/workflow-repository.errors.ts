@@ -49,8 +49,8 @@ export class CorruptWorkflowStateError extends StorageError {
 /**
  * A workflow `id` already exists (409-class). Wraps the Postgres
  * unique-violation raised by a duplicate `WorkflowRepository.createDraft`
- * so consumers never see a raw driver error; E1-06 maps it to an identity
- * conflict.
+ * so consumers never see a raw driver error; callers map it to an
+ * identity conflict.
  */
 export class DuplicateWorkflowIdError extends StorageError {
     constructor(workflowId: string) {
@@ -62,7 +62,7 @@ export class DuplicateWorkflowIdError extends StorageError {
 /**
  * Raised when a stored published version fails verification at retrieval:
  * either the recomputed digest differs from the stored digest or the stored
- * text is not in canonical form (E1-07 digest verification).
+ * text is not in canonical form (digest verification).
  */
 export class DigestVerificationError extends StorageError {
     constructor(workflowId: string, versionNumber: number, reason: string) {

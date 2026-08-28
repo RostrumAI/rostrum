@@ -5,7 +5,7 @@ import type { Database } from "../src/schema/database";
 /**
  * Creates `workflows`: one row per draft, pointing at its current
  * revision. The current-revision foreign key arrives with 0002_revisions
- * because the revisions table does not exist yet (E1-S3 identity rule).
+ * because the revisions table does not exist yet.
  */
 export async function up(db: Kysely<Database>): Promise<void> {
     await db.schema

@@ -11,7 +11,7 @@ export interface PublicationPreparation {
     /**
      * SHA-256 of the canonical form as 64 lowercase hex characters,
      * computed after the rule set's metadata members are removed, so a
-     * metadata-only edit leaves the digest unchanged (E1-S3, E1-S4).
+     * metadata-only edit leaves the digest unchanged.
      */
     digest: string;
 }

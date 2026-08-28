@@ -13,7 +13,12 @@ afterAll(() => testPostgres.stop());
 /** The migration modules under test, resolved beside this package. */
 const migrationsFolder = join(import.meta.dir, "..", "migrations");
 
-const EXPECTED_MIGRATIONS = ["001_workflows", "002_revisions", "003_published_versions"];
+const EXPECTED_MIGRATIONS = [
+    "001_workflows",
+    "002_revisions",
+    "003_published_versions",
+    "004_revision_type",
+];
 
 async function withDatabase<T>(run: (db: Kysely<Database>) => Promise<T>): Promise<T> {
     const db = createDatabase(testPostgres.url);

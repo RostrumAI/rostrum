@@ -9,8 +9,8 @@ import {
 /**
  * Strict JSON parsing with a source map.
  *
- * Stage 0 of the validation pipeline parses raw input under the v1 rules
- * (E1-S2, E1-S3): duplicate keys are errors rather than last-wins, raw
+ * Stage 0 of the validation pipeline parses raw input under the v1 rules:
+ * duplicate keys are errors rather than last-wins, raw
  * control characters in strings are rejected, the `NaN`/`Infinity`
  * literals accepted by `JSON.parse` are rejected because they are not
  * part of the JSON grammar (momoa implements ECMA-404), and byte input

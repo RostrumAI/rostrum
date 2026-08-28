@@ -33,7 +33,7 @@ const CODE_BY_KEYWORD: Record<string, string> = {
  * array bounds, and `maxIterations >= 1` are schema-level rules. Each
  * TypeBox error maps to a `workflow.shape.*` code with the schema path
  * and keyword in `details`; unknown fields surface here as blocking
- * `workflow.shape.unknown-field` findings (E1-S2).
+ * `workflow.shape.unknown-field` findings.
  */
 export class ShapeStage implements ValidationStage {
     readonly id = "shape";

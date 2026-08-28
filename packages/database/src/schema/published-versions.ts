@@ -1,9 +1,9 @@
 /** One row of `published_versions`: an immutable published release. */
 export interface PublishedVersionRow {
     workflowId: string;
-    /** Per-workflow monotonic integer starting at 1 (E1-S3). */
+    /** Per-workflow monotonic integer starting at 1. */
     versionNumber: number;
-    /** The source revision; rewind never deletes below it (E1-S3). */
+    /** The source revision of the published bytes. */
     revisionId: string;
     /** The declared `interfaceVersion` of the published document. */
     interfaceVersion: string;

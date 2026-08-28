@@ -24,8 +24,8 @@ import type {
 } from "./workflow-repository.types";
 
 /**
- * Postgres persistence for drafts, revisions, and published versions
- * (E1-07). Implements the lifecycle contract of E1-S3:
+ * Postgres persistence for drafts, revisions, and published versions.
+ * Implements the lifecycle contract:
  *
  * - saves are one transaction — insert the revision, then conditionally
  *   update `workflows.current_revision`; zero rows updated means a stale
@@ -38,7 +38,7 @@ import type {
  *   published version's source revision always stays retrievable.
  *
  * Published rows have no update or delete path in this class; published
- * versions are immutable by construction (E1-S3).
+ * versions are immutable by construction.
  */
 export class WorkflowRepository {
     private readonly db: Kysely<Database>;
@@ -59,8 +59,8 @@ export class WorkflowRepository {
     /**
      * Creates the draft: mints the workflow `id`, inserts the workflow row,
      * and stores the submitted document as its first revision, so every
-     * draft has at least one revision (E1-S3 identity rule; creation is
-     * the first save). Every identifier is minted here — the workflow `id`
+     * draft has at least one revision (creation is the first save). Every
+     * identifier is minted here — the workflow `id`
      * below and each revision id in saves — never accepted from callers.
      */
     async createDraft(input: CreateDraftInput): Promise<CreatedDraft> {
@@ -109,7 +109,7 @@ export class WorkflowRepository {
             // The row lock makes the baseRevision check and the pointer flip
             // one atomic step against the latest committed state; a stale
             // save is rejected before any revision row exists, so a conflict
-            // never leaves a partial write behind (E1-S3 save contract).
+            // never leaves a partial write behind.
             const draft = await tx
                 .selectFrom("workflows")
                 .select("currentRevision")
@@ -176,10 +176,10 @@ export class WorkflowRepository {
     /**
      * Rewinds the draft to an earlier revision by appending a copy of the
      * target as the newest revision and repointing the current-revision
-     * pointer at it. Nothing is deleted: the target and every newer
-     * revision stay in history, so published versions always keep their
-     * source revisions retrievable. Rewinding to the current revision is a
-     * no-op.
+     * pointer at it. The copy is stored with the `rewind` revision type.
+     * Nothing is deleted: the target and every newer revision stay in
+     * history, so published versions always keep their source revisions
+     * retrievable. Rewinding to the current revision is a no-op.
      */
     async rewind(workflowId: string, targetRevisionId: string): Promise<RewindResult> {
         this.assertWorkflowId(workflowId);
@@ -202,9 +202,10 @@ export class WorkflowRepository {
             }
             // The copy carries the target's exact bytes and findings
             // snapshot; both were guarded when the target row was written,
-            // so the input guards do not run again here. The name stays
-            // unset: the rewind action created this checkpoint, not an
-            // author's label.
+            // so the input guards do not run again here. The copy is stored
+            // with the `rewind` revision type, and the name stays unset:
+            // the rewind action created this checkpoint, not an author's
+            // label.
             const revisionId = mintUuidV7();
             await tx
                 .insertInto("revisions")
@@ -213,6 +214,7 @@ export class WorkflowRepository {
                     workflowId,
                     content: target.content,
                     findings: target.findings,
+                    type: "rewind",
                     createdAt: sql<Date>`now()`,
                 })
                 .execute();
@@ -380,6 +382,7 @@ export class WorkflowRepository {
             workflowId,
             content: input.content,
             findings: JSON.stringify(input.findings),
+            type: "save" as const,
             createdAt: sql<Date>`now()`,
         };
     }
@@ -436,15 +439,16 @@ export class WorkflowRepository {
             workflowId: row.workflowId,
             name: row.name,
             content: row.content,
+            type: row.type,
             findings: parsed as Finding[],
             createdAt: row.createdAt,
         };
     }
 
-    /** Rejects ids that are not UUID v7 before any transaction opens (E1-S3 identity rule). */
+    /** Rejects ids that are not UUID v7 before any transaction opens. */
     private assertWorkflowId(workflowId: string): void {
         // `validate` accepts every RFC 9562 shape; the version nibble must
-        // be 7 for a workflow id (E1-S3 identity rule).
+        // be 7 for a workflow id.
         if (!isUuid(workflowId) || uuidVersion(workflowId) !== 7) {
             throw new InvalidWorkflowInputError(`'${workflowId}' is not a UUID v7 workflow id`);
         }

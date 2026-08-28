@@ -7,7 +7,7 @@ import type { ValidationContext } from "./validation-context";
  * A stage declares the stage ids whose blocking findings gate it. The
  * pipeline runs stages in list order and skips a stage when any
  * prerequisite produced a blocking finding, so later stages only run
- * when earlier results provide enough reliable information (E1-S2).
+ * when earlier results provide enough reliable information.
  */
 export interface ValidationStage {
     /** Stable stage id used in prerequisite declarations. */

@@ -13,7 +13,7 @@ const API_PREFIX = "/api/v1";
 
 /**
  * Components shared across features. The TypeBox schemas are embedded
- * verbatim, so the generated document round-trips them unchanged (E1-S0 row 3).
+ * verbatim, so the generated document round-trips them unchanged.
  */
 const SHARED_COMPONENTS = {
     ErrorResponse: ErrorResponseSchema,
@@ -39,7 +39,7 @@ const CANDIDATE_METHODS = [
  * without a socket and the real process serves the same app over HTTP.
  * Route slices under `src/features` bind themselves at construction: the
  * folder layout decides the versioned path, so a slice never edits a central
- * route table. Foundation surface (E1-02): versioned `/api/v1` routes, one
+ * route table. Foundation surface: versioned `/api/v1` routes, one
  * error shape, and the code-first OpenAPI 3.1 document at `/openapi.json`.
  */
 export class ControlApiApp {
@@ -83,7 +83,7 @@ export class ControlApiApp {
                             title: "Rostrum Control API",
                             version: pkg.version,
                             description:
-                                "Code-first OpenAPI 3.1 document generated from TypeBox schemas (Decision e1-s0).",
+                                "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
                         },
                         tags: [{ name: "system" }],
                         components: {
@@ -98,7 +98,7 @@ export class ControlApiApp {
 
         this.routes.notFound((c) => this.notFound(c));
         this.routes.onError((err, c) => this.serverError(err, c));
-        // Must run after all routes are registered (E1-02 error contract).
+        // Must run after all routes are registered (the error contract).
         this.registerMethodNotAllowed();
     }
 
@@ -133,9 +133,9 @@ export class ControlApiApp {
     }
 
     /**
-     * One error response in the single error shape (E1-02 contract):
-     * `{ code, message, findings }`. `findings` stays empty until E1-06
-     * reports validation findings.
+     * One error response in the single error shape:
+     * `{ code, message, findings }`. `findings` stays empty until the
+     * workflow operations report validation findings.
      */
     private errorJson(
         code: string,

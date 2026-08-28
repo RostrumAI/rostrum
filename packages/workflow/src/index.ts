@@ -16,8 +16,7 @@
  *   metadata members removed.
  *
  * The machine-readable document schema lives in `./schema`; its emitted
- * JSON Schema 2020-12 artifact is
- * `docs/specs/workflow-interface-v1.schema.json`.
+ * JSON Schema 2020-12 artifact describes the interface's document shape.
  */
 
 export type { Finding, FindingSpec, RelatedLocation } from "./findings";

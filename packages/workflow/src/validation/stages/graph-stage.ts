@@ -12,7 +12,7 @@ import type { WorkflowGraph } from "../workflow-graph";
  * `maxIterations` must be a positive integer, and every dependency must
  * be reachable on all paths from `firstNode` to its dependent — the
  * merge-after-branch restriction, tested with dominator sets over the
- * control graph (E1-S2). Dependency reachability is skipped when a cycle
+ * control graph. Dependency reachability is skipped when a cycle
  * was found: dominators are only meaningful on an acyclic graph.
  */
 export class GraphStage implements ValidationStage {
@@ -145,8 +145,8 @@ export class GraphStage implements ValidationStage {
      * `firstNode` to their dependent.
      *
      * A dependency dominates its dependent exactly when every control
-     * path passes through it; that is the merge-after-branch rule of
-     * E1-S2. Steps unreachable from `firstNode` are skipped because their
+     * path passes through it; that is the merge-after-branch rule.
+     * Steps unreachable from `firstNode` are skipped because their
      * reachability is reported by the termination stage.
      */
     private checkDependencyDominance(

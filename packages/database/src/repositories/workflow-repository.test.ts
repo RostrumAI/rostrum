@@ -138,6 +138,7 @@ describe("drafts and revisions", () => {
             });
             expect(uuidVersion(created.workflowId)).toBe(7);
             expect(created.revision.content).toBe(content);
+            expect(created.revision.type).toBe("save");
 
             const current = await database.workflows.getCurrentRevision(created.workflowId);
             expect(current?.revisionId).toBe(created.revision.revisionId);
@@ -200,6 +201,7 @@ describe("drafts and revisions", () => {
                     workflowId,
                     name: null,
                     content: '{"v":2}',
+                    type: "save",
                     findings: [],
                     createdAt: secondRevision.createdAt,
                 },
@@ -298,6 +300,7 @@ describe("rewind", () => {
             // The appended copy carries the target's bytes; nothing was deleted.
             expect(rewound.revision.revisionId).not.toBe(created.revision.revisionId);
             expect(rewound.revision.content).toBe('{"v":1}');
+            expect(rewound.revision.type).toBe("rewind");
             expect(await countRevisions(database, workflowId)).toBe(4);
             expect(await revisionIds(database, workflowId)).toEqual([
                 created.revision.revisionId,

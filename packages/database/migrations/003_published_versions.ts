@@ -4,7 +4,7 @@ import type { Database } from "../src/schema/database";
 
 /**
  * Creates `published_versions`: immutable published releases with
- * per-workflow monotonic integer version numbers (E1-S3). A revision
+ * per-workflow monotonic integer version numbers. A revision
  * publishes at most once; the unique `(workflow_id, revision_id)` index
  * decides the concurrent-publish race.
  */

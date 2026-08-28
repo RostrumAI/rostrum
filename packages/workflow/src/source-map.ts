@@ -3,7 +3,7 @@
  *
  * Validation stage 0 builds a source map while parsing, and findings attach
  * the location of their JSON Pointer when the map is available. Lines and
- * columns are one-based, matching the finding contract in E1-S2.
+ * columns are one-based, matching the finding contract.
  */
 
 /** A one-based position in the source text. */

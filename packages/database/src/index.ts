@@ -34,5 +34,5 @@ export type {
 } from "./repositories/workflow-repository.types";
 export type { Database } from "./schema/database";
 export type { PublishedVersionRow } from "./schema/published-versions";
-export type { RevisionRow } from "./schema/revisions";
+export type { RevisionRow, RevisionType } from "./schema/revisions";
 export type { WorkflowRow } from "./schema/workflows";

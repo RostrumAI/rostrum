@@ -1,9 +1,9 @@
 import type { TSchema } from "typebox";
 
 /**
- * What one step type contributes to an interface version's rule set
- * (E1-S1). The type name selects the registration; the config schema is
- * the only per-type contract in v1.
+ * What one step type contributes to an interface version's rule set.
+ * The type name selects the registration; the config schema is the only
+ * per-type contract in v1.
  */
 export interface StepTypeRegistration {
     /**
@@ -18,7 +18,7 @@ export interface StepTypeRegistration {
  * Registry of step types for one interface version.
  *
  * A step whose `type` is not registered is a blocking finding, never a
- * silent pass (E1-S1). The owning rule set seals the registry when it is
+ * silent pass. The owning rule set seals the registry when it is
  * built, so a shipped rule set never gains or loses types.
  */
 export class StepTypeRegistry {
