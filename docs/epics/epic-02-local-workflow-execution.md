@@ -1,178 +1,158 @@
-# Epic 02: Local Workflow Execution
+# Epic 02: Local workflow execution
 
-Status: Draft for review and decomposition  
-Depends on: [Epic 01: Shape of a Workflow](epic-01-shape-of-a-workflow.md)  
+Status: Draft for review and decomposition
+Depends on: [Epic 01: Shape of a workflow](epic-01-shape-of-a-workflow.md)
 Unlocks: Epic 03, durable runs and human control
 
 ## Purpose
 
-This Epic adds the first Rostrum daemon and executes published workflows locally through the Control API.
+This epic turns workflow interface v1 into a complete local execution contract. A caller starts an exact published workflow version through the Control API, the service interface for starting and inspecting workflow runs. The caller can disconnect and later retrieve the run's progress, result, or failures after the local daemon, a background service that runs independently of the client, executes the workflow.
 
-It is complete when a caller can invoke an exact published workflow version with valid structured inputs, receive a run ID, and retrieve a successful result or structured failure after the daemon executes sequential, branching, and terminal control flow.
+Epic 02 is complete when the daemon executes every workflow interface v1 control-flow construct with registered step types. These constructs include sequences, conditionals, parallel paths, joins (points where parallel paths synchronize), loops with a fixed limit, and explicit results. Epic 02 also tightens the shared workflow contract so that every workflow accepted for execution has one unambiguous runtime meaning.
 
-## Why this comes next
+## Product outcome
 
-Epic 01 defines what a workflow is. Rostrum must now prove that definition is executable:
+At the end of this Epic, a caller can:
 
-- workflow inputs must bind to step inputs;
-- step outputs must bind to later steps;
-- graph connections must determine execution order;
-- branch results must select one declared path;
-- terminal results must produce workflow outputs;
-- the Control API must remain the caller's execution boundary;
-- the daemon must own execution independently of the caller.
+1. Start an exact published workflow version with structured inputs.
+2. Disconnect without stopping the run.
+3. Let the daemon execute the workflow independently.
+4. Inspect which step instances are waiting or running.
+5. Retrieve either the declared workflow result or the complete ordered list of failures.
 
-This Epic produces the execution rules, daemon, step handlers, graph executor, run API, and tests that later Epics make durable and extend with new capabilities.
+The same workflow and step-handler outputs produce the same branch selection, data bindings, loop results, final output, and ordered failures. A step handler is an execution component that runs the logic for a specific step type. Available worker capacity can change when parallel step handlers start, but it cannot change the workflow result.
 
-## Product state this Epic unlocks
+## Scope
 
-Rostrum will execute a small, side-effect-free workflow in a local daemon.
+Epic 02 delivers:
 
-```mermaid
-flowchart LR
-    C["Caller"] -->|"workflow version + inputs"| A["Control API"]
-    A -->|"run request"| D["Local daemon"]
-    D --> B["Bind inputs"]
-    B --> S["Execute steps"]
-    S --> R["Select branches"]
-    R --> T["Produce terminal result"]
-    T --> A
-    A -->|"run status + result"| C
-```
+- cleanup of unclear workflow-interface terminology and task-tracking references before new execution work begins;
+- one reviewed specification and fixture catalog for complete local execution, where a fixture is a predefined workflow definition or input used to check expected execution behavior;
+- shared workflow schemas and validation that accept only executable workflow interface v1 documents;
+- a separately runnable local daemon;
+- a step-handler interface and a small set of deterministic reference steps without side effects, which are step implementations used as baseline building blocks;
+- in-memory execution for sequential flow, conditionals, parallel paths, joins, and loops with a fixed limit;
+- Control API operations to start and inspect runs;
+- one conformance suite, a shared set of checks against the same expected behavior, for the runtime, daemon transport, and Control API;
+- one command that proves the complete Epic through the actual process boundary.
 
-The Control API accepts and exposes runs. The daemon owns graph execution and must not depend on the caller remaining connected.
+## Boundaries
 
-## What we are building
+Epic 02 keeps run state in memory and uses bounded reference steps. It does not add:
 
-| Capability | What exists at the end of the Epic | What it accomplishes |
-| --- | --- | --- |
-| Executable-workflow specification | One specification and fixture set defining run requests, states, references, handlers, branches, results, and failures | Gives the API, daemon, executor, and tests the same behavior to implement |
-| Local daemon | A separately runnable process with configuration, logging, health, version reporting, transport, startup, and shutdown | Provides the process that owns local execution |
-| Execution state | In-memory run status, step outcomes, available values, final output, and structured failure | Records what a run knows and produces the inputs for each step |
-| Step registry and handlers | One handler interface plus deterministic, side-effect-free reference handlers | Executes a configured step and returns a standard outcome |
-| Graph executor | A loop that follows sequential connections, selected branches, and terminal results | Moves a run from its starting step to completion or failure |
-| Control API run operations | Operations to start a run and retrieve its status or result | Gives callers one public execution boundary |
-| Examples and conformance tests | Shared sequential, branching, success, and failure fixtures run across each execution layer | Detects disagreement between the specification, daemon, and API |
+- database persistence or restart recovery;
+- retries or durable attempts;
+- waits, pauses, cancellation, or human decisions;
+- scripts, tools, model calls, integrations, or other side effects;
+- deployment or production readiness.
 
-## How a local run works
+Epic 03 adds durable runs and human control. Epic 04 adds isolated tools, scripts, and side effects. Later epics build the deployment and product surfaces that culminate in Epic 13.
 
-1. The caller selects an exact published workflow version and supplies structured inputs.
-2. The Control API resolves the immutable workflow and sends it with the inputs to the daemon.
-3. The daemon validates the invocation, creates a run record, and returns its ID.
-4. The runtime binds workflow inputs and starts at the declared first step.
-5. Each step receives resolved inputs and returns a typed outcome or structured failure.
-6. The runtime records the outcome and follows the declared connection or selected branch.
-7. A terminal result binds the workflow outputs and completes the run.
-8. The caller retrieves the run status and result through the Control API.
+## Execution rules
 
-Invalid workflow inputs fail before a step runs. An unsupported step, unresolved binding, invalid branch result, or step failure ends the run with a stable machine-readable failure.
+The [E2-S1 local execution decision](../decisions/epic-02/e2-s1-local-execution-semantics.md) defines these rules:
 
-## Runtime boundaries
-
-- The daemon executes only immutable published workflow versions supported by the shared workflow library.
-- The first handlers are deterministic and side-effect-free. They prove execution without introducing host commands, containers, models, context access, or integrations.
-- One local daemon and in-memory run records are sufficient for this Epic.
-- Epic 03 adds durable state, recovery, waits, retries, cancellation, and richer observation.
-- Epic 04 adds isolated tools, scripts, and side effects.
+- Each run request names one exact immutable published workflow version.
+- The daemon rejects missing or undeclared workflow inputs and unavailable handlers before it creates a run.
+- Every required step input resolves before its handler starts.
+- Every successful handler returns an explicit output object that matches its exact output schema.
+- The daemon evaluates conditionals and selects one declared destination.
+- Every parallel split reaches one matching join before execution continues or completes.
+- Loop iterations run one at a time in collection order and produce ordered result entries.
+- A workflow succeeds only at an explicit `result` step.
+- The Control API exposes waiting and running step instances through `currentSteps`.
+- An unhandled failure stops new handlers from starting. Handlers already running finish, and the run returns every observed failure in stable order.
 
 ## Delivery work
 
-The SPIKEs decide run behavior, daemon transport, and reference steps. E2-02 combines those decisions into the specification and fixtures used by implementation.
+The two cleanup tasks are prerequisites for the new contract and implementation work. E2-S1 and E2-S2 can proceed independently of that cleanup.
 
 | ID | Creates or decides | Depends on |
 | --- | --- | --- |
 | [E2-S1](../tasks/epic-02/e2-s1-define-local-execution-semantics.md) | Decide how a local run starts, advances, completes, and fails. | Epic 01 |
-| [E2-S2](../tasks/epic-02/e2-s2-select-local-daemon-transport.md) | Select the transport and message contract between the Control API and daemon. | Epic 01 |
-| [E2-S3](../tasks/epic-02/e2-s3-define-reference-step-set.md) | Select the side-effect-free steps that prove data flow and branching. | E2-S1 |
-| [E2-01](../tasks/epic-02/e2-01-build-local-daemon-foundation.md) | Create the separately runnable daemon process and its local transport. | E2-S2 |
-| [E2-02](../tasks/epic-02/e2-02-specify-executable-workflow-behavior.md) | Combine the SPIKE decisions into one specification and shared fixture set. | E2-S1, E2-S2, E2-S3 |
-| [E2-03](../tasks/epic-02/e2-03-implement-execution-state-and-step-input-resolution.md) | Store run state, resolve step inputs, and record outcomes. | E2-01, E2-02 |
-| [E2-04](../tasks/epic-02/e2-04-implement-step-handler-boundary.md) | Create the step registry, handler interface, and reference handlers. | E2-01, E2-02 |
-| [E2-05](../tasks/epic-02/e2-05-implement-local-graph-executor.md) | Move a run through sequential, branching, and terminal control flow. | E2-03, E2-04 |
-| [E2-06](../tasks/epic-02/e2-06-add-control-api-run-operations.md) | Expose run invocation and status retrieval through the Control API. | E2-05 |
-| [E2-07](../tasks/epic-02/e2-07-build-local-execution-conformance-suite.md) | Run the shared fixtures against the runtime, daemon transport, and API. | E2-02, E2-05, E2-06 |
-| [E2-08](../tasks/epic-02/e2-08-publish-local-run-guidance.md) | Create tested instructions for running and diagnosing workflows locally. | E2-06, E2-07 |
-| [E2-09](../tasks/epic-02/e2-09-add-end-to-end-epic-demonstration.md) | Create one continuous-integration proof of the complete Epic state. | E2-06, E2-07, E2-08 |
+| [E2-S2](../tasks/epic-02/e2-s2-select-local-daemon-transport.md) | Select the transport, the communication mechanism between the Control API and the local daemon. | Epic 01 |
+| [E2-01](../tasks/epic-02/e2-01-clarify-workflow-interface-terminology.md) | Replace unclear rule-set terminology and decide whether the current version-selection abstraction is justified. | None |
+| [E2-02](../tasks/epic-02/e2-02-establish-task-tracking.md) | Choose the future task-tracking system and remove planning-task references from code. | None |
+| [E2-03](../tasks/epic-02/e2-03-define-executable-workflow-contract.md) | Define the complete executable workflow contract and shared fixtures. | E2-S1, E2-S2, E2-01, E2-02 |
+| [E2-04](../tasks/epic-02/e2-04-make-workflow-interface-v1-executable.md) | Make the shared workflow library enforce the executable contract. | E2-03 |
+| [E2-05](../tasks/epic-02/e2-05-build-local-daemon.md) | Create the separately runnable daemon and its transport boundary. | E2-S2, E2-01, E2-02 |
+| [E2-06](../tasks/epic-02/e2-06-build-step-interface-and-reference-steps.md) | Create the handler interface, registry contracts, and reference steps. | E2-03, E2-04 |
+| [E2-07](../tasks/epic-02/e2-07-execute-sequential-and-conditional-workflows.md) | Execute sequential workflows and conditional paths in the daemon. | E2-04, E2-05, E2-06 |
+| [E2-08](../tasks/epic-02/e2-08-execute-parallel-paths-and-joins.md) | Execute bounded parallel paths, joins, and wait for concurrently running handlers to finish after a failure, retaining any failures they produce. | E2-07 |
+| [E2-09](../tasks/epic-02/e2-09-execute-bounded-loops.md) | Execute loops with a fixed limit, including stop-on-error and error-tolerant policies. | E2-08 |
+| [E2-10](../tasks/epic-02/e2-10-expose-runs-through-control-api.md) | Expose run requests and inspection through the Control API. | E2-09 |
+| [E2-11](../tasks/epic-02/e2-11-build-execution-conformance-suite.md) | Run the shared fixtures against the runtime, daemon transport, and Control API. | E2-03, E2-10 |
+| [E2-12](../tasks/epic-02/e2-12-prove-local-execution-end-to-end.md) | Prove the complete Epic through the actual processes and publish the tested local-run guide. | E2-11 |
 
 ## Delivery sequence
 
 ```mermaid
 flowchart LR
-    S1["E2-S1<br/>Run behavior"] --> S3["E2-S3<br/>Reference steps"]
-    S1 --> E02["E2-02<br/>Behavior + fixtures"]
-    S2["E2-S2<br/>Daemon transport"] --> E01["E2-01<br/>Daemon process"]
-    S2 --> E02
-    S3 --> E02
-    E01 --> E03["E2-03<br/>State + input resolution"]
-    E02 --> E03
-    E01 --> E04["E2-04<br/>Step handlers"]
-    E02 --> E04
-    E03 --> E05["E2-05<br/>Graph executor"]
-    E04 --> E05
-    E05 --> E06["E2-06<br/>Run API"]
-    E02 --> E07["E2-07<br/>Conformance suite"]
-    E05 --> E07
-    E06 --> E07
-    E06 --> E08["E2-08<br/>Run guidance"]
-    E07 --> E08
-    E06 --> E09["E2-09<br/>Release gate"]
-    E07 --> E09
-    E08 --> E09
+    C1["E2-01<br/>Interface terminology"] --> C["E2-03<br/>Execution contract"]
+    C2["E2-02<br/>Task tracking"] --> C
+    S1["E2-S1<br/>Execution behavior"] --> C
+    S2["E2-S2<br/>Daemon transport"] --> C
+    S2 --> D["E2-05<br/>Local daemon"]
+    C1 --> D
+    C2 --> D
+
+    C --> W["E2-04<br/>Executable workflow library"]
+    C --> H["E2-06<br/>Step interface"]
+    W --> H
+
+    W --> R1["E2-07<br/>Sequence + conditionals"]
+    D --> R1
+    H --> R1
+
+    R1 --> R2["E2-08<br/>Parallel paths and joins"]
+    R2 --> R3["E2-09<br/>Loops"]
+    R3 --> API["E2-10<br/>Control API"]
+
+    API --> T["E2-11<br/>Conformance suite"]
+    C --> T
+    T --> P["E2-12<br/>End-to-end proof + guide"]
 ```
-
-E2-S1 and E2-S2 can begin when Epic 01's workflow and service contracts are stable. The task table is the source of truth for exact dependencies.
-
-## Decisions required before implementation
-
-- E2-S1 must settle externally visible run states, readiness, binding, branching, completion, and failure behavior.
-- E2-S2 must select the local transport and settle message correlation, health, timeouts, and unavailable-daemon behavior.
-- E2-S3 must select the smallest deterministic step set that proves data flow and branching without arbitrary code execution.
-- E2-02 must record those decisions in one specification and fixture set before runtime implementation begins.
-
-## Dependencies and sequencing constraints
-
-- Epic 01 must provide published workflow retrieval, validation, immutable versions, and shared examples.
-- The Control API and daemon remain independently runnable processes.
-- The daemon and Control API use the shared workflow types and validation rules.
-- Run APIs expose daemon-owned execution; they do not execute graphs inside the Control API.
-- The same fixtures test the execution library, daemon boundary, and Control API.
 
 ## Exit criteria
 
-Epic 02 is complete when all of the following are true:
+Epic 02 is complete when all of the following are true.
 
-### The daemon executes workflows
+### Accepted workflows are executable
 
-- The daemon starts, stops, reports health, and runs separately from the Control API.
-- It executes supported published workflow versions through the shared runtime.
-- A caller can disconnect after invocation without stopping the run.
+- The shared workflow library accepts every valid execution fixture and rejects every invalid definition.
+- Every selected path reaches an explicit `result` step.
+- Conditional priorities are unique and every destination is explicit.
+- Every parallel split has one matching join.
+- Loop configuration includes a defined error policy and ordered result shape.
+- Step declarations match the registered required inputs, optional inputs, configuration, and exact outputs.
 
-### Data and control flow are correct
+### The daemon executes the complete v1 control flow
 
-- Workflow inputs are validated and bound before execution.
-- Step outputs resolve into downstream inputs.
-- Sequential connections execute in order.
-- Each branch follows only its selected destination.
-- A terminal result produces the declared workflow output.
+- Sequential steps pass data in order.
+- The daemon, not a handler, evaluates conditionals.
+- Parallel paths become eligible together, run within configured capacity, and wait at their matching join.
+- Parallel completion order does not change the joined result.
+- Loop iterations run in collection order and can contain structured parallel work.
+- A workflow succeeds only when its selected explicit result binds successfully.
 
-### Runs have one API contract
+### Runs have one observable contract
 
-- A caller starts a run with an exact workflow version and structured inputs.
-- The start operation returns a stable run ID.
-- The caller retrieves current status, final output, or structured failure through the Control API.
-- Invalid inputs and unavailable execution services produce documented errors.
+- A valid run request returns a stable run ID without requiring the client connection to remain open.
+- Invalid input, an unsupported interface version, an invalid `workflow digest` (the value used to validate the requested workflow's content), or an unavailable handler causes the run request to be rejected without creating a run.
+- `currentSteps` reports every waiting and running step instance, including loop iteration identity where applicable.
+- A succeeded run returns its declared output.
+- A failed run returns every observed failure in stable order.
 
-### Failures are explicit
+### Failures cannot become success
 
-- Unsupported steps, unresolved bindings, invalid branch results, and handler failures cannot report success.
-- Failures identify the run, step when applicable, stable code, and actionable details.
-- A failed run does not execute later steps.
+- Binding, handler, routing, output-validation, loop, and scheduler failures use stable structured codes.
+- The first unhandled failure prevents new handlers from starting.
+- Handlers already running finish, and any additional failures they produce are retained.
+- No later result or successful handler can change a failed run into a successful run.
 
-### The end state is demonstrated
+### The result is proven through the real boundary
 
-- One sequential workflow binds inputs across multiple steps and returns the expected output.
-- One branching workflow proves both declared paths in separate runs.
-- One invalid invocation and one step failure return the expected structured errors.
-- The repeatable end-to-end demonstration passes in continuous integration.
-
-Completion gives Epic 03 a working daemon, execution state, graph executor, handler registry, run API, and test suite to make durable and controllable.
+- The same fixture catalog passes against the runtime, daemon transport, and Control API.
+- One command starts the Control API and daemon as separate processes and exercises every workflow interface v1 control-flow construct.
+- The demonstration proves that a run continues after its client disconnects.
+- The tested local-run guide explains how to start, inspect, and diagnose the demonstrated workflows.
