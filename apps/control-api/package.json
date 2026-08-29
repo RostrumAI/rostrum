@@ -9,7 +9,8 @@
         "start": "bun run src/index.ts",
         "typecheck": "tsc --noEmit",
         "test": "bun test",
-        "generate-openapi": "bun src/scripts/generate-openapi.ts"
+        "generate-openapi": "bun src/scripts/generate-openapi.ts",
+        "smoke": "bun src/scripts/smoke.ts"
     },
     "dependencies": {
         "@hono/standard-validator": "^0.2.0",

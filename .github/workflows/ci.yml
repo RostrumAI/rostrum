@@ -39,3 +39,5 @@ jobs:
         run: bun run lint
       - name: Test
         run: bun run test
+      - name: Smoke boot
+        run: bun run --filter "@rostrum/control-api" smoke
