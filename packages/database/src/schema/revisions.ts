@@ -3,7 +3,7 @@ export type RevisionType = "save" | "rewind";
 
 /** One row of `revisions`: an immutable checkpoint of the draft. */
 export interface RevisionRow {
-    /** Server-minted revision `id` (UUID v7). */
+    /** The server-assigned revision `id`. */
     id: string;
     workflowId: string;
     /** The exact submitted bytes; retrieval returns them unchanged. */
