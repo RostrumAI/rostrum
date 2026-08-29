@@ -1,21 +1,77 @@
-import { Type } from "typebox";
-import { FindingSchema } from "../schemas";
+import type { StoredRevision } from "@rostrum/database";
+import { type Static, Type } from "typebox";
 
 /**
- * Response and request-envelope schemas shared by the workflow feature
- * slices. Every slice re-exports the ones it documents under the same
- * component name; the loader keeps one component per distinct schema
- * object, so the generated contract carries a single definition.
+ * Request and response schemas shared by the workflow feature slices.
+ * Every slice re-exports the ones it documents under the same component
+ * name; the loader keeps one component per distinct schema object, so the
+ * generated contract carries a single definition.
  */
+
+/**
+ * A single validation finding, mirroring the shared workflow library's
+ * `Finding` exactly: stable code, human-readable message, blocking flag,
+ * JSON Pointer, and the optional location, cross-reference, and structured
+ * detail members the library attaches when source text is available.
+ */
+export const FindingSchema = Type.Object(
+    {
+        code: Type.String(),
+        message: Type.String(),
+        blocking: Type.Boolean(),
+        path: Type.String(),
+        line: Type.Optional(Type.Integer({ description: "One-based line in the saved text." })),
+        column: Type.Optional(Type.Integer({ description: "One-based column in the saved text." })),
+        relatedLocations: Type.Optional(
+            Type.Array(
+                Type.Object(
+                    {
+                        path: Type.String(),
+                        message: Type.String(),
+                    },
+                    { additionalProperties: false },
+                ),
+            ),
+        ),
+        details: Type.Optional(
+            Type.Record(Type.String(), Type.Unknown(), {
+                description:
+                    "Structured context an automated author can repair without parsing the message.",
+            }),
+        ),
+    },
+    { additionalProperties: false },
+);
+
+/** The UUID shape every workflow and revision id carries. */
+export const UUID_PATTERN =
+    "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+
+/** The workflow id as a path parameter value. */
+export const WorkflowIdSchema = Type.String({
+    pattern: UUID_PATTERN,
+    description: "The workflow id.",
+});
+
+/** A revision id as a path parameter or envelope member value. */
+export const RevisionIdSchema = Type.String({
+    pattern: UUID_PATTERN,
+    description: "The revision id.",
+});
+
+/** The published version number as a path parameter value. */
+export const VersionNumberSchema = Type.String({
+    pattern: "^[1-9][0-9]*$",
+    description: "The per-workflow published version number.",
+});
 
 /** The revision shape every draft operation returns: create, save, rewind, and both retrievals. */
 export const WorkflowRevisionSchema = Type.Object(
     {
         workflowId: Type.String({
-            description:
-                "The owning draft's id. Creation returns the id the server minted and injected into the stored document.",
+            description: "The owning draft's id.",
         }),
-        revisionId: Type.String({ description: "The server-minted revision id (UUID v7)." }),
+        revisionId: Type.String({ description: "The revision id." }),
         name: Type.Union([Type.String(), Type.Null()], {
             description: "The author's checkpoint label, when the save carried one.",
         }),
@@ -25,7 +81,7 @@ export const WorkflowRevisionSchema = Type.Object(
         }),
         content: Type.String({
             description:
-                "The exact stored bytes. When a save omitted the document id, the response carries the stored text with the id injected.",
+                "The stored document text. When a save omitted the document id, the response carries the stored text with the id injected.",
         }),
         findings: Type.Array(FindingSchema, {
             description: "The validation findings snapshot stored with the revision.",
@@ -84,13 +140,23 @@ export const RewindRequestSchema = Type.Object(
     { additionalProperties: false },
 );
 
-/** The `Revision-Name` header value: an optional checkpoint label. */
-export const RevisionNameHeaderSchema = Type.String({
-    description: "Optional display label for the revision.",
-});
-
-/** The permissive body schema of the document-carrying operations. */
+/** The permissive document member of the request envelopes. */
 export const WorkflowDocumentSchema = Type.Unknown({
     description:
         "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract.",
 });
+
+/**
+ * Maps one stored revision onto the WorkflowRevision response shape, the
+ * uniform body of create, save, rewind, and both revisions' retrievals.
+ */
+export function revisionResponse(revision: StoredRevision): Static<typeof WorkflowRevisionSchema> {
+    return {
+        workflowId: revision.workflowId,
+        revisionId: revision.revisionId,
+        name: revision.name,
+        type: revision.type,
+        content: revision.content,
+        findings: [...revision.findings],
+    };
+}

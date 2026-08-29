@@ -186,6 +186,29 @@
         },
         "additionalProperties": false
       },
+      "CreateDraftRequest": {
+        "type": "object",
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional display label for the first revision."
+          },
+          "document": {
+            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
+          }
+        },
+        "additionalProperties": false
+      },
       "WorkflowRevision": {
         "type": "object",
         "required": [
@@ -199,11 +222,11 @@
         "properties": {
           "workflowId": {
             "type": "string",
-            "description": "The owning draft's id. Creation returns the id the server minted and injected into the stored document."
+            "description": "The owning draft's id."
           },
           "revisionId": {
             "type": "string",
-            "description": "The server-minted revision id (UUID v7)."
+            "description": "The revision id."
           },
           "name": {
             "anyOf": [
@@ -231,7 +254,7 @@
           },
           "content": {
             "type": "string",
-            "description": "The exact stored bytes. When a save omitted the document id, the response carries the stored text with the id injected."
+            "description": "The stored document text. When a save omitted the document id, the response carries the stored text with the id injected."
           },
           "findings": {
             "type": "array",
@@ -297,9 +320,6 @@
           }
         },
         "additionalProperties": false
-      },
-      "WorkflowDocument": {
-        "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
       },
       "PublishResponse": {
         "type": "object",
@@ -367,6 +387,35 @@
           "targetRevisionId": {
             "type": "string",
             "description": "The revision to rewind the draft to."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveRevisionRequest": {
+        "type": "object",
+        "required": [
+          "baseRevision",
+          "document"
+        ],
+        "properties": {
+          "baseRevision": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "description": "The revision id the client last saw; the save commits only against it."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional display label for the new revision."
+          },
+          "document": {
+            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
           }
         },
         "additionalProperties": false
@@ -445,6 +494,9 @@
           }
         },
         "additionalProperties": false
+      },
+      "WorkflowDocument": {
+        "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
       }
     }
   },
@@ -495,29 +547,6 @@
         "tags": [
           "workflows"
         ],
-        "parameters": [
-          {
-            "name": "Revision-Name",
-            "in": "header",
-            "required": false,
-            "description": "Optional display label for the first revision.",
-            "schema": {
-              "type": "string",
-              "description": "Optional display label for the revision."
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "The raw workflow JSON document. Any id it carries is replaced with the server-minted one.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkflowDocument"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
             "description": "The draft was created and its first revision stored",
@@ -530,7 +559,7 @@
             }
           },
           "400": {
-            "description": "The document is not syntactically valid workflow JSON",
+            "description": "The body is not a valid creation envelope, or the document is not syntactically valid workflow JSON",
             "content": {
               "application/json": {
                 "schema": {
@@ -538,14 +567,15 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "The minted workflow id collided with an existing draft",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The creation envelope: the workflow document, with an optional revision name.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftRequest"
               }
             }
           }
@@ -557,17 +587,6 @@
         "operationId": "postApiV1WorkflowsByWorkflowIdPublish",
         "tags": [
           "workflows"
-        ],
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id (UUID v7).",
-            "schema": {
-              "type": "string"
-            }
-          }
         ],
         "responses": {
           "200": {
@@ -600,7 +619,20 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          }
+        ]
       }
     },
     "/api/v1/workflows/{workflowId}": {
@@ -609,21 +641,9 @@
         "tags": [
           "workflows"
         ],
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id (UUID v7).",
-            "schema": {
-              "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          }
-        ],
         "responses": {
           "200": {
-            "description": "The draft's current revision: stored bytes plus findings snapshot",
+            "description": "The draft's current revision: stored text plus findings snapshot",
             "content": {
               "application/json": {
                 "schema": {
@@ -642,7 +662,20 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          }
+        ]
       }
     },
     "/api/v1/workflows/{workflowId}/revisions/{revisionId}": {
@@ -651,31 +684,9 @@
         "tags": [
           "workflows"
         ],
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id (UUID v7).",
-            "schema": {
-              "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          },
-          {
-            "name": "revisionId",
-            "in": "path",
-            "required": true,
-            "description": "The revision id (UUID v7) to retrieve.",
-            "schema": {
-              "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          }
-        ],
         "responses": {
           "200": {
-            "description": "The stored revision: exact bytes plus findings snapshot",
+            "description": "The stored revision: exact text plus findings snapshot",
             "content": {
               "application/json": {
                 "schema": {
@@ -694,7 +705,31 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          },
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "description": "The revision id to retrieve.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The revision id."
+            }
+          }
+        ]
       }
     },
     "/api/v1/workflows/{workflowId}/versions/{versionNumber}": {
@@ -703,27 +738,6 @@
         "tags": [
           "workflows"
         ],
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id (UUID v7).",
-            "schema": {
-              "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          },
-          {
-            "name": "versionNumber",
-            "in": "path",
-            "required": true,
-            "description": "The per-workflow published version number.",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "The published version: canonical stored text, verified at retrieval by digest recomputation",
@@ -731,16 +745,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublishedVersionResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The version number is not a positive integer",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -755,7 +759,31 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "description": "The per-workflow published version number.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$",
+              "description": "The per-workflow published version number."
+            }
+          }
+        ]
       }
     },
     "/api/v1/workflows/{workflowId}/rewind": {
@@ -764,32 +792,9 @@
         "tags": [
           "workflows"
         ],
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id (UUID v7).",
-            "schema": {
-              "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "The rewind envelope naming the target revision.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RewindRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "The draft now shows the target content: a new revision carrying the target's exact bytes (or the unchanged current revision when the target is current)",
+            "description": "The draft now shows the target revision (a rewind to the current revision is a no-op)",
             "content": {
               "application/json": {
                 "schema": {
@@ -799,7 +804,7 @@
             }
           },
           "400": {
-            "description": "The request body is not a rewind envelope with a targetRevisionId",
+            "description": "The body is not a valid rewind envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -818,58 +823,39 @@
               }
             }
           }
-        }
-      }
-    },
-    "/api/v1/workflows/{workflowId}/revisions": {
-      "post": {
-        "operationId": "postApiV1WorkflowsByWorkflowIdRevisions",
-        "tags": [
-          "workflows"
-        ],
+        },
         "parameters": [
           {
             "name": "workflowId",
             "in": "path",
             "required": true,
-            "description": "The draft's workflow id (UUID v7).",
+            "description": "The draft's workflow id.",
             "schema": {
               "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          },
-          {
-            "name": "Base-Revision",
-            "in": "header",
-            "required": true,
-            "description": "The revision id the client last saw; the save commits only against it.",
-            "schema": {
-              "type": "string",
-              "description": "The server-minted revision id (UUID v7)."
-            }
-          },
-          {
-            "name": "Revision-Name",
-            "in": "header",
-            "required": false,
-            "description": "Optional display label for the new revision.",
-            "schema": {
-              "type": "string",
-              "description": "Optional display label for the revision."
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
             }
           }
         ],
         "requestBody": {
           "required": true,
-          "description": "The raw workflow JSON document. A document that omits the id gets the addressed workflow's id injected.",
+          "description": "The rewind envelope naming the target revision.",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WorkflowDocument"
+                "$ref": "#/components/schemas/RewindRequest"
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/api/v1/workflows/{workflowId}/revisions": {
+      "put": {
+        "operationId": "putApiV1WorkflowsByWorkflowIdRevisions",
+        "tags": [
+          "workflows"
+        ],
         "responses": {
           "200": {
             "description": "The revision was stored and is the draft's current revision",
@@ -882,7 +868,7 @@
             }
           },
           "400": {
-            "description": "The document is not syntactically valid workflow JSON, or the Base-Revision header is missing or malformed",
+            "description": "The body is not a valid save envelope, or the document is not syntactically valid workflow JSON",
             "content": {
               "application/json": {
                 "schema": {
@@ -911,6 +897,30 @@
               }
             }
           }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The save envelope: the base revision the client last saw, an optional revision name, and the workflow document. A document that omits the id gets the addressed workflow's id injected.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRevisionRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -920,17 +930,6 @@
         "tags": [
           "workflows"
         ],
-        "requestBody": {
-          "required": true,
-          "description": "The raw workflow JSON document to validate.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkflowDocument"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Validation findings for the submitted document; nothing is saved",
@@ -949,6 +948,17 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The raw workflow JSON document to validate.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowDocument"
               }
             }
           }

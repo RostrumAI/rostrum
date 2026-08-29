@@ -1,8 +1,9 @@
 import type { Context } from "hono";
-import { Type } from "typebox";
+import { type Static, Type } from "typebox";
 import pkg from "../../../package.json" with { type: "json" };
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { INTERFACE_VERSION } from "../../schemas";
+import type { Services } from "../../services";
 
 /**
  * Response body of GET /version. `interfaceVersion` pins the exact workflow
@@ -34,9 +35,13 @@ export const schema: FeatureSchemas = { Version: VersionSchema };
  * negotiate the exact workflow interface version; identity comes from
  * package.json so it never drifts from the published package.
  */
-export const handler: FeatureHandler = (c: Context) =>
-    c.json({
-        service: pkg.name,
-        version: pkg.version,
-        interfaceVersion: INTERFACE_VERSION,
-    });
+export const createHandler =
+    (_services: Services): FeatureHandler =>
+    (c: Context) => {
+        const body: Static<typeof VersionSchema> = {
+            service: pkg.name,
+            version: pkg.version,
+            interfaceVersion: INTERFACE_VERSION,
+        };
+        return c.json(body);
+    };

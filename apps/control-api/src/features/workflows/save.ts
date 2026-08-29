@@ -1,55 +1,41 @@
 import type { Context } from "hono";
-import { validate as isUuid, version as uuidVersion } from "uuid";
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { ErrorResponseSchema } from "../../schemas";
+import type { Services } from "../../services";
 import {
-    invalidWorkflowInput,
-    notFound,
-    revisionConflict,
     WorkflowApiError,
     workflowErrorResponse,
+    workflowNotFound,
+    workflowRevisionConflict,
 } from "../../workflows/errors";
+import { readEnvelopeBody } from "../../workflows/request-body";
 import {
-    RevisionNameHeaderSchema,
-    WorkflowDocumentSchema,
+    revisionResponse,
+    WorkflowIdSchema,
     WorkflowRevisionSchema,
 } from "../../workflows/schemas";
-import { revisionResponse, workflowService } from "../../workflows/service";
+import { SaveRevisionRequestSchema } from "./save.schema";
 
 /**
- * Route binding for saving a revision. The `Base-Revision` header carries
- * the id of the revision the client last saw; the server commits only
- * when it is still the draft's current revision.
+ * Route binding for saving a revision. The envelope's `baseRevision`
+ * carries the id of the revision the client last saw; the server commits
+ * only when it is still the draft's current revision.
  */
 export const route: FeatureRoute = {
-    method: "POST",
+    method: "PUT",
     path: "/:workflowId/revisions",
     requestBody: {
         description:
-            "The raw workflow JSON document. A document that omits the id gets the addressed workflow's id injected.",
+            "The save envelope: the base revision the client last saw, an optional revision name, and the workflow document. A document that omits the id gets the addressed workflow's id injected.",
         required: true,
-        schemaName: "WorkflowDocument",
+        schemaName: "SaveRevisionRequest",
     },
     parameters: [
         {
             name: "workflowId",
             in: "path",
-            description: "The draft's workflow id (UUID v7).",
-            schema: WorkflowRevisionSchema.properties.revisionId,
-        },
-        {
-            name: "Base-Revision",
-            in: "header",
-            required: true,
-            description: "The revision id the client last saw; the save commits only against it.",
-            schema: WorkflowRevisionSchema.properties.revisionId,
-        },
-        {
-            name: "Revision-Name",
-            in: "header",
-            required: false,
-            description: "Optional display label for the new revision.",
-            schema: RevisionNameHeaderSchema,
+            description: "The draft's workflow id.",
+            schema: WorkflowIdSchema,
         },
     ],
     responses: {
@@ -59,7 +45,7 @@ export const route: FeatureRoute = {
         },
         "400": {
             description:
-                "The document is not syntactically valid workflow JSON, or the Base-Revision header is missing or malformed",
+                "The body is not a valid save envelope, or the document is not syntactically valid workflow JSON",
             schemaName: "ErrorResponse",
         },
         "404": { description: "The workflow does not exist", schemaName: "ErrorResponse" },
@@ -73,42 +59,39 @@ export const route: FeatureRoute = {
 
 /** OpenAPI components contributed by this slice. */
 export const schema: FeatureSchemas = {
+    SaveRevisionRequest: SaveRevisionRequestSchema,
     WorkflowRevision: WorkflowRevisionSchema,
-    WorkflowDocument: WorkflowDocumentSchema,
     ErrorResponse: ErrorResponseSchema,
 };
 
 /**
- * Serves POST /workflows/:workflowId/revisions. Stores the exact submitted
- * bytes — with the workflow id injected when the document omits it — as a
- * new revision with its validation findings snapshot.
+ * Serves PUT /workflows/:workflowId/revisions. Stores the submitted
+ * document — with the workflow id injected when the document omits it —
+ * as a new revision with its validation findings snapshot.
  */
-export const handler: FeatureHandler = async (c: Context) => {
-    try {
-        const workflowId = c.req.param("workflowId") ?? "";
-        const baseRevision = c.req.header("Base-Revision");
-        if (baseRevision === undefined) {
-            throw new WorkflowApiError(
-                invalidWorkflowInput("The Base-Revision header is required to save a revision"),
+export const createHandler =
+    (services: Services): FeatureHandler =>
+    async (c: Context) => {
+        try {
+            const workflowId = c.req.param("workflowId") ?? "";
+            const { envelope, documentText } = await readEnvelopeBody(c, SaveRevisionRequestSchema);
+            const result = await services.workflows.saveRevision(
+                workflowId,
+                documentText,
+                envelope.baseRevision,
+                envelope.name ?? null,
             );
+            switch (result.outcome) {
+                case "saved":
+                    return c.json(revisionResponse(result.revision));
+                case "conflict":
+                    throw new WorkflowApiError(workflowRevisionConflict(result.currentRevision));
+                case "not-found":
+                    throw new WorkflowApiError(
+                        workflowNotFound(`Workflow ${workflowId} does not exist`),
+                    );
+            }
+        } catch (error) {
+            return workflowErrorResponse(c, error);
         }
-        if (!isUuid(baseRevision) || uuidVersion(baseRevision) !== 7) {
-            throw new WorkflowApiError(
-                invalidWorkflowInput(`'${baseRevision}' is not a revision id (UUID v7)`),
-            );
-        }
-        const bytes = new Uint8Array(await c.req.arrayBuffer());
-        const name = c.req.header("Revision-Name") ?? null;
-        const result = await workflowService().saveRevision(workflowId, bytes, baseRevision, name);
-        switch (result.outcome) {
-            case "saved":
-                return c.json(revisionResponse(result.revision));
-            case "conflict":
-                throw new WorkflowApiError(revisionConflict(result.currentRevision));
-            case "not-found":
-                throw new WorkflowApiError(notFound(`Workflow ${workflowId} does not exist`));
-        }
-    } catch (error) {
-        return workflowErrorResponse(c, error);
-    }
-};
+    };

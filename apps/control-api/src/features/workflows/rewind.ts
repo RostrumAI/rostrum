@@ -1,15 +1,20 @@
 import type { Context } from "hono";
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { ErrorResponseSchema } from "../../schemas";
+import type { Services } from "../../services";
 import {
-    invalidWorkflowInput,
-    notFound,
-    revisionNotFound,
     WorkflowApiError,
     workflowErrorResponse,
+    workflowNotFound,
+    workflowRevisionNotFound,
 } from "../../workflows/errors";
-import { RewindRequestSchema, WorkflowRevisionSchema } from "../../workflows/schemas";
-import { revisionResponse, workflowService } from "../../workflows/service";
+import { readValidatedBody } from "../../workflows/request-body";
+import {
+    RewindRequestSchema,
+    revisionResponse,
+    WorkflowIdSchema,
+    WorkflowRevisionSchema,
+} from "../../workflows/schemas";
 
 /**
  * Route binding for rewinding the draft to an earlier revision. The
@@ -29,18 +34,18 @@ export const route: FeatureRoute = {
         {
             name: "workflowId",
             in: "path",
-            description: "The draft's workflow id (UUID v7).",
-            schema: WorkflowRevisionSchema.properties.revisionId,
+            description: "The draft's workflow id.",
+            schema: WorkflowIdSchema,
         },
     ],
     responses: {
         "200": {
             description:
-                "The draft now shows the target content: a new revision carrying the target's exact bytes (or the unchanged current revision when the target is current)",
+                "The draft now shows the target revision (a rewind to the current revision is a no-op)",
             schemaName: "WorkflowRevision",
         },
         "400": {
-            description: "The request body is not a rewind envelope with a targetRevisionId",
+            description: "The body is not a valid rewind envelope",
             schemaName: "ErrorResponse",
         },
         "404": {
@@ -62,45 +67,29 @@ export const schema: FeatureSchemas = {
  * Serves POST /workflows/:workflowId/rewind. Rewinding to the current
  * revision is a no-op that still answers with that revision.
  */
-export const handler: FeatureHandler = async (c: Context) => {
-    try {
-        const workflowId = c.req.param("workflowId") ?? "";
-        let body: unknown;
+export const createHandler =
+    (services: Services): FeatureHandler =>
+    async (c: Context) => {
         try {
-            body = await c.req.json();
-        } catch {
-            throw new WorkflowApiError(
-                invalidWorkflowInput(
-                    "The rewind request body must be a JSON object with a targetRevisionId member",
-                ),
-            );
+            const workflowId = c.req.param("workflowId") ?? "";
+            const envelope = await readValidatedBody(c, RewindRequestSchema);
+            const result = await services.workflows.rewind(workflowId, envelope.targetRevisionId);
+            switch (result.outcome) {
+                case "rewound":
+                case "no-op":
+                    return c.json(revisionResponse(result.revision));
+                case "target-not-found":
+                    throw new WorkflowApiError(
+                        workflowRevisionNotFound(
+                            `Revision ${envelope.targetRevisionId} of workflow ${workflowId} does not exist`,
+                        ),
+                    );
+                case "not-found":
+                    throw new WorkflowApiError(
+                        workflowNotFound(`Workflow ${workflowId} does not exist`),
+                    );
+            }
+        } catch (error) {
+            return workflowErrorResponse(c, error);
         }
-        const targetRevisionId =
-            typeof body === "object" && body !== null && !Array.isArray(body)
-                ? (body as Record<string, unknown>).targetRevisionId
-                : undefined;
-        if (typeof targetRevisionId !== "string" || targetRevisionId === "") {
-            throw new WorkflowApiError(
-                invalidWorkflowInput(
-                    "The rewind request body must carry a non-empty targetRevisionId string",
-                ),
-            );
-        }
-        const result = await workflowService().rewind(workflowId, targetRevisionId);
-        switch (result.outcome) {
-            case "rewound":
-            case "no-op":
-                return c.json(revisionResponse(result.revision));
-            case "target-not-found":
-                throw new WorkflowApiError(
-                    revisionNotFound(
-                        `Revision ${targetRevisionId} of workflow ${workflowId} does not exist`,
-                    ),
-                );
-            case "not-found":
-                throw new WorkflowApiError(notFound(`Workflow ${workflowId} does not exist`));
-        }
-    } catch (error) {
-        return workflowErrorResponse(c, error);
-    }
-};
+    };

@@ -1,9 +1,11 @@
 import type { Context } from "hono";
+import type { Static } from "typebox";
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { ErrorResponseSchema } from "../../schemas";
+import type { Services } from "../../services";
 import { workflowErrorResponse } from "../../workflows/errors";
+import { parseWorkflowBody } from "../../workflows/request-body";
 import { ValidateResponseSchema, WorkflowDocumentSchema } from "../../workflows/schemas";
-import { workflowService } from "../../workflows/service";
 
 /**
  * Route binding for explicit validation. Parse failures answer 400 with
@@ -43,15 +45,18 @@ export const schema: FeatureSchemas = {
  * validation a draft save runs, and returns the same findings in the same
  * order, without creating anything.
  */
-export const handler: FeatureHandler = async (c: Context) => {
-    try {
-        const bytes = new Uint8Array(await c.req.arrayBuffer());
-        const outcome = await workflowService().validate(bytes);
-        return c.json({
-            findings: outcome.findings,
-            validForPublication: outcome.validForPublication,
-        });
-    } catch (error) {
-        return workflowErrorResponse(c, error);
-    }
-};
+export const createHandler =
+    (services: Services): FeatureHandler =>
+    async (c: Context) => {
+        try {
+            const body = await parseWorkflowBody(c);
+            const outcome = await services.workflows.validate(body.text);
+            const responseBody: Static<typeof ValidateResponseSchema> = {
+                findings: [...outcome.findings],
+                validForPublication: outcome.validForPublication,
+            };
+            return c.json(responseBody);
+        } catch (error) {
+            return workflowErrorResponse(c, error);
+        }
+    };

@@ -1,8 +1,10 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { Handler } from "hono";
+import type { Handler, MiddlewareHandler } from "hono";
 import type { TSchema } from "typebox";
+import { Value } from "typebox/value";
+import type { Services } from "./services";
 
 /** HTTP methods a feature route can bind to. */
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -38,9 +40,8 @@ export interface ResponseDefinition {
     schemaName?: string;
 }
 
-/** One documented path or header parameter of a feature route. */
 export interface ParameterDefinition {
-    /** Parameter name: a path token such as `workflowId`, or a header such as `Base-Revision`. */
+    /** Parameter name: a path token such as `workflowId`, or a header name. */
     name: string;
     /** Where the parameter travels. */
     in: "path" | "header";
@@ -65,14 +66,22 @@ export interface RequestBodyDefinition {
 /** Named TypeBox schemas a feature module contributes (`schema`). */
 export type FeatureSchemas = Record<string, TSchema>;
 
-/** Request handler for a feature route (`handler`). */
+/** Request handler for a feature route, as a factory returns it. */
 export type FeatureHandler = Handler;
 
-/** The three exports every feature module must provide. */
+/**
+ * Handler factory every feature module must export as `createHandler`.
+ * The app builds its services once and calls the factory once per slice
+ * at bind time, so handlers receive their dependencies instead of
+ * reaching module state.
+ */
+export type FeatureHandlerFactory = (services: Services) => FeatureHandler;
+
+/** The exports every feature module must provide. */
 export interface FeatureModule {
     route: FeatureRoute;
     schema?: FeatureSchemas;
-    handler: FeatureHandler;
+    createHandler: FeatureHandlerFactory;
 }
 
 /** One validated feature ready to bind. */
@@ -90,7 +99,8 @@ export interface LoadedFeature {
     parameters: ParameterDefinition[];
     /** Documented request body, as declared by the module. */
     requestBody: RequestBodyDefinition | undefined;
-    handler: FeatureHandler;
+    /** The module's handler factory; the app calls it with its services. */
+    createHandler: FeatureHandlerFactory;
 }
 
 /** Validated features plus their contributed OpenAPI components. */
@@ -101,16 +111,54 @@ export interface FeatureBundle {
 
 const ROUTE_FILE_PATTERN = /\.ts$/;
 const TEST_FILE_PATTERN = /\.test\.ts$/;
+const SCHEMA_FILE_PATTERN = /\.schema\.ts$/;
 
 /**
- * Lists feature files under `dir` in deterministic order. Every `.ts` file
- * except colocated tests is a feature slice; there are no special names.
+ * Lists feature files under `dir` in deterministic order. Every `.ts`
+ * file except colocated tests and `*.schema.ts` schema modules is a
+ * feature slice; there are no other special names.
  */
 function listFeatureFiles(dir: string): string[] {
     return readdirSync(dir, { recursive: true })
         .map((entry) => String(entry).split("\\").join("/"))
-        .filter((file) => ROUTE_FILE_PATTERN.test(file) && !TEST_FILE_PATTERN.test(file))
+        .filter(
+            (file) =>
+                ROUTE_FILE_PATTERN.test(file) &&
+                !TEST_FILE_PATTERN.test(file) &&
+                !SCHEMA_FILE_PATTERN.test(file),
+        )
         .sort();
+}
+
+/**
+ * Guards a route's path parameters: every value must satisfy the
+ * documented parameter schema. A violation answers 400 in the single
+ * error shape before the handler runs, so handlers never re-check
+ * parameter formats by hand.
+ */
+export function parameterGuard(parameters: ParameterDefinition[]): MiddlewareHandler {
+    const guarded = parameters.filter(
+        (parameter): parameter is ParameterDefinition & { schema: TSchema } =>
+            parameter.in === "path" && parameter.schema !== undefined,
+    );
+    if (guarded.length === 0) return (_c, next) => next();
+    return async (c, next) => {
+        for (const parameter of guarded) {
+            const value = c.req.param(parameter.name);
+            if (value !== undefined && Value.Check(parameter.schema, value)) continue;
+            const errors = value === undefined ? [] : [...Value.Errors(parameter.schema, value)];
+            const detail = errors[0]?.message ?? "the parameter is required";
+            return c.json(
+                {
+                    code: "invalid_workflow_input",
+                    message: `'${value}' is not a valid ${parameter.name}: ${detail}`,
+                    findings: [],
+                },
+                400,
+            );
+        }
+        await next();
+    };
 }
 
 /**
@@ -124,7 +172,7 @@ function validateModule(
 ): {
     route: FeatureRoute;
     schema: FeatureSchemas;
-    handler: FeatureHandler;
+    createHandler: FeatureHandlerFactory;
 } {
     // An explicit variable type is required for TS to narrow via the never return.
     const fail: (reason: string) => never = (reason) => {
@@ -135,7 +183,9 @@ function validateModule(
     }
     const candidate = mod as Record<string, unknown>;
 
-    if (typeof candidate.handler !== "function") fail("must export a `handler` function");
+    if (typeof candidate.createHandler !== "function") {
+        fail("must export a `createHandler` factory function");
+    }
 
     const route = candidate.route as Partial<FeatureRoute> | undefined;
     if (typeof route !== "object" || route === null || Array.isArray(route)) {
@@ -218,7 +268,11 @@ function validateModule(
         }
     }
 
-    return { route: route as FeatureRoute, schema, handler: candidate.handler as FeatureHandler };
+    return {
+        route: route as FeatureRoute,
+        schema,
+        createHandler: candidate.createHandler as FeatureHandlerFactory,
+    };
 }
 
 /**
@@ -243,7 +297,7 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
             throw new Error(`failed to import feature ${file}: ${(error as Error).message}`);
         }
 
-        const { route, schema, handler } = validateModule(file, mod);
+        const { route, schema, createHandler } = validateModule(file, mod);
         const segments = file.split("/");
         const folderPath = segments
             .slice(0, -1)
@@ -282,7 +336,7 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
             responses: route.responses,
             parameters: route.parameters ?? [],
             requestBody: route.requestBody,
-            handler,
+            createHandler,
         });
     }
 

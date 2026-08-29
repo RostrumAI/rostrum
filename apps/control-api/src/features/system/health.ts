@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { Type } from "typebox";
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
+import type { Services } from "../../services";
 
 /**
  * Response body of the health check: a liveness token only, so the route
@@ -27,4 +28,7 @@ export const schema: FeatureSchemas = { Health: HealthSchema };
  * Serves GET /health. Lets load balancers, orchestrators, and the
  * integration harness confirm the process is up and serving requests.
  */
-export const handler: FeatureHandler = (c: Context) => c.json({ status: "ok" as const });
+export const createHandler =
+    (_services: Services): FeatureHandler =>
+    (c: Context) =>
+        c.json({ status: "ok" as const });

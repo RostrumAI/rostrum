@@ -8,17 +8,18 @@ import type {
 import {
     type Finding,
     type InterfaceRuleSet,
+    insertWorkflowId,
     type PublicationPreparation,
     PublicationPreparer,
+    parseWorkflow,
     type RuleSetRegistry,
+    replaceWorkflowId,
     type ValidationResult,
     type WorkflowValidator,
 } from "@rostrum/workflow";
 import { v7 as mintUuidV7 } from "uuid";
-import { loadConfig } from "../env";
 import { createWorkflowDatabase, type WorkflowDatabase } from "./database";
-import { insertWorkflowId, isJsonObject, parseWorkflow, replaceWorkflowId } from "./documents";
-import { identityConflict, parseFailure, WorkflowApiError } from "./errors";
+import { WorkflowApiError, workflowIdentityConflict, workflowParseFailure } from "./errors";
 import { RULE_SET_REGISTRY, WORKFLOW_VALIDATOR } from "./rule-sets";
 
 /** The explicit validation result of POST /workflows/validate. */
@@ -49,59 +50,49 @@ export type PublishWorkflowResult =
  * The workflow-authoring operations over one workflow database: parse,
  * validate, store drafts and revisions, rewind, publish, and retrieve
  * published versions. Validation runs on the text that will be stored,
- * so the findings a save returns anchor to the bytes retrieval returns.
+ * so the findings a save returns anchor to the text retrieval returns.
  */
 export class WorkflowService {
     private readonly database: WorkflowDatabase;
     private readonly validator: WorkflowValidator;
     private readonly registry: RuleSetRegistry;
-    private readonly mintWorkflowId: () => string;
 
     private constructor(
         database: WorkflowDatabase,
         validator: WorkflowValidator,
         registry: RuleSetRegistry,
-        mintWorkflowId: () => string,
     ) {
         this.database = database;
         this.validator = validator;
         this.registry = registry;
-        this.mintWorkflowId = mintWorkflowId;
     }
 
-    /**
-     * Creates a service over one Postgres URL. Tests pass a fixed mint to
-     * induce id collisions; production keeps the default UUID v7 mint.
-     */
-    static create(databaseUrl: string, mintWorkflowId: () => string = mintUuidV7): WorkflowService {
+    /** Creates a service over one Postgres URL. */
+    static create(databaseUrl: string): WorkflowService {
         return new WorkflowService(
             createWorkflowDatabase(databaseUrl),
             WORKFLOW_VALIDATOR,
             RULE_SET_REGISTRY,
-            mintWorkflowId,
         );
     }
 
-    /** Validates raw workflow JSON without saving it. Parse failures raise a 400-mapped error. */
-    async validate(input: string | Uint8Array): Promise<ValidateOutcome> {
-        const parsed = parseWorkflow(input);
-        if (!parsed.ok) throw new WorkflowApiError(parseFailure(parsed.findings));
-        const result = this.validator.validate(parsed.text);
+    /** Validates stored document text without saving anything. */
+    async validate(documentText: string): Promise<ValidateOutcome> {
+        const result = this.validator.validate(documentText);
         return { findings: result.findings, validForPublication: result.validForPublication };
     }
 
     /**
-     * Creates a draft: mints the workflow `id`, injects it into the stored
-     * document (an author-supplied `id` is replaced, never honored), and
-
-     * stores the injected text as the first revision. Documents that are
-     * not JSON objects are stored as submitted; validation reports the
-     * shape finding and the save still succeeds.
+     * Creates a draft: assigns the workflow `id`, injects it into the
+     * stored document (an author-supplied `id` is replaced, never
+     * honored), and stores the injected text as the first revision.
+     * Documents that are not JSON objects are stored as submitted;
+     * validation reports the shape finding and the save still succeeds.
      */
-    async createDraft(input: Uint8Array, name: string | null): Promise<CreatedDraft> {
-        const parsed = parseWorkflow(input);
-        if (!parsed.ok) throw new WorkflowApiError(parseFailure(parsed.findings));
-        const workflowId = this.mintWorkflowId();
+    async createDraft(documentText: string, name: string | null): Promise<CreatedDraft> {
+        const parsed = parseWorkflow(documentText);
+        if (!parsed.ok) throw new WorkflowApiError(workflowParseFailure(parsed.findings));
+        const workflowId = mintUuidV7();
         const text = isJsonObject(parsed.document)
             ? replaceWorkflowId(parsed.text, workflowId)
             : parsed.text;
@@ -123,12 +114,12 @@ export class WorkflowService {
      */
     async saveRevision(
         workflowId: string,
-        input: Uint8Array,
+        documentText: string,
         baseRevision: string,
         name: string | null,
     ): Promise<SaveRevisionResult> {
-        const parsed = parseWorkflow(input);
-        if (!parsed.ok) throw new WorkflowApiError(parseFailure(parsed.findings));
+        const parsed = parseWorkflow(documentText);
+        if (!parsed.ok) throw new WorkflowApiError(workflowParseFailure(parsed.findings));
         let text = parsed.text;
         if (isJsonObject(parsed.document)) {
             const embeddedId = parsed.document.id;
@@ -141,7 +132,7 @@ export class WorkflowService {
                 const current = await this.database.workflows.getCurrentRevision(workflowId);
                 if (!current) return { outcome: "not-found" };
                 throw new WorkflowApiError(
-                    identityConflict(
+                    workflowIdentityConflict(
                         `The document's embedded id ${JSON.stringify(embeddedId)} does not match the addressed workflow ${workflowId}`,
                     ),
                 );
@@ -157,12 +148,12 @@ export class WorkflowService {
     }
 
     /** Returns the draft's current revision, or null when the workflow does not exist. */
-    async currentRevision(workflowId: string): Promise<StoredRevision | null> {
+    async getCurrentRevision(workflowId: string): Promise<StoredRevision | null> {
         return this.database.workflows.getCurrentRevision(workflowId);
     }
 
     /** Returns one stored revision byte-exact, or null when it does not exist. */
-    async revision(workflowId: string, revisionId: string): Promise<StoredRevision | null> {
+    async getRevision(workflowId: string, revisionId: string): Promise<StoredRevision | null> {
         return this.database.workflows.getRevision(workflowId, revisionId);
     }
 
@@ -239,7 +230,7 @@ export class WorkflowService {
 
     /**
      * Validates the text that will be stored, so stored findings anchor to
-     * the bytes retrieval returns. The text parsed strictly already; a
+     * the text retrieval returns. The text parsed strictly already; a
      * parse failure at this point is an invariant violation.
      */
     private validateStoredText(text: string): ValidationResult {
@@ -285,55 +276,7 @@ export class WorkflowService {
     }
 }
 
-/**
- * Maps one stored revision onto the WorkflowRevision response shape, the
- * uniform body of create, save, rewind, and both revisions' retrievals.
- */
-export function revisionResponse(revision: StoredRevision): {
-    workflowId: string;
-    revisionId: string;
-    name: string | null;
-    type: string;
-    content: string;
-    findings: readonly Finding[];
-} {
-    return {
-        workflowId: revision.workflowId,
-        revisionId: revision.revisionId,
-        name: revision.name,
-        type: revision.type,
-        content: revision.content,
-        findings: revision.findings,
-    };
-}
-
-let instance: WorkflowService | null = null;
-
-/**
- * Returns the process-wide workflow service, building it against the
- * configured database on first use. The lazy build keeps the foundation
- * tests, which never hit a workflow route, free of database connections.
- */
-export function workflowService(): WorkflowService {
-    if (instance === null) {
-        instance = WorkflowService.create(loadConfig().databaseUrl);
-    }
-    return instance;
-}
-
-/**
- * Replaces the process-wide service. Integration tests point it at a
- * disposable database before driving the app; passing null clears it so a
- * later test run rebuilds against the configured database.
- */
-export function setWorkflowService(service: WorkflowService | null): void {
-    instance = service;
-}
-
-/** Closes the process-wide service when one was built; a no-op otherwise. */
-export async function closeWorkflowService(): Promise<void> {
-    if (instance !== null) {
-        await instance.close();
-        instance = null;
-    }
+/** Checks whether a parsed document is a JSON object (the injectable root shape). */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }

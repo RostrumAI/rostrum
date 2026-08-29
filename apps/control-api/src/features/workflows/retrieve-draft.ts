@@ -1,9 +1,13 @@
 import type { Context } from "hono";
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { ErrorResponseSchema } from "../../schemas";
-import { notFound, WorkflowApiError, workflowErrorResponse } from "../../workflows/errors";
-import { WorkflowRevisionSchema } from "../../workflows/schemas";
-import { revisionResponse, workflowService } from "../../workflows/service";
+import type { Services } from "../../services";
+import { WorkflowApiError, workflowErrorResponse, workflowNotFound } from "../../workflows/errors";
+import {
+    revisionResponse,
+    WorkflowIdSchema,
+    WorkflowRevisionSchema,
+} from "../../workflows/schemas";
 
 /** Route binding for retrieving the draft's current revision. */
 export const route: FeatureRoute = {
@@ -13,13 +17,13 @@ export const route: FeatureRoute = {
         {
             name: "workflowId",
             in: "path",
-            description: "The draft's workflow id (UUID v7).",
-            schema: WorkflowRevisionSchema.properties.revisionId,
+            description: "The draft's workflow id.",
+            schema: WorkflowIdSchema,
         },
     ],
     responses: {
         "200": {
-            description: "The draft's current revision: stored bytes plus findings snapshot",
+            description: "The draft's current revision: stored text plus findings snapshot",
             schemaName: "WorkflowRevision",
         },
         "404": { description: "The workflow does not exist", schemaName: "ErrorResponse" },
@@ -34,18 +38,22 @@ export const schema: FeatureSchemas = {
 
 /**
  * Serves GET /workflows/:workflowId. Returns the current revision with
- * the exact stored bytes, so findings' line and column anchor to the text
+ * the exact stored text, so findings' line and column anchor to the text
  * a client reads.
  */
-export const handler: FeatureHandler = async (c: Context) => {
-    try {
-        const workflowId = c.req.param("workflowId") ?? "";
-        const revision = await workflowService().currentRevision(workflowId);
-        if (!revision) {
-            throw new WorkflowApiError(notFound(`Workflow ${workflowId} does not exist`));
+export const createHandler =
+    (services: Services): FeatureHandler =>
+    async (c: Context) => {
+        try {
+            const workflowId = c.req.param("workflowId") ?? "";
+            const revision = await services.workflows.getCurrentRevision(workflowId);
+            if (!revision) {
+                throw new WorkflowApiError(
+                    workflowNotFound(`Workflow ${workflowId} does not exist`),
+                );
+            }
+            return c.json(revisionResponse(revision));
+        } catch (error) {
+            return workflowErrorResponse(c, error);
         }
-        return c.json(revisionResponse(revision));
-    } catch (error) {
-        return workflowErrorResponse(c, error);
-    }
-};
+    };

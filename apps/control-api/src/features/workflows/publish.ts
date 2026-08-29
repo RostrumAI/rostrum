@@ -1,15 +1,16 @@
 import type { Context } from "hono";
+import type { Static } from "typebox";
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { ErrorResponseSchema } from "../../schemas";
+import type { Services } from "../../services";
 import {
-    notFound,
-    revisionNotFound,
     WorkflowApiError,
     workflowErrorResponse,
+    workflowNotFound,
     workflowNotValid,
+    workflowRevisionNotFound,
 } from "../../workflows/errors";
-import { PublishResponseSchema } from "../../workflows/schemas";
-import { workflowService } from "../../workflows/service";
+import { PublishResponseSchema, WorkflowIdSchema } from "../../workflows/schemas";
 
 /** Route binding for publishing the draft's current revision. */
 export const route: FeatureRoute = {
@@ -19,8 +20,8 @@ export const route: FeatureRoute = {
         {
             name: "workflowId",
             in: "path",
-            description: "The draft's workflow id (UUID v7).",
-            schema: PublishResponseSchema.properties.workflowId,
+            description: "The draft's workflow id.",
+            schema: WorkflowIdSchema,
         },
     ],
     responses: {
@@ -53,31 +54,37 @@ export const schema: FeatureSchemas = {
  * stored content — the same findings and ordering a save returned — then
  * stores the canonical text with its digest under the next version number.
  */
-export const handler: FeatureHandler = async (c: Context) => {
-    try {
-        const workflowId = c.req.param("workflowId") ?? "";
-        const result = await workflowService().publish(workflowId);
-        switch (result.outcome) {
-            case "published":
-            case "already-published":
-                return c.json({
-                    workflowId,
-                    versionNumber: result.versionNumber,
-                    interfaceVersion: result.interfaceVersion,
-                    digest: result.digest,
-                });
-            case "blocking-findings":
-                throw new WorkflowApiError(workflowNotValid(result.findings));
-            case "not-found":
-                throw new WorkflowApiError(notFound(`Workflow ${workflowId} does not exist`));
-            case "revision-not-found":
-                throw new WorkflowApiError(
-                    revisionNotFound(
-                        `The current revision of workflow ${workflowId} does not exist`,
-                    ),
-                );
+export const createHandler =
+    (services: Services): FeatureHandler =>
+    async (c: Context) => {
+        try {
+            const workflowId = c.req.param("workflowId") ?? "";
+            const result = await services.workflows.publish(workflowId);
+            switch (result.outcome) {
+                case "published":
+                case "already-published": {
+                    const body: Static<typeof PublishResponseSchema> = {
+                        workflowId,
+                        versionNumber: result.versionNumber,
+                        interfaceVersion: result.interfaceVersion,
+                        digest: result.digest,
+                    };
+                    return c.json(body);
+                }
+                case "blocking-findings":
+                    throw new WorkflowApiError(workflowNotValid(result.findings));
+                case "not-found":
+                    throw new WorkflowApiError(
+                        workflowNotFound(`Workflow ${workflowId} does not exist`),
+                    );
+                case "revision-not-found":
+                    throw new WorkflowApiError(
+                        workflowRevisionNotFound(
+                            `The current revision of workflow ${workflowId} does not exist`,
+                        ),
+                    );
+            }
+        } catch (error) {
+            return workflowErrorResponse(c, error);
         }
-    } catch (error) {
-        return workflowErrorResponse(c, error);
-    }
-};
+    };

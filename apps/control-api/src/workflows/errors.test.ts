@@ -7,17 +7,16 @@ import {
 } from "@rostrum/database";
 import type { Finding } from "@rostrum/workflow";
 import {
-    duplicateWorkflowId,
     errorBody,
     errorPayloadFor,
-    identityConflict,
     invalidWorkflowInput,
-    notFound,
-    parseFailure,
-    revisionConflict,
-    revisionNotFound,
     WorkflowApiError,
+    workflowIdentityConflict,
+    workflowNotFound,
     workflowNotValid,
+    workflowParseFailure,
+    workflowRevisionConflict,
+    workflowRevisionNotFound,
 } from "./errors";
 
 const FINDINGS: Finding[] = [
@@ -42,51 +41,43 @@ const CURRENT_REVISION = {
 /** The full status/code mapping table, one assertion per documented trigger. */
 describe("error payload mapping table", () => {
     test("parse failures map to 400 invalid_workflow_input carrying the parse findings", () => {
-        const payload = parseFailure(FINDINGS);
+        const payload = workflowParseFailure(FINDINGS);
         expect(payload.status).toBe(400);
         expect(payload.code).toBe("invalid_workflow_input");
         expect(payload.findings).toEqual(FINDINGS);
     });
 
     test("malformed request input maps to 400 invalid_workflow_input", () => {
-        const payload = invalidWorkflowInput("The Base-Revision header is required");
+        const payload = invalidWorkflowInput("The request body is not a valid save envelope");
         expect(payload.status).toBe(400);
         expect(payload.code).toBe("invalid_workflow_input");
         expect(payload.findings).toEqual([]);
     });
 
     test("unknown workflow or version maps to 404 not_found", () => {
-        const payload = notFound("Workflow x does not exist");
+        const payload = workflowNotFound("Workflow x does not exist");
         expect(payload.status).toBe(404);
         expect(payload.code).toBe("not_found");
     });
 
     test("missing rewind target or publish source maps to 404 revision_not_found", () => {
-        const payload = revisionNotFound("no such revision");
+        const payload = workflowRevisionNotFound("no such revision");
         expect(payload.status).toBe(404);
         expect(payload.code).toBe("revision_not_found");
     });
 
     test("a disagreeing embedded id maps to 409 identity_conflict", () => {
-        const payload = identityConflict("embedded id does not match");
+        const payload = workflowIdentityConflict("embedded id does not match");
         expect(payload.status).toBe(409);
         expect(payload.code).toBe("identity_conflict");
     });
 
     test("a stale base revision maps to 409 revision_conflict with the current revision", () => {
-        const payload = revisionConflict(CURRENT_REVISION);
+        const payload = workflowRevisionConflict(CURRENT_REVISION);
         expect(payload.status).toBe(409);
         expect(payload.code).toBe("revision_conflict");
         expect(payload.currentRevision).toBe(CURRENT_REVISION.revisionId);
         expect(payload.findings).toEqual(FINDINGS);
-    });
-
-    test("an id collision maps to 409 duplicate_workflow_id", () => {
-        const error = new DuplicateWorkflowIdError("0192b0a0-7e1d-7000-8000-0000000000cd");
-        const payload = duplicateWorkflowId(error);
-        expect(payload.status).toBe(409);
-        expect(payload.code).toBe("duplicate_workflow_id");
-        expect(payload.message).toContain("already exists");
     });
 
     test("blocking findings on publish map to 422 workflow_not_valid", () => {
@@ -99,26 +90,19 @@ describe("error payload mapping table", () => {
 
 describe("errorPayloadFor", () => {
     test("maps a raised WorkflowApiError to its payload", () => {
-        const error = new WorkflowApiError(notFound("nope"));
-        expect(errorPayloadFor(error)).toEqual(notFound("nope"));
+        const error = new WorkflowApiError(workflowNotFound("nope"));
+        expect(errorPayloadFor(error)).toEqual(workflowNotFound("nope"));
     });
 
     test("maps InvalidWorkflowInputError to 400", () => {
-        const error = new InvalidWorkflowInputError("'x' is not a UUID v7 workflow id");
+        const error = new InvalidWorkflowInputError("'x' is not a valid workflow id");
         const payload = errorPayloadFor(error);
         expect(payload?.status).toBe(400);
         expect(payload?.code).toBe("invalid_workflow_input");
-        expect(payload?.message).toContain("not a UUID v7");
+        expect(payload?.message).toContain("not a valid workflow id");
     });
 
-    test("maps DuplicateWorkflowIdError to 409", () => {
-        const error = new DuplicateWorkflowIdError("0192b0a0-7e1d-7000-8000-0000000000cd");
-        const payload = errorPayloadFor(error);
-        expect(payload?.status).toBe(409);
-        expect(payload?.code).toBe("duplicate_workflow_id");
-    });
-
-    test("returns null for storage-invariant and digest-verification failures", () => {
+    test("returns null for storage-invariant, digest-verification, and duplicate-id failures", () => {
         expect(errorPayloadFor(new CorruptWorkflowStateError("missing revision"))).toBeNull();
         expect(
             errorPayloadFor(
@@ -128,6 +112,9 @@ describe("errorPayloadFor", () => {
                     "digest mismatch",
                 ),
             ),
+        ).toBeNull();
+        expect(
+            errorPayloadFor(new DuplicateWorkflowIdError("0192b0a0-7e1d-7000-8000-0000000000cd")),
         ).toBeNull();
     });
 
@@ -139,12 +126,12 @@ describe("errorPayloadFor", () => {
 
 describe("errorBody", () => {
     test("carries the single error shape and omits an absent currentRevision", () => {
-        const body = errorBody(notFound("nope"));
+        const body = errorBody(workflowNotFound("nope"));
         expect(body).toEqual({ code: "not_found", message: "nope", findings: [] });
     });
 
     test("carries currentRevision on conflicts", () => {
-        const body = errorBody(revisionConflict(CURRENT_REVISION));
+        const body = errorBody(workflowRevisionConflict(CURRENT_REVISION));
         expect(body.currentRevision).toBe(CURRENT_REVISION.revisionId);
         expect(body.findings).toEqual(FINDINGS);
     });
