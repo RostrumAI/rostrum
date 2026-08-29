@@ -19,6 +19,7 @@
  * JSON Schema 2020-12 artifact describes the interface's document shape.
  */
 
+export { insertWorkflowId, replaceWorkflowId } from "./document/id-splice";
 export type { Finding, FindingSpec, RelatedLocation } from "./findings";
 export {
     compareFindings,
@@ -27,6 +28,8 @@ export {
 } from "./findings";
 export type { JsonParseIssue, JsonParseResult, ParseErrorCode } from "./parse/json-source-parser";
 export { JsonSourceParser } from "./parse/json-source-parser";
+export type { ParsedWorkflow } from "./parse/parse-workflow";
+export { parseWorkflow } from "./parse/parse-workflow";
 export { CanonicalizationError, canonicalize } from "./publish/canonical-json";
 export type { PublicationPreparation } from "./publish/publication-preparer";
 export { PublicationPreparer } from "./publish/publication-preparer";
