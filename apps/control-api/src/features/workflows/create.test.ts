@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import {
     bindRoute,
     fetchJson,
@@ -31,6 +31,40 @@ describe("POST /workflows", () => {
         );
         expect(res.status).toBe(201);
         expect(body).toEqual(revisionResponseShape());
+    });
+
+    test("answers 201 with a new workflow id on every call (creation is not idempotent)", async () => {
+        const ids = [
+            "0192b0a0-7e1d-7000-8000-0000000000a1",
+            "0192b0a0-7e1d-7000-8000-0000000000a2",
+        ];
+        let call = 0;
+        const createDraft = mock(async () => {
+            const workflowId = ids[call++];
+            return { workflowId, revision: revisionFixture({ workflowId }) };
+        });
+        const app = bindRoute(
+            route.method,
+            "workflows",
+            route.path,
+            createHandler(servicesWith({ createDraft })),
+            route.parameters,
+        );
+        const first = await fetchJson(
+            app,
+            "/api/v1/workflows",
+            jsonRequest("POST", { document: { name: "x" } }),
+        );
+        const second = await fetchJson(
+            app,
+            "/api/v1/workflows",
+            jsonRequest("POST", { document: { name: "x" } }),
+        );
+        expect(first.res.status).toBe(201);
+        expect(second.res.status).toBe(201);
+        expect(first.body).toMatchObject({ workflowId: ids[0] });
+        expect(second.body).toMatchObject({ workflowId: ids[1] });
+        expect(createDraft).toHaveBeenCalledTimes(2);
     });
 
     test("answers 400 when the request body omits the document", async () => {

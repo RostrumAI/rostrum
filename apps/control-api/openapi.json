@@ -590,7 +590,17 @@
         ],
         "responses": {
           "200": {
-            "description": "The current revision was published (or was already published: the response is identical, idempotent)",
+            "description": "The current revision was already published: the response is identical and idempotent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The current revision was published and stored as an immutable version",
             "content": {
               "application/json": {
                 "schema": {

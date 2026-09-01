@@ -25,9 +25,13 @@ export const route: FeatureRoute = {
         },
     ],
     responses: {
+        "201": {
+            description: "The current revision was published and stored as an immutable version",
+            schemaName: "PublishResponse",
+        },
         "200": {
             description:
-                "The current revision was published (or was already published: the response is identical, idempotent)",
+                "The current revision was already published: the response is identical and idempotent",
             schemaName: "PublishResponse",
         },
         "404": {
@@ -69,7 +73,7 @@ export const createHandler =
                         interfaceVersion: result.interfaceVersion,
                         digest: result.digest,
                     };
-                    return c.json(body);
+                    return c.json(body, result.outcome === "published" ? 201 : 200);
                 }
                 case "blocking-findings":
                     throw new WorkflowApiError(workflowNotValid(result.findings));

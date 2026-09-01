@@ -27,7 +27,7 @@ function appFor(publish: object) {
 }
 
 describe("POST /workflows/:workflowId/publish", () => {
-    test("publishes and answers 200 with the version identity", async () => {
+    test("publishes and answers 201 with the version identity", async () => {
         const app = appFor(async () => ({
             outcome: "published",
             versionNumber: 3,
@@ -35,7 +35,7 @@ describe("POST /workflows/:workflowId/publish", () => {
             digest: DIGEST,
         }));
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", undefined));
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(201);
         expect(body).toEqual({
             workflowId: WORKFLOW_ID,
             versionNumber: 3,
