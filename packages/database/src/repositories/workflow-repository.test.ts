@@ -161,6 +161,36 @@ describe("drafts and revisions", () => {
         });
     });
 
+    test("stores the author's checkpoint label on saves and leaves rewind copies unlabeled", async () => {
+        await withDatabase(async (database) => {
+            const created = await database.workflows.createDraft({
+                content: '{"v":1}',
+                findings: [],
+                name: "first checkpoint",
+            });
+            expect(created.revision.name).toBe("first checkpoint");
+
+            const second = savedRevision(
+                await database.workflows.saveRevision(created.workflowId, {
+                    baseRevision: created.revision.revisionId,
+                    content: '{"v":2}',
+                    findings: [],
+                    name: "second checkpoint",
+                }),
+            );
+            expect(second.name).toBe("second checkpoint");
+
+            const rewound = await database.workflows.rewind(
+                created.workflowId,
+                created.revision.revisionId,
+            );
+            if (rewound.outcome !== "rewound") {
+                throw new Error("expected a rewound outcome");
+            }
+            expect(rewound.revision.name).toBeNull();
+        });
+    });
+
     test("rejects stale baseRevision values with the current revision", async () => {
         await withDatabase(async (database) => {
             const created = await database.workflows.createDraft({

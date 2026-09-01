@@ -385,6 +385,7 @@ export class WorkflowRepository {
             workflowId,
             content: input.content,
             findings: JSON.stringify(input.findings),
+            name: input.name ?? null,
             type: "save" as const,
             createdAt: sql<Date>`now()`,
         };
