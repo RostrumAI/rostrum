@@ -53,7 +53,7 @@ export const WorkflowIdSchema = Type.String({
     description: "The workflow id.",
 });
 
-/** A revision id as a path parameter or envelope member value. */
+/** A revision id as a path parameter or request body member value. */
 export const RevisionIdSchema = Type.String({
     pattern: UUID_PATTERN,
     description: "The revision id.",
@@ -134,13 +134,13 @@ export const PublishedVersionResponseSchema = Type.Object(
     { additionalProperties: false },
 );
 
-/** The request envelope of POST /workflows/:workflowId/rewind. */
+/** The request body of POST /workflows/:workflowId/rewind. */
 export const RewindRequestSchema = Type.Object(
     { targetRevisionId: Type.String({ description: "The revision to rewind the draft to." }) },
     { additionalProperties: false },
 );
 
-/** The permissive document member of the request envelopes. */
+/** The permissive document member of the request bodies. */
 export const WorkflowDocumentSchema = Type.Unknown({
     description:
         "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract.",

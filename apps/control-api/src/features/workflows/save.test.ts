@@ -71,7 +71,7 @@ describe("PUT /workflows/:workflowId/revisions", () => {
         expect(body).toMatchObject({ code: "not_found" });
     });
 
-    test("answers 400 when the envelope omits the base revision", async () => {
+    test("answers 400 when the request body omits the base revision", async () => {
         const app = appFor(async () => ({ outcome: "saved", revision: revisionFixture() }));
         const { res, body } = await fetchJson(app, PATH, jsonRequest("PUT", { document: {} }));
         expect(res.status).toBe(400);

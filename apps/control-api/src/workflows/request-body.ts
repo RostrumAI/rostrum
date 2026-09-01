@@ -26,22 +26,22 @@ export async function parseWorkflowBody(c: Context): Promise<ParsedBody> {
 }
 
 /**
- * Reads, strictly parses, and validates an envelope body against the
- * operation's schema, then returns the envelope value plus the exact
+ * Reads, strictly parses, and validates a request body against the
+ * operation's schema, then returns the parsed value plus the exact
  * source text of its `document` member. The document text keeps the
  * author's formatting byte-for-byte, so the stored revision's findings
  * anchor to the text retrieval returns.
  */
-export async function readEnvelopeBody<T extends TObject>(
+export async function readRequestBody<T extends TObject>(
     c: Context,
     schema: T,
-): Promise<{ envelope: Static<T>; documentText: string }> {
+): Promise<{ request: Static<T>; documentText: string }> {
     const body = await parseWorkflowBody(c);
     if (!Value.Check(schema, body.value)) {
-        throw new WorkflowApiError(invalidWorkflowInput(envelopeError(schema, body.value)));
+        throw new WorkflowApiError(invalidWorkflowInput(requestBodyError(schema, body.value)));
     }
     return {
-        envelope: body.value as Static<T>,
+        request: body.value as Static<T>,
         documentText: extractMemberText(body.text, "document"),
     };
 }
@@ -56,13 +56,13 @@ export async function readValidatedBody<T extends TObject>(
 ): Promise<Static<T>> {
     const body = await parseWorkflowBody(c);
     if (!Value.Check(schema, body.value)) {
-        throw new WorkflowApiError(invalidWorkflowInput(envelopeError(schema, body.value)));
+        throw new WorkflowApiError(invalidWorkflowInput(requestBodyError(schema, body.value)));
     }
     return body.value as Static<T>;
 }
 
-/** Builds the 400 message for an envelope that does not satisfy its schema. */
-function envelopeError(schema: TSchema, value: unknown): string {
+/** Builds the 400 message for a request body that does not satisfy its schema. */
+function requestBodyError(schema: TSchema, value: unknown): string {
     const errors = [...Value.Errors(schema, value)];
     const first = errors[0];
     if (first === undefined) return "The request body does not satisfy the operation schema";

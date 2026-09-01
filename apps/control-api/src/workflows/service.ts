@@ -216,7 +216,7 @@ export class WorkflowService {
     }
 
     /** Returns one published version after storage-side digest verification, or null. */
-    async publishedVersion(
+    async getPublishedVersion(
         workflowId: string,
         versionNumber: number,
     ): Promise<PublishedVersion | null> {

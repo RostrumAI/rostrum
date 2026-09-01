@@ -16,12 +16,12 @@ const version = {
     createdAt: new Date(0),
 };
 
-function appFor(publishedVersion: object) {
+function appFor(getPublishedVersion: object) {
     return bindRoute(
         route.method,
         "workflows",
         route.path,
-        createHandler(servicesWith({ publishedVersion })),
+        createHandler(servicesWith({ getPublishedVersion })),
         route.parameters,
     );
 }

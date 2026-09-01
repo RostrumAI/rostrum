@@ -26,7 +26,7 @@ export const route: FeatureRoute = {
     method: "POST",
     path: "/:workflowId/rewind",
     requestBody: {
-        description: "The rewind envelope naming the target revision.",
+        description: "The rewind request body, naming the target revision.",
         required: true,
         schemaName: "RewindRequest",
     },
@@ -45,7 +45,7 @@ export const route: FeatureRoute = {
             schemaName: "WorkflowRevision",
         },
         "400": {
-            description: "The body is not a valid rewind envelope",
+            description: "The body is not a valid rewind request",
             schemaName: "ErrorResponse",
         },
         "404": {
@@ -72,8 +72,8 @@ export const createHandler =
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
-            const envelope = await readValidatedBody(c, RewindRequestSchema);
-            const result = await services.workflows.rewind(workflowId, envelope.targetRevisionId);
+            const request = await readValidatedBody(c, RewindRequestSchema);
+            const result = await services.workflows.rewind(workflowId, request.targetRevisionId);
             switch (result.outcome) {
                 case "rewound":
                 case "no-op":
@@ -81,7 +81,7 @@ export const createHandler =
                 case "target-not-found":
                     throw new WorkflowApiError(
                         workflowRevisionNotFound(
-                            `Revision ${envelope.targetRevisionId} of workflow ${workflowId} does not exist`,
+                            `Revision ${request.targetRevisionId} of workflow ${workflowId} does not exist`,
                         ),
                     );
                 case "not-found":

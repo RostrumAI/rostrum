@@ -69,7 +69,7 @@ describe("POST /workflows/:workflowId/rewind", () => {
         expect(body).toMatchObject({ code: "not_found" });
     });
 
-    test("answers 400 when the envelope omits the target revision", async () => {
+    test("answers 400 when the request body omits the target revision", async () => {
         const app = appFor(async () => ({ outcome: "rewound", revision: revisionFixture() }));
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", {}));
         expect(res.status).toBe(400);

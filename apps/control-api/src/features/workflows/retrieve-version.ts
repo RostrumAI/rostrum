@@ -60,7 +60,7 @@ export const createHandler =
             const workflowId = c.req.param("workflowId") ?? "";
             const raw = c.req.param("versionNumber") ?? "";
             const versionNumber = Number.parseInt(raw, 10);
-            const version = await services.workflows.publishedVersion(workflowId, versionNumber);
+            const version = await services.workflows.getPublishedVersion(workflowId, versionNumber);
             if (!version) {
                 throw new WorkflowApiError(
                     workflowNotFound(

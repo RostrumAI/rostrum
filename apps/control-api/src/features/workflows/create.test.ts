@@ -33,7 +33,7 @@ describe("POST /workflows", () => {
         expect(body).toEqual(revisionResponseShape());
     });
 
-    test("answers 400 when the envelope omits the document", async () => {
+    test("answers 400 when the request body omits the document", async () => {
         const { res, body } = await fetchJson(
             app,
             "/api/v1/workflows",
@@ -55,7 +55,7 @@ describe("POST /workflows", () => {
         });
     });
 
-    test("answers 400 when the envelope carries an unknown member", async () => {
+    test("answers 400 when the request body carries an unknown member", async () => {
         const { res, body } = await fetchJson(
             app,
             "/api/v1/workflows",

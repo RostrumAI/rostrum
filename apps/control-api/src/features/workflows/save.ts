@@ -8,7 +8,7 @@ import {
     workflowNotFound,
     workflowRevisionConflict,
 } from "../../workflows/errors";
-import { readEnvelopeBody } from "../../workflows/request-body";
+import { readRequestBody } from "../../workflows/request-body";
 import {
     revisionResponse,
     WorkflowIdSchema,
@@ -17,7 +17,7 @@ import {
 import { SaveRevisionRequestSchema } from "./save.schema";
 
 /**
- * Route binding for saving a revision. The envelope's `baseRevision`
+ * Route binding for saving a revision. The request body's `baseRevision`
  * carries the id of the revision the client last saw; the server commits
  * only when it is still the draft's current revision.
  */
@@ -26,7 +26,7 @@ export const route: FeatureRoute = {
     path: "/:workflowId/revisions",
     requestBody: {
         description:
-            "The save envelope: the base revision the client last saw, an optional revision name, and the workflow document. A document that omits the id gets the addressed workflow's id injected.",
+            "The save request body: the base revision the client last saw, an optional revision name, and the workflow document. A document that omits the id gets the addressed workflow's id injected.",
         required: true,
         schemaName: "SaveRevisionRequest",
     },
@@ -45,7 +45,7 @@ export const route: FeatureRoute = {
         },
         "400": {
             description:
-                "The body is not a valid save envelope, or the document is not syntactically valid workflow JSON",
+                "The body is not a valid save request, or the document is not syntactically valid workflow JSON",
             schemaName: "ErrorResponse",
         },
         "404": { description: "The workflow does not exist", schemaName: "ErrorResponse" },
@@ -74,12 +74,12 @@ export const createHandler =
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
-            const { envelope, documentText } = await readEnvelopeBody(c, SaveRevisionRequestSchema);
+            const { request, documentText } = await readRequestBody(c, SaveRevisionRequestSchema);
             const result = await services.workflows.saveRevision(
                 workflowId,
                 documentText,
-                envelope.baseRevision,
-                envelope.name ?? null,
+                request.baseRevision,
+                request.name ?? null,
             );
             switch (result.outcome) {
                 case "saved":

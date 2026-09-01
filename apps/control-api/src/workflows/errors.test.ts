@@ -48,7 +48,7 @@ describe("error payload mapping table", () => {
     });
 
     test("malformed request input maps to 400 invalid_workflow_input", () => {
-        const payload = invalidWorkflowInput("The request body is not a valid save envelope");
+        const payload = invalidWorkflowInput("The request body is not a valid save request");
         expect(payload.status).toBe(400);
         expect(payload.code).toBe("invalid_workflow_input");
         expect(payload.findings).toEqual([]);

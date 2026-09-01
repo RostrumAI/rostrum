@@ -559,7 +559,7 @@
             }
           },
           "400": {
-            "description": "The body is not a valid creation envelope, or the document is not syntactically valid workflow JSON",
+            "description": "The body is not a valid creation request, or the document is not syntactically valid workflow JSON",
             "content": {
               "application/json": {
                 "schema": {
@@ -571,7 +571,7 @@
         },
         "requestBody": {
           "required": true,
-          "description": "The creation envelope: the workflow document, with an optional revision name.",
+          "description": "The creation request body: the workflow document, with an optional revision name.",
           "content": {
             "application/json": {
               "schema": {
@@ -804,7 +804,7 @@
             }
           },
           "400": {
-            "description": "The body is not a valid rewind envelope",
+            "description": "The body is not a valid rewind request",
             "content": {
               "application/json": {
                 "schema": {
@@ -839,7 +839,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "The rewind envelope naming the target revision.",
+          "description": "The rewind request body, naming the target revision.",
           "content": {
             "application/json": {
               "schema": {
@@ -868,7 +868,7 @@
             }
           },
           "400": {
-            "description": "The body is not a valid save envelope, or the document is not syntactically valid workflow JSON",
+            "description": "The body is not a valid save request, or the document is not syntactically valid workflow JSON",
             "content": {
               "application/json": {
                 "schema": {
@@ -913,7 +913,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "The save envelope: the base revision the client last saw, an optional revision name, and the workflow document. A document that omits the id gets the addressed workflow's id injected.",
+          "description": "The save request body: the base revision the client last saw, an optional revision name, and the workflow document. A document that omits the id gets the addressed workflow's id injected.",
           "content": {
             "application/json": {
               "schema": {

@@ -116,7 +116,7 @@ export class ControlApiApp {
     /**
      * Builds the hono-openapi documentation for one bound feature. The tag is
      * the feature area folder; each documented response references its module
-     * component by name.
+     * component by name. Used for building OpenAPI JSON output.
      */
     private describeFeature(feature: LoadedFeature): DescribeRouteOptions {
         const description: DescribeRouteOptions = {
@@ -141,7 +141,10 @@ export class ControlApiApp {
         return description;
     }
 
-    /** Builds the documented responses, referencing each named component. */
+    /**
+     * Builds the documented responses, referencing each named component.
+     * Used for building OpenAPI JSON output.
+     */
     private describeResponses(
         responses: FeatureRoute["responses"],
     ): NonNullable<DescribeRouteOptions["responses"]> {
@@ -163,7 +166,10 @@ export class ControlApiApp {
         return described;
     }
 
-    /** Builds the documented request body, referencing its named component. */
+    /**
+     * Builds the documented request body, referencing its named component.
+     * Used for building OpenAPI JSON output.
+     */
     private describeRequestBody(
         requestBody: RequestBodyDefinition,
     ): DescribeRouteOptions["requestBody"] {
