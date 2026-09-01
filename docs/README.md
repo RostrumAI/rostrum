@@ -48,6 +48,7 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 ### Results
 
 - [E1-S0: Proof-of-concept verification](results/epic-01/e1-s0-proof-of-concept.md)
+- [E1-08: Authoring-guidance verification](results/epic-01/e1-08-authoring-guidance-verification.md) — the human and agent walkthroughs that tested the guide and skill against the running Control API.
 
 ### Specifications
 

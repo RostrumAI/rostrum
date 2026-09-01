@@ -96,7 +96,7 @@ Run from the repository root:
 ```bash
 bun -e 'import { canonicalize } from "./packages/workflow/src/index.ts";
 import { createHash } from "node:crypto";
-const [workflowId, versionNumber] = Bun.argv.slice(2);
+const [workflowId, versionNumber] = Bun.argv.slice(1);
 const response = await fetch(
   `http://127.0.0.1:3000/api/v1/workflows/${workflowId}/versions/${versionNumber}`,
 );

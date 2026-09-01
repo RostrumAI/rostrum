@@ -48,12 +48,12 @@ The remaining valid and invalid examples in the suite demonstrate one rule each;
 
 ## Create a draft
 
-Creation and the first save are one operation. Send the document to `POST /workflows`; the server mints the workflow `id`, injects it into the stored document, and stores the document as the draft's first revision:
+Creation and the first save are one operation. The create body wraps the document in a `document` member; send the fixture through `jq` to build the envelope:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:3000/api/v1/workflows \
-  -H "Content-Type: application/json" \
-  --data-binary @packages/workflow/src/fixtures/incomplete/unfinished-connection.json \
+jq '{ document: . }' packages/workflow/src/fixtures/incomplete/unfinished-connection.json \
+  | curl -sS -X POST http://127.0.0.1:3000/api/v1/workflows \
+      -H "Content-Type: application/json" --data-binary @- \
   | jq
 ```
 
@@ -61,19 +61,18 @@ The example document names a successor step that does not exist, so it saves wit
 
 ```json
 {
-  "workflowId": "0198c5a2-7f0e-7000-8000-000000000001",
-  "revisionId": "0198c5a2-7f0e-7000-8000-000000000002",
+  "workflowId": "01a05c29-697a-71ba-87fe-d40f966e2b8e",
+  "revisionId": "01a05c29-697b-718b-8b6e-fc220cca0405",
   "name": null,
   "type": "save",
-  "content": "{\"interfaceVersion\":\"v1\",\"id\":\"0198c5a2-...\",\"name\":\"Unfinished workflow\",\"firstNode\":\"0192b0a0-7e1d-7000-8000-000000000051\",\"steps\":[{\"id\":\"0192b0a0-7e1d-7000-8000-000000000051\",\"type\":\"task\",\"successors\":[\"0192b0a0-7e1d-7000-8000-000000000099\"]}]}",
   "findings": [
     {
       "code": "workflow.reference.unknown-target",
-      "message": "successors names step 0192b0a0-7e1d-7000-8000-000000000099, which does not exist",
+      "message": "successors '0192b0a0-7e1d-7000-8000-000000000099' does not reference an existing step",
       "blocking": true,
       "path": "/steps/0/successors/0",
-      "line": 10,
-      "column": 28,
+      "line": 11,
+      "column": 11,
       "details": {
         "stepId": "0192b0a0-7e1d-7000-8000-000000000051",
         "target": "0192b0a0-7e1d-7000-8000-000000000099",
@@ -84,13 +83,33 @@ The example document names a successor step that does not exist, so it saves wit
 }
 ```
 
+The response's `content` member (omitted above for readability) carries the stored text: the submitted document with the server-assigned `id` spliced in and every other byte preserved. This run stored:
+
+```json
+{
+    "interfaceVersion": "v1",
+    "id": "01a05c29-697a-71ba-87fe-d40f966e2b8e",
+    "name": "Unfinished workflow",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000051",
+    "steps": [
+      {
+        "id": "0192b0a0-7e1d-7000-8000-000000000051",
+        "type": "task",
+        "successors": [
+          "0192b0a0-7e1d-7000-8000-000000000099"
+        ]
+      }
+    ]
+  }
+```
+
 Three properties of this response matter for the rest of the workflow:
 
 - The `workflowId` is assigned by the server. Any `id` in the document you submitted is replaced, never honored.
 - Syntactically valid JSON saves even when validation reports blocking findings. You do not need a correct document to open a draft.
 - `revisionId` identifies the revision the draft is showing now. Keep it: later saves must carry it as `baseRevision`, and there is no endpoint that lists a draft's revisions.
 
-The body also accepts an optional `name` member to label the first revision. The document itself may omit its `id`; when it does, the response's `content` carries the stored text with the server-assigned `id` injected.
+The body also accepts an optional `name` member to label the first revision. A finding's `line` and `column` anchor to the stored text that retrieval returns.
 
 ## Validate without saving
 
@@ -108,7 +127,7 @@ curl -sS -X POST http://127.0.0.1:3000/api/v1/workflows/validate \
   "findings": [
     {
       "code": "workflow.reference.unknown-target",
-      "message": "successors names step 0192b0a0-7e1d-7000-8000-000000000099, which does not exist",
+      "message": "successors '0192b0a0-7e1d-7000-8000-000000000099' does not reference an existing step",
       "blocking": true,
       "path": "/steps/0/successors/0",
       "line": 10,
@@ -134,9 +153,9 @@ Each finding is a structured object. The fields are the contract; the `message` 
 | --- | --- |
 | `code` | Stable dot-namespaced identifier, such as `workflow.graph.cycle`. Match on this, not on the message. |
 | `message` | Human-readable explanation. |
-| `blocking` | `True if the finding prevents publication; false otherwise.` All v1 findings are blocking except advisory input/output type mismatches. |
+| `blocking` | `True if the finding prevents publication; false otherwise.` Every finding the validator emits in v1 is blocking; the reserved `workflow.io.type-mismatch` code is not emitted in v1 at all. |
 | `path` | JSON Pointer (RFC 6901) to the offending part of the document, or `""` for a document-level problem such as a cycle. |
-| `line`, `column` | One-based location in the submitted text, when the validator parsed text. |
+| `line`, `column` | One-based location in the text being validated: the submitted document for a validation request, the stored text for a draft or revision. |
 | `relatedLocations` | Additional `{ path, message }` pointers for cross-reference conflicts, such as the two steps involved in an unreachable dependency. |
 | `details` | Structured context for repair without parsing the message: the step ids, received values, and supported values involved. |
 
@@ -169,7 +188,7 @@ Repair from `code` and `details`. For the running example, `workflow.reference.u
 }
 ```
 
-Send the repaired document as a new revision (next section) and the response's `findings` array comes back empty.
+The suite proves the repaired shape; the fixture carries the fixture's own `id`. When you save the repair to a draft, keep that draft's server-assigned `id` in the document — an embedded `id` that disagrees with the addressed workflow is a `409` identity conflict. After the save, the response's `findings` array comes back empty.
 
 ## Save a revision
 
@@ -185,7 +204,16 @@ curl -sS -X PUT "http://127.0.0.1:3000/api/v1/workflows/WORKFLOW_ID/revisions" \
       }'
 ```
 
-Replace `WORKFLOW_ID` with the draft's `workflowId` and `REVISION_ID` with the revision id you last saw. The optional `name` labels the revision in the draft's history. A successful save returns `200` with the new revision: its `revisionId` is the next `baseRevision`, and its `findings` array describes the new document.
+Replace `WORKFLOW_ID` with the draft's `workflowId` and `REVISION_ID` with the revision id you last saw. The optional `name` labels the revision in the draft's history. A successful save returns `200` with the new revision: its `revisionId` is the next `baseRevision`, and its `findings` array describes the new document. This walkthrough's save returned (the full revision shape matches the create response):
+
+```json
+{
+  "revisionId": "01a05c29-69f6-76bc-9f83-15fc6cb21087",
+  "name": "first repair",
+  "type": "save",
+  "findings": []
+}
+```
 
 Two save behaviors are deliberate:
 
@@ -198,6 +226,17 @@ A `409` means the draft moved under you. The body uses the single error shape wi
 
 - `revision_conflict`: another save created a newer revision first. The body carries `currentRevision` (the id of the revision that is current now) and that revision's findings.
 - `identity_conflict`: the saved document's embedded `id` disagrees with the workflow the request addresses.
+
+Replaying the walkthrough's first save against the updated draft answered:
+
+```json
+{
+  "code": "revision_conflict",
+  "message": "The draft has newer work: the saved revision is not the current one. Re-read the current revision, then retry.",
+  "findings": [],
+  "currentRevision": "01a05c29-69f6-76bc-9f83-15fc6cb21087"
+}
+```
 
 To recover from a `revision_conflict`:
 
@@ -217,7 +256,21 @@ curl -sS -X POST "http://127.0.0.1:3000/api/v1/workflows/WORKFLOW_ID/rewind" \
   -d '{ "targetRevisionId": "REVISION_ID" }'
 ```
 
-The server appends a copy of the target revision as the newest revision, marks it `type: "rewind"`, and makes it current. Nothing is deleted: the target and every newer revision remain retrievable, and rewinding to the current revision is a `200` no-op. The response is the appended copy.
+The server appends a copy of the target revision as the newest revision, marks it `type: "rewind"`, and makes it current. Nothing is deleted: the target and every newer revision remain retrievable, and rewinding to the current revision is a `200` no-op. The response is the appended copy — the walkthrough's rewind to the first revision carried the target's exact bytes and its findings snapshot:
+
+```json
+{
+  "revisionId": "01a05c29-6a7e-721c-9510-0bbb5416f064",
+  "name": null,
+  "type": "rewind",
+  "findings": [
+    {
+      "code": "workflow.reference.unknown-target",
+      "path": "/steps/0/successors/0"
+    }
+  ]
+}
+```
 
 To publish an earlier state, rewind to it and then publish. Because rewind appends rather than deletes, the draft's history stays complete and every published version's source revision remains retrievable.
 
@@ -232,6 +285,19 @@ curl -sS -X POST "http://127.0.0.1:3000/api/v1/workflows/WORKFLOW_ID/publish"
 The server re-runs the full validation pipeline on the stored content before anything is stored:
 
 - `201`: the revision validated and was canonicalized (RFC 8785) and stored as a new immutable version. The body carries the `workflowId`, the `versionNumber` (1, 2, 3, ...), the `interfaceVersion` the content satisfies, and the `digest`.
+
+The walkthrough's publish answered:
+
+```json
+{
+  "workflowId": "01a05c29-697a-71ba-87fe-d40f966e2b8e",
+  "versionNumber": 1,
+  "interfaceVersion": "v1",
+  "digest": "fa281553b0b069636ccb10845e0466215ff00613f1541935eb7b51d8b512db85"
+}
+```
+
+Republishing the same revision returned `200` with a byte-identical body.
 - `200`: the current revision was already published; the response is the existing version, unchanged and identical to the first publish's body. Publishing the same revision again is safe.
 - `422` with code `workflow_not_valid`: the current revision has blocking findings. Nothing is created and the body carries the findings.
 - `404` with code `not_found` or `revision_not_found`: the workflow does not exist or has no current revision.
@@ -249,7 +315,7 @@ To reproduce the digest yourself, remove the two metadata members from the retri
 ```bash
 bun -e 'import { canonicalize } from "./packages/workflow/src/index.ts";
 import { createHash } from "node:crypto";
-const [workflowId, versionNumber] = Bun.argv.slice(2);
+const [workflowId, versionNumber] = Bun.argv.slice(1);
 const response = await fetch(
   `http://127.0.0.1:3000/api/v1/workflows/${workflowId}/versions/${versionNumber}`,
 );
@@ -273,7 +339,7 @@ The digest rule has consequences worth knowing before you edit:
 
 ## Limits of v1
 
-The validator's data-reference checks verify that each reference resolves and that the producing step completes before the consumer. They do not compare the producer's and consumer's schema fragments. A workflow whose step produces a string where the next step expects a number publishes cleanly and may fail at run time; a type mismatch between two declared schemas surfaces as an advisory `workflow.io.type-mismatch` finding, not a blocking one.
+The validator's data-reference checks verify that each reference resolves and that the producing step completes before the consumer. They do not compare the producer's and consumer's schema fragments. A workflow whose step produces a string where the next step expects a number publishes cleanly and may fail at run time. The validator reports no type mismatch in v1: the `workflow.io.type-mismatch` code is reserved for a future interface version that makes type compatibility blocking.
 
 Also true in v1, by contract:
 
