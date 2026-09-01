@@ -4,5 +4,6 @@
     "valid/conditional-groups.json": "5793efea91c0206dc646b845b5656162906c70f2cf6ce88f8fb0e59bda4ea04b",
     "valid/fan-out-fan-in.json": "c1083c2c9e495374be8d33950fd46d2e3bcae12d19848d794f71a08c9b47293e",
     "valid/minimum.json": "d04a587970ce2fbdd2d1cf6a057e4703930eeb333a329afc034f8e49e6024372",
-    "valid/sequential.json": "e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368"
+    "valid/sequential.json": "e7a05eeb289860e3e43d3054622d070e715893397d0ed44a8f814265bf46b368",
+    "valid/unfinished-connection-repaired.json": "41697a09f36e651b7896af68eb5fdb2eff4cdbb1977c6c25548390374df1455f"
 }
