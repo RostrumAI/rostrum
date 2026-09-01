@@ -9,8 +9,9 @@ This directory moves from evidence to product decisions and then to implementati
 3. **Epics** define each delivery milestone, its requirements, its boundaries, and the decisions still needed.
 4. **Decisions** record approved SPIKE outcomes that later implementation work depends on.
 5. **Specifications** publish the reviewed public contract for a product interface, combining the decisions it depends on.
-6. **Results** record spike proof-of-concept and verification outcomes.
-7. **Tasks** contain the bounded implementation work and acceptance criteria for each Epic.
+6. **Guides** explain how to use a published contract: tested procedures for authors and agents that follow the implemented behavior.
+7. **Results** record spike proof-of-concept and verification outcomes.
+8. **Tasks** contain the bounded implementation work and acceptance criteria for each Epic.
 
 Files under `decisions/`, `results/`, and `tasks/` follow the same naming scheme: an epic folder (`epic-01/`) plus a file named `<epic>-<task>-<slug>.md`, so the folder and file name identify the exact epic task a decision or result belongs to.
 
@@ -51,6 +52,10 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 ### Specifications
 
 - [Workflow interface v1](specs/workflow-interface-v1.md) — the workflow JSON document, its validation contract, lifecycle, and versioning rules, with the machine-readable [JSON Schema 2020-12](specs/workflow-interface-v1.schema.json) artifact.
+
+### Guides
+
+- [Author workflows through the Control API](guides/workflow-authoring.md) — the tested draft-to-publication authoring workflow: creating drafts, interpreting validation findings, saving revisions, resolving conflicts, rewinding, publishing, and verifying digests, for human and automated authors.
 
 ## How to use this documentation
 

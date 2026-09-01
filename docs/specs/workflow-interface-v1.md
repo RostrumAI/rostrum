@@ -326,11 +326,11 @@ v1 checks that each reference resolves to a declared input or output and that th
 
 ## Examples
 
-The example set lives in `packages/workflow/tests/fixtures/`, one file per document, organized as `valid/` (publishable), `incomplete/` (saveable drafts with blocking findings from stages 3 through 8), `invalid-shape/` (rejected by the interface-version stage or the document schema for one specific reason), and `invalid-parse/` (rejected at parse). Each non-valid fixture has a committed expected-findings manifest under `packages/workflow/tests/fixtures/expected/<category>/` that records the exact codes, blocking flags, JSON Pointers, related locations, details, and source locations the validator must return. Each valid example's digest vector is committed in [digest-vectors.json](../../packages/workflow/tests/fixtures/digest-vectors.json) and asserted by the workflow library tests.
+The example set lives in `packages/workflow/src/fixtures/`, one file per document, organized as `valid/` (publishable), `incomplete/` (saveable drafts with blocking findings from stages 3 through 8), `invalid-shape/` (rejected by the interface-version stage or the document schema for one specific reason), and `invalid-parse/` (rejected at parse). Each non-valid fixture has a committed expected-findings manifest under `packages/workflow/src/fixtures/expected/<category>/` that records the exact codes, blocking flags, JSON Pointers, related locations, details, and source locations the validator must return. Each valid example's digest vector is committed in [digest-vectors.json](../../packages/workflow/src/fixtures/digest-vectors.json) and asserted by the workflow library tests.
 
 ### Valid — sequential with terminal result
 
-Binds a name, produces a greeting, returns it. (`tests/fixtures/valid/sequential.json`)
+Binds a name, produces a greeting, returns it. (`src/fixtures/valid/sequential.json`)
 
 ```json
 {
@@ -360,16 +360,16 @@ Binds a name, produces a greeting, returns it. (`tests/fixtures/valid/sequential
 }
 ```
 
-The smallest publishable workflow is a single terminal `result` step (`tests/fixtures/valid/minimum.json`). The remaining valid examples demonstrate conditional branching with two terminal results, fan-out and fan-in (a PR review workflow: one trigger spawns five parallel reviewers that fan into a summarizer), a bounded loop over a collection, and grouped AND/OR conditions:
+The smallest publishable workflow is a single terminal `result` step (`src/fixtures/valid/minimum.json`). The remaining valid examples demonstrate conditional branching with two terminal results, fan-out and fan-in (a PR review workflow: one trigger spawns five parallel reviewers that fan into a summarizer), a bounded loop over a collection, and grouped AND/OR conditions:
 
-- `tests/fixtures/valid/conditional-branching.json`
-- `tests/fixtures/valid/fan-out-fan-in.json`
-- `tests/fixtures/valid/bounded-loop.json`
-- `tests/fixtures/valid/conditional-groups.json`
+- `src/fixtures/valid/conditional-branching.json`
+- `src/fixtures/valid/fan-out-fan-in.json`
+- `src/fixtures/valid/bounded-loop.json`
+- `src/fixtures/valid/conditional-groups.json`
 
 ### Incomplete — valid JSON, blocking findings
 
-Syntactically valid and saveable as a draft, but not publishable. In `unfinished-connection.json`, `successors` names a step that does not exist and the workflow has no terminal result — findings from stages 3 and 6 of the pipeline, not from the schema:
+Syntactically valid and saveable as a draft, but not publishable. In `unfinished-connection.json`, `successors` names a step that does not exist, so the identity stage reports the unknown target; the termination stage emits nothing even though the workflow has no terminal result, because that blocking finding gates the graph stage its enumeration depends on:
 
 ```json
 {
@@ -401,7 +401,7 @@ The remaining incomplete drafts each isolate one post-schema finding: an unfinis
 
 ### Invalid — unknown interface version
 
-Fails validation because no rule set exists for `v2` in a release that ships only v1; it is never treated as v1. (`tests/fixtures/invalid-shape/unknown-interface-version.json`)
+Fails validation because no rule set exists for `v2` in a release that ships only v1; it is never treated as v1. (`src/fixtures/invalid-shape/unknown-interface-version.json`)
 
 ```json
 {
@@ -417,11 +417,11 @@ Fails validation because no rule set exists for `v2` in a release that ships onl
 
 The remaining invalid-shape examples each isolate one rule: a missing required field, an unknown top-level field, a malformed UUID, an empty `steps` array, a missing `interfaceVersion`, a `maxIterations` value below 1, a loop missing its `collection`, and a conditional missing its `default`:
 
-- `tests/fixtures/invalid-shape/missing-required-field.json`
-- `tests/fixtures/invalid-shape/unknown-field.json`
-- `tests/fixtures/invalid-shape/malformed-uuid.json`
-- `tests/fixtures/invalid-shape/empty-steps.json`
-- `tests/fixtures/invalid-shape/missing-interface-version.json`
-- `tests/fixtures/invalid-shape/loop-bound-below-one.json`
-- `tests/fixtures/invalid-shape/loop-missing-collection.json`
-- `tests/fixtures/invalid-shape/conditional-default-missing.json`
+- `src/fixtures/invalid-shape/missing-required-field.json`
+- `src/fixtures/invalid-shape/unknown-field.json`
+- `src/fixtures/invalid-shape/malformed-uuid.json`
+- `src/fixtures/invalid-shape/empty-steps.json`
+- `src/fixtures/invalid-shape/missing-interface-version.json`
+- `src/fixtures/invalid-shape/loop-bound-below-one.json`
+- `src/fixtures/invalid-shape/loop-missing-collection.json`
+- `src/fixtures/invalid-shape/conditional-default-missing.json`
