@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-25 |
+| Last updated | 2026-09-01 |
 | Picked up | Yes |
 | Owner | Thomas |
 | Blocked by | [E1-06](e1-06-add-control-api-workflow-operations.md), [E1-07](e1-07-add-workflow-draft-version-storage.md), [E1-08](e1-08-publish-workflow-authoring-guidance.md) |
@@ -15,7 +15,7 @@ This task creates one repeatable proof of the complete Epic 1 product state. It:
 - Saves and retrieves an incomplete draft — server-assigned workflow `id` (UUID v7), new revision `id` (UUID v7), exact bytes stored, findings returned.
 - Revises the draft from validation findings (`code`, `details`, `path`, `relatedLocations`) and confirms the new revision validates.
 - Proves that a stale `baseRevision` cannot overwrite newer work: the stale save returns 409 with the current revision and findings, and no partial write occurs.
-- Proves rewind-then-publish: rewind the draft to an earlier revision (newer revisions deleted, draft shows target content), then publish the current revision.
+- Proves rewind-then-publish: rewind the draft to an earlier revision (a copy of the target becomes the newest revision and the current one; nothing is deleted; the draft shows the target's content), then publish the current revision.
 - Proves idempotent repeat publish: publishing the same current revision again returns the existing version without creating a new one; concurrent publishes of the same revision return the same single version.
 - Proves metadata-only edits leave the digest unchanged: edit `name` or `description` alone, republish, and confirm the digest equals the previous version's digest.
 - Publishes a valid current revision (re-validation, 422 on blocking findings otherwise).
@@ -40,7 +40,7 @@ This task creates one repeatable proof of the complete Epic 1 product state. It:
 
 - The demonstration saves and retrieves an incomplete draft with the expected findings.
 - An outdated `baseRevision` save fails with 409 without overwriting newer work.
-- Rewind makes an earlier revision the current revision, deletes newer revisions, and allows publication of that state.
+- Rewind appends a copy of an earlier revision as the newest revision and makes it the current revision, deletes nothing, and allows publication of that state.
 - Re-publishing the same current revision is idempotent and concurrent publishes of the same revision return the same version.
 - A corrected revision validates and publishes successfully; the response carries workflow `id`, published version number, `interfaceVersion`, and digest.
 - A metadata-only edit followed by republish yields the same digest as the prior version.
