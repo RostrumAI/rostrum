@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { bindRoute, fetchJson, servicesWith } from "../../testing/handlers";
 import { createHandler, route } from "./retrieve-version";
 
@@ -28,7 +28,8 @@ function appFor(getPublishedVersion: object) {
 
 describe("GET /workflows/:workflowId/versions/:versionNumber", () => {
     test("answers 200 with the stored canonical text", async () => {
-        const app = appFor(async () => version);
+        const getPublishedVersion = mock(async () => version);
+        const app = appFor(getPublishedVersion);
         const { res, body } = await fetchJson(app, PATH);
         expect(res.status).toBe(200);
         expect(body).toEqual({
@@ -38,25 +39,33 @@ describe("GET /workflows/:workflowId/versions/:versionNumber", () => {
             digest: DIGEST,
             content: version.canonicalText,
         });
+        expect(getPublishedVersion).toHaveBeenCalledTimes(1);
+        expect(getPublishedVersion).toHaveBeenCalledWith(WORKFLOW_ID, 1);
     });
 
     test("answers 404 when the version does not exist", async () => {
-        const app = appFor(async () => null);
+        const getPublishedVersion = mock(async () => null);
+        const app = appFor(getPublishedVersion);
         const { res, body } = await fetchJson(app, PATH);
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "not_found" });
+        expect(getPublishedVersion).toHaveBeenCalledWith(WORKFLOW_ID, 1);
     });
 
     test("answers 400 for a non-numeric version number before the handler runs", async () => {
-        const app = appFor(async () => version);
+        const getPublishedVersion = mock(async () => version);
+        const app = appFor(getPublishedVersion);
         const { res, body } = await fetchJson(app, `/api/v1/workflows/${WORKFLOW_ID}/versions/abc`);
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(getPublishedVersion).not.toHaveBeenCalled();
     });
 
     test("answers 400 for a zero version number", async () => {
-        const app = appFor(async () => version);
+        const getPublishedVersion = mock(async () => version);
+        const app = appFor(getPublishedVersion);
         const { res } = await fetchJson(app, `/api/v1/workflows/${WORKFLOW_ID}/versions/0`);
         expect(res.status).toBe(400);
+        expect(getPublishedVersion).not.toHaveBeenCalled();
     });
 });

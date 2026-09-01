@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import {
     bindRoute,
     fetchJson,
@@ -25,7 +25,8 @@ function appFor(rewind: object) {
 describe("POST /workflows/:workflowId/rewind", () => {
     test("rewinds and answers 200 with the appended copy", async () => {
         const copy = revisionFixture({ type: "rewind", name: null });
-        const app = appFor(async () => ({ outcome: "rewound", revision: copy }));
+        const rewind = mock(async () => ({ outcome: "rewound", revision: copy }));
+        const app = appFor(rewind);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -33,11 +34,14 @@ describe("POST /workflows/:workflowId/rewind", () => {
         );
         expect(res.status).toBe(200);
         expect(body).toMatchObject({ revisionId: copy.revisionId, type: "rewind" });
+        expect(rewind).toHaveBeenCalledTimes(1);
+        expect(rewind).toHaveBeenCalledWith(WORKFLOW_ID, TARGET);
     });
 
     test("answers 200 with the unchanged revision when the rewind is a no-op", async () => {
         const current = revisionFixture();
-        const app = appFor(async () => ({ outcome: "no-op", revision: current }));
+        const rewind = mock(async () => ({ outcome: "no-op", revision: current }));
+        const app = appFor(rewind);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -45,10 +49,12 @@ describe("POST /workflows/:workflowId/rewind", () => {
         );
         expect(res.status).toBe(200);
         expect(body).toMatchObject({ revisionId: current.revisionId, type: "save" });
+        expect(rewind).toHaveBeenCalledWith(WORKFLOW_ID, current.revisionId);
     });
 
     test("answers 404 revision_not_found when the target does not exist", async () => {
-        const app = appFor(async () => ({ outcome: "target-not-found" }));
+        const rewind = mock(async () => ({ outcome: "target-not-found" }));
+        const app = appFor(rewind);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -56,10 +62,12 @@ describe("POST /workflows/:workflowId/rewind", () => {
         );
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "revision_not_found" });
+        expect(rewind).toHaveBeenCalledWith(WORKFLOW_ID, TARGET);
     });
 
     test("answers 404 when the workflow does not exist", async () => {
-        const app = appFor(async () => ({ outcome: "not-found" }));
+        const rewind = mock(async () => ({ outcome: "not-found" }));
+        const app = appFor(rewind);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -67,17 +75,21 @@ describe("POST /workflows/:workflowId/rewind", () => {
         );
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "not_found" });
+        expect(rewind).toHaveBeenCalledWith(WORKFLOW_ID, TARGET);
     });
 
     test("answers 400 when the request body omits the target revision", async () => {
-        const app = appFor(async () => ({ outcome: "rewound", revision: revisionFixture() }));
+        const rewind = mock(async () => ({ outcome: "rewound", revision: revisionFixture() }));
+        const app = appFor(rewind);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", {}));
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(rewind).not.toHaveBeenCalled();
     });
 
     test("answers 400 when the body is not valid JSON", async () => {
-        const app = appFor(async () => ({ outcome: "rewound", revision: revisionFixture() }));
+        const rewind = mock(async () => ({ outcome: "rewound", revision: revisionFixture() }));
+        const app = appFor(rewind);
         const res = await app.fetch(
             new Request(`http://localhost${PATH}`, { method: "POST", body: "{oops" }),
         );
@@ -87,5 +99,6 @@ describe("POST /workflows/:workflowId/rewind", () => {
             code: "invalid_workflow_input",
             findings: [{ blocking: true }],
         });
+        expect(rewind).not.toHaveBeenCalled();
     });
 });

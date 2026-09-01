@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { bindRoute, fetchJson, revisionFixture, servicesWith } from "../../testing/handlers";
 import { createHandler, route } from "./retrieve-revision";
 
@@ -18,7 +18,8 @@ function appFor(getRevision: object) {
 
 describe("GET /workflows/:workflowId/revisions/:revisionId", () => {
     test("answers 200 with the stored revision", async () => {
-        const app = appFor(async () => revisionFixture());
+        const getRevision = mock(async () => revisionFixture());
+        const app = appFor(getRevision);
         const { res, body } = await fetchJson(app, PATH);
         expect(res.status).toBe(200);
         expect(body).toMatchObject({
@@ -26,22 +27,28 @@ describe("GET /workflows/:workflowId/revisions/:revisionId", () => {
             revisionId: REVISION_ID,
             content: revisionFixture().content,
         });
+        expect(getRevision).toHaveBeenCalledTimes(1);
+        expect(getRevision).toHaveBeenCalledWith(WORKFLOW_ID, REVISION_ID);
     });
 
     test("answers 404 when the revision does not exist", async () => {
-        const app = appFor(async () => null);
+        const getRevision = mock(async () => null);
+        const app = appFor(getRevision);
         const { res, body } = await fetchJson(app, PATH);
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "not_found" });
+        expect(getRevision).toHaveBeenCalledWith(WORKFLOW_ID, REVISION_ID);
     });
 
     test("answers 400 for a malformed revision id before the handler runs", async () => {
-        const app = appFor(async () => revisionFixture());
+        const getRevision = mock(async () => revisionFixture());
+        const app = appFor(getRevision);
         const { res, body } = await fetchJson(
             app,
             `/api/v1/workflows/${WORKFLOW_ID}/revisions/not-a-uuid`,
         );
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(getRevision).not.toHaveBeenCalled();
     });
 });

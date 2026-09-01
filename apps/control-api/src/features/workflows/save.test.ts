@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { Finding } from "@rostrum/workflow";
 import {
     bindRoute,
@@ -34,7 +34,11 @@ function appFor(saveRevision: object) {
 
 describe("PUT /workflows/:workflowId/revisions", () => {
     test("stores a revision and answers 200 with it", async () => {
-        const app = appFor(async () => ({ outcome: "saved", revision: revisionFixture() }));
+        const saveRevision = mock(async () => ({
+            outcome: "saved",
+            revision: revisionFixture(),
+        }));
+        const app = appFor(saveRevision);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -42,11 +46,17 @@ describe("PUT /workflows/:workflowId/revisions", () => {
         );
         expect(res.status).toBe(200);
         expect(body).toMatchObject({ revisionId: revisionFixture().revisionId, type: "save" });
+        expect(saveRevision).toHaveBeenCalledTimes(1);
+        expect(saveRevision).toHaveBeenCalledWith(WORKFLOW_ID, `{"name":"x"}`, BASE, null);
     });
 
     test("answers 409 with the current revision on a stale base revision", async () => {
         const current = revisionFixture({ findings: FINDINGS });
-        const app = appFor(async () => ({ outcome: "conflict", currentRevision: current }));
+        const saveRevision = mock(async () => ({
+            outcome: "conflict",
+            currentRevision: current,
+        }));
+        const app = appFor(saveRevision);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -58,10 +68,12 @@ describe("PUT /workflows/:workflowId/revisions", () => {
             currentRevision: current.revisionId,
             findings: FINDINGS,
         });
+        expect(saveRevision).toHaveBeenCalledWith(WORKFLOW_ID, `{}`, BASE, null);
     });
 
     test("answers 404 when the workflow does not exist", async () => {
-        const app = appFor(async () => ({ outcome: "not-found" }));
+        const saveRevision = mock(async () => ({ outcome: "not-found" }));
+        const app = appFor(saveRevision);
         const { res, body } = await fetchJson(
             app,
             PATH,
@@ -69,22 +81,33 @@ describe("PUT /workflows/:workflowId/revisions", () => {
         );
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "not_found" });
+        expect(saveRevision).toHaveBeenCalledWith(WORKFLOW_ID, `{}`, BASE, null);
     });
 
     test("answers 400 when the request body omits the base revision", async () => {
-        const app = appFor(async () => ({ outcome: "saved", revision: revisionFixture() }));
+        const saveRevision = mock(async () => ({
+            outcome: "saved",
+            revision: revisionFixture(),
+        }));
+        const app = appFor(saveRevision);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("PUT", { document: {} }));
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(saveRevision).not.toHaveBeenCalled();
     });
 
     test("answers 400 when the base revision is not an id", async () => {
-        const app = appFor(async () => ({ outcome: "saved", revision: revisionFixture() }));
+        const saveRevision = mock(async () => ({
+            outcome: "saved",
+            revision: revisionFixture(),
+        }));
+        const app = appFor(saveRevision);
         const { res } = await fetchJson(
             app,
             PATH,
             jsonRequest("PUT", { baseRevision: "nope", document: {} }),
         );
         expect(res.status).toBe(400);
+        expect(saveRevision).not.toHaveBeenCalled();
     });
 });

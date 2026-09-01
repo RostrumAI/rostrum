@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { Finding } from "@rostrum/workflow";
 import { bindRoute, fetchJson, jsonRequest, servicesWith } from "../../testing/handlers";
 import { createHandler, route } from "./publish";
@@ -28,12 +28,13 @@ function appFor(publish: object) {
 
 describe("POST /workflows/:workflowId/publish", () => {
     test("publishes and answers 201 with the version identity", async () => {
-        const app = appFor(async () => ({
+        const publish = mock(async () => ({
             outcome: "published",
             versionNumber: 3,
             interfaceVersion: "v1",
             digest: DIGEST,
         }));
+        const app = appFor(publish);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", undefined));
         expect(res.status).toBe(201);
         expect(body).toEqual({
@@ -42,15 +43,18 @@ describe("POST /workflows/:workflowId/publish", () => {
             interfaceVersion: "v1",
             digest: DIGEST,
         });
+        expect(publish).toHaveBeenCalledTimes(1);
+        expect(publish).toHaveBeenCalledWith(WORKFLOW_ID);
     });
 
-    test("answers the identical body for an idempotent re-publish", async () => {
-        const app = appFor(async () => ({
+    test("answers 200 with the identical body for an idempotent re-publish", async () => {
+        const publish = mock(async () => ({
             outcome: "already-published",
             versionNumber: 3,
             interfaceVersion: "v1",
             digest: DIGEST,
         }));
+        const app = appFor(publish);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", undefined));
         expect(res.status).toBe(200);
         expect(body).toEqual({
@@ -59,36 +63,44 @@ describe("POST /workflows/:workflowId/publish", () => {
             interfaceVersion: "v1",
             digest: DIGEST,
         });
+        expect(publish).toHaveBeenCalledWith(WORKFLOW_ID);
     });
 
     test("answers 422 with the findings when the current revision blocks publication", async () => {
-        const app = appFor(async () => ({ outcome: "blocking-findings", findings: FINDINGS }));
+        const publish = mock(async () => ({ outcome: "blocking-findings", findings: FINDINGS }));
+        const app = appFor(publish);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", undefined));
         expect(res.status).toBe(422);
         expect(body).toMatchObject({ code: "workflow_not_valid", findings: FINDINGS });
+        expect(publish).toHaveBeenCalledWith(WORKFLOW_ID);
     });
 
     test("answers 404 when the workflow does not exist", async () => {
-        const app = appFor(async () => ({ outcome: "not-found" }));
+        const publish = mock(async () => ({ outcome: "not-found" }));
+        const app = appFor(publish);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", undefined));
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "not_found" });
+        expect(publish).toHaveBeenCalledWith(WORKFLOW_ID);
     });
 
     test("answers 404 revision_not_found when the current revision vanished", async () => {
-        const app = appFor(async () => ({ outcome: "revision-not-found" }));
+        const publish = mock(async () => ({ outcome: "revision-not-found" }));
+        const app = appFor(publish);
         const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", undefined));
         expect(res.status).toBe(404);
         expect(body).toMatchObject({ code: "revision_not_found" });
+        expect(publish).toHaveBeenCalledWith(WORKFLOW_ID);
     });
 
     test("answers 400 for a malformed workflow id before the handler runs", async () => {
-        const app = appFor(async () => ({
+        const publish = mock(async () => ({
             outcome: "published",
             versionNumber: 1,
             interfaceVersion: "v1",
             digest: DIGEST,
         }));
+        const app = appFor(publish);
         const { res, body } = await fetchJson(
             app,
             "/api/v1/workflows/not-a-uuid/publish",
@@ -96,5 +108,6 @@ describe("POST /workflows/:workflowId/publish", () => {
         );
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(publish).not.toHaveBeenCalled();
     });
 });

@@ -9,28 +9,34 @@ import {
 import { createHandler, route } from "./create";
 
 const WORKFLOW_ID = "0192b0a0-7e1d-7000-8000-0000000000cd";
+const PATH = "/api/v1/workflows";
 
-const app = bindRoute(
-    route.method,
-    "workflows",
-    route.path,
-    createHandler(
-        servicesWith({
-            createDraft: async () => ({ workflowId: WORKFLOW_ID, revision: revisionFixture() }),
-        }),
-    ),
-    route.parameters,
-);
+function appFor(createDraft: object) {
+    return bindRoute(
+        route.method,
+        "workflows",
+        route.path,
+        createHandler(servicesWith({ createDraft })),
+        route.parameters,
+    );
+}
 
 describe("POST /workflows", () => {
     test("creates a draft and answers 201 with the first revision", async () => {
+        const createDraft = mock(async () => ({
+            workflowId: WORKFLOW_ID,
+            revision: revisionFixture(),
+        }));
+        const app = appFor(createDraft);
         const { res, body } = await fetchJson(
             app,
-            "/api/v1/workflows",
+            PATH,
             jsonRequest("POST", { document: { name: "x" }, name: "first" }),
         );
         expect(res.status).toBe(201);
         expect(body).toEqual(revisionResponseShape());
+        expect(createDraft).toHaveBeenCalledTimes(1);
+        expect(createDraft).toHaveBeenCalledWith(`{"name":"x"}`, "first");
     });
 
     test("answers 201 with a new workflow id on every call (creation is not idempotent)", async () => {
@@ -43,23 +49,9 @@ describe("POST /workflows", () => {
             const workflowId = ids[call++];
             return { workflowId, revision: revisionFixture({ workflowId }) };
         });
-        const app = bindRoute(
-            route.method,
-            "workflows",
-            route.path,
-            createHandler(servicesWith({ createDraft })),
-            route.parameters,
-        );
-        const first = await fetchJson(
-            app,
-            "/api/v1/workflows",
-            jsonRequest("POST", { document: { name: "x" } }),
-        );
-        const second = await fetchJson(
-            app,
-            "/api/v1/workflows",
-            jsonRequest("POST", { document: { name: "x" } }),
-        );
+        const app = appFor(createDraft);
+        const first = await fetchJson(app, PATH, jsonRequest("POST", { document: { name: "x" } }));
+        const second = await fetchJson(app, PATH, jsonRequest("POST", { document: { name: "x" } }));
         expect(first.res.status).toBe(201);
         expect(second.res.status).toBe(201);
         expect(first.body).toMatchObject({ workflowId: ids[0] });
@@ -68,16 +60,23 @@ describe("POST /workflows", () => {
     });
 
     test("answers 400 when the request body omits the document", async () => {
-        const { res, body } = await fetchJson(
-            app,
-            "/api/v1/workflows",
-            jsonRequest("POST", { name: "x" }),
-        );
+        const createDraft = mock(async () => ({
+            workflowId: WORKFLOW_ID,
+            revision: revisionFixture(),
+        }));
+        const app = appFor(createDraft);
+        const { res, body } = await fetchJson(app, PATH, jsonRequest("POST", { name: "x" }));
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(createDraft).not.toHaveBeenCalled();
     });
 
     test("answers 400 when the body is not valid JSON", async () => {
+        const createDraft = mock(async () => ({
+            workflowId: WORKFLOW_ID,
+            revision: revisionFixture(),
+        }));
+        const app = appFor(createDraft);
         const res = await app.fetch(
             new Request("http://localhost/api/v1/workflows", { method: "POST", body: "not json" }),
         );
@@ -87,16 +86,23 @@ describe("POST /workflows", () => {
             code: "invalid_workflow_input",
             findings: [{ blocking: true }],
         });
+        expect(createDraft).not.toHaveBeenCalled();
     });
 
     test("answers 400 when the request body carries an unknown member", async () => {
+        const createDraft = mock(async () => ({
+            workflowId: WORKFLOW_ID,
+            revision: revisionFixture(),
+        }));
+        const app = appFor(createDraft);
         const { res, body } = await fetchJson(
             app,
-            "/api/v1/workflows",
+            PATH,
             jsonRequest("POST", { document: {}, extra: 1 }),
         );
         expect(res.status).toBe(400);
         expect(body).toMatchObject({ code: "invalid_workflow_input" });
+        expect(createDraft).not.toHaveBeenCalled();
     });
 });
 

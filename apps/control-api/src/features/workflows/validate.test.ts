@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { Finding } from "@rostrum/workflow";
 import { bindRoute, fetchJson, jsonRequest, servicesWith } from "../../testing/handlers";
 import { createHandler, route } from "./validate";
@@ -24,10 +24,11 @@ function appFor(validate: object) {
 
 describe("POST /workflows/validate", () => {
     test("answers 200 with the validation outcome without saving", async () => {
-        const app = appFor(async () => ({
+        const validate = mock(async () => ({
             findings: FINDINGS,
             validForPublication: false,
         }));
+        const app = appFor(validate);
         const { res, body } = await fetchJson(
             app,
             "/api/v1/workflows/validate",
@@ -35,10 +36,13 @@ describe("POST /workflows/validate", () => {
         );
         expect(res.status).toBe(200);
         expect(body).toEqual({ findings: FINDINGS, validForPublication: false });
+        expect(validate).toHaveBeenCalledTimes(1);
+        expect(validate).toHaveBeenCalledWith(`{"name":"x"}`);
     });
 
     test("answers 200 with empty findings for a valid document", async () => {
-        const app = appFor(async () => ({ findings: [], validForPublication: true }));
+        const validate = mock(async () => ({ findings: [], validForPublication: true }));
+        const app = appFor(validate);
         const { res, body } = await fetchJson(
             app,
             "/api/v1/workflows/validate",
@@ -46,10 +50,12 @@ describe("POST /workflows/validate", () => {
         );
         expect(res.status).toBe(200);
         expect(body).toEqual({ findings: [], validForPublication: true });
+        expect(validate).toHaveBeenCalledWith(`{"interfaceVersion":"v1","steps":[]}`);
     });
 
     test("answers 400 with parse findings for invalid JSON", async () => {
-        const app = appFor(async () => ({ findings: [], validForPublication: true }));
+        const validate = mock(async () => ({ findings: [], validForPublication: true }));
+        const app = appFor(validate);
         const res = await app.fetch(
             new Request("http://localhost/api/v1/workflows/validate", {
                 method: "POST",
@@ -62,5 +68,6 @@ describe("POST /workflows/validate", () => {
             code: "invalid_workflow_input",
             findings: [{ code: "workflow.parse.duplicate-key", blocking: true }],
         });
+        expect(validate).not.toHaveBeenCalled();
     });
 });
