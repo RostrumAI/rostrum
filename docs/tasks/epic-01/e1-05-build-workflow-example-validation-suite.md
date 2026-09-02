@@ -30,7 +30,6 @@ This task turns the specification examples into shared test fixtures. The suite 
 ## Blocks
 
 - [E1-06: Expose workflow authoring through the Control API](e1-06-add-control-api-workflow-operations.md)
-- [E1-08: Document workflow authoring for humans and agents](e1-08-publish-workflow-authoring-guidance.md)
 
 ## Acceptance criteria
 

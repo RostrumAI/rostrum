@@ -33,7 +33,6 @@ Local development uses the Docker Compose Postgres service via `DATABASE_URL`. M
 ## Blocks
 
 - [E1-06: Expose workflow authoring through the Control API](e1-06-add-control-api-workflow-operations.md)
-- [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
 
 ## Acceptance criteria
 
