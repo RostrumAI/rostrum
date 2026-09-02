@@ -57,15 +57,17 @@ export class WorkflowRepository {
     }
 
     /**
-     * Creates the draft: mints the workflow `id`, inserts the workflow row,
-     * and stores the submitted document as its first revision, so every
-     * draft has at least one revision (creation is the first save). Every
-     * identifier is minted here — the workflow `id`
-     * below and each revision id in saves — never accepted from callers.
+     * Creates the draft: inserts the workflow row, and stores the submitted
+     * document as its first revision, so every draft has at least one
+     * revision (creation is the first save). The workflow `id` comes from
+     * the caller when it must exist before the call — the Control API
+     * assigns it to inject into the stored document — and is minted here
+     * otherwise; each revision id in saves is minted here, never accepted
+     * from callers.
      */
     async createDraft(input: CreateDraftInput): Promise<CreatedDraft> {
         return this.db.transaction().execute(async (tx) => {
-            const workflowId = mintUuidV7();
+            const workflowId = input.workflowId ?? mintUuidV7();
             const revisionId = mintUuidV7();
             try {
                 await tx
@@ -73,9 +75,10 @@ export class WorkflowRepository {
                     .values({ id: workflowId, createdAt: sql`now()`, updatedAt: sql`now()` })
                     .execute();
             } catch (error) {
-                // A fresh UUID v7 collides only when the mint itself repeats;
-                // translate the driver-level unique violation so consumers
-                // never parse driver errors.
+                // A mint collides only if the mint itself repeats, which is
+                // an invariant failure rather than client input; translate
+                // the driver-level unique violation so consumers never parse
+                // driver errors.
                 if (isUniqueViolation(error)) {
                     throw new DuplicateWorkflowIdError(workflowId);
                 }
@@ -445,12 +448,12 @@ export class WorkflowRepository {
         };
     }
 
-    /** Rejects ids that are not UUID v7 before any transaction opens. */
+    /** Rejects malformed workflow ids before any transaction opens. */
     private assertWorkflowId(workflowId: string): void {
-        // `validate` accepts every RFC 9562 shape; the version nibble must
-        // be 7 for a workflow id.
+        // A workflow id is a time-ordered RFC 9562 UUID; `validate` alone
+        // accepts every version the library can represent.
         if (!isUuid(workflowId) || uuidVersion(workflowId) !== 7) {
-            throw new InvalidWorkflowInputError(`'${workflowId}' is not a UUID v7 workflow id`);
+            throw new InvalidWorkflowInputError(`'${workflowId}' is not a valid workflow id`);
         }
     }
 }

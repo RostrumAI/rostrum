@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { FindingSchema } from "./workflows/schemas";
 
 /**
  * The workflow interface version token served by the Control API: an
@@ -7,27 +8,18 @@ import { Type } from "typebox";
  */
 export const INTERFACE_VERSION = "v1";
 
-/**
- * A single validation finding. The element shape is provisional until the
- * full findings contract is defined; error responses carry the array empty
- * until the workflow operations report findings.
- */
-export const FindingSchema = Type.Object(
-    {
-        code: Type.String(),
-        message: Type.String(),
-        blocking: Type.Boolean(),
-        path: Type.String(),
-    },
-    { additionalProperties: false },
-);
-
 /** The single error shape for every Control API error response. */
 export const ErrorResponseSchema = Type.Object(
     {
         code: Type.String(),
         message: Type.String(),
         findings: Type.Array(FindingSchema),
+        currentRevision: Type.Optional(
+            Type.String({
+                description:
+                    "The draft's current revision id, present on revision conflicts so a client can retry against it.",
+            }),
+        ),
     },
     { additionalProperties: false },
 );

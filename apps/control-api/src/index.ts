@@ -30,7 +30,7 @@ async function shutdown(signal: string) {
     shuttingDown = true;
     logger.info("shutdown started", { signal });
     server.stop(true);
-    logger.info("shutdown complete", { signal });
+    await app.close();
     process.exit(0);
 }
 

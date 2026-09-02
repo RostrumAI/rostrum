@@ -9,10 +9,12 @@
         "start": "bun run src/index.ts",
         "typecheck": "tsc --noEmit",
         "test": "bun test",
-        "generate-openapi": "bun src/scripts/generate-openapi.ts"
+        "generate-openapi": "bun src/scripts/generate-openapi.ts",
+        "smoke": "bun src/scripts/smoke.ts"
     },
     "dependencies": {
         "@hono/standard-validator": "^0.2.0",
+        "@humanwhocodes/momoa": "^3.3.12",
         "@logtape/logtape": "^2.3.2",
         "@rostrum/database": "workspace:*",
         "@rostrum/workflow": "workspace:*",
@@ -20,6 +22,7 @@
         "hono-openapi": "^1.3.1",
         "kysely": "^0.29.0",
         "postgres": "^3.4.9",
-        "typebox": "^1.3.12"
+        "typebox": "^1.3.12",
+        "uuid": "^11.1.0"
     }
 }

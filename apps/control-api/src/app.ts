@@ -1,12 +1,16 @@
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
 import { type Context, Hono } from "hono";
-import { describeRoute, generateSpecs } from "hono-openapi";
+import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
-import type { FeatureBundle, LoadedFeature } from "./loader";
-import { loadFeatures } from "./loader";
+import { loadConfig } from "./env";
+import type { FeatureBundle, FeatureRoute, LoadedFeature, RequestBodyDefinition } from "./loader";
+import { loadFeatures, parameterGuard } from "./loader";
 import { accessLog } from "./middleware/access-log";
-import { ErrorResponseSchema, FindingSchema } from "./schemas";
+import { ErrorResponseSchema } from "./schemas";
+import type { Services } from "./services";
+import { FindingSchema } from "./workflows/schemas";
+import { WorkflowService } from "./workflows/service";
 
 /** Version prefix every feature route mounts under. */
 const API_PREFIX = "/api/v1";
@@ -49,18 +53,24 @@ export class ControlApiApp {
     private readonly logger = getLogger("control-api");
 
     /**
-     * Creates the app with every feature slice under `src/features` loaded,
-     * validated, and bound. Prefer this over the constructor: a slice that
-     * misses the feature contract fails here, before anything serves traffic.
+     * Creates the app with its services built once and every feature
+     * slice under `src/features` loaded, validated, and bound. Prefer
+     * this over the constructor: a slice that misses the feature contract
+     * fails here, before anything serves traffic.
      */
     static async create(): Promise<ControlApiApp> {
-        return new ControlApiApp(await loadFeatures(join(import.meta.dir, "features")));
+        const services: Services = {
+            workflows: WorkflowService.create(loadConfig().databaseUrl),
+        };
+        return new ControlApiApp(await loadFeatures(join(import.meta.dir, "features")), services);
     }
 
     private readonly loaded: FeatureBundle;
+    private readonly services: Services;
 
-    private constructor(loaded: FeatureBundle) {
+    private constructor(loaded: FeatureBundle, services: Services) {
         this.loaded = loaded;
+        this.services = services;
 
         // Registered first so it wraps every route, including 404 responses.
         this.routes.use("*", accessLog());
@@ -69,7 +79,8 @@ export class ControlApiApp {
                 feature.method,
                 `${API_PREFIX}${feature.path}`,
                 describeRoute(this.describeFeature(feature)),
-                feature.handler,
+                parameterGuard(feature.parameters),
+                feature.createHandler(this.services),
             );
         }
 
@@ -105,31 +116,84 @@ export class ControlApiApp {
     /**
      * Builds the hono-openapi documentation for one bound feature. The tag is
      * the feature area folder; each documented response references its module
-     * component by name.
+     * component by name. Used for building OpenAPI JSON output.
      */
-    private describeFeature(feature: LoadedFeature) {
-        return {
+    private describeFeature(feature: LoadedFeature): DescribeRouteOptions {
+        const description: DescribeRouteOptions = {
             tags: [feature.tag],
-            responses: Object.fromEntries(
-                Object.entries(feature.responses ?? {}).map(([status, response]) => [
-                    status,
-                    {
-                        description: response.description,
-                        ...(response.schemaName === undefined
-                            ? {}
-                            : {
-                                  content: {
-                                      "application/json": {
-                                          schema: {
-                                              $ref: `#/components/schemas/${response.schemaName}`,
-                                          },
-                                      },
-                                  },
-                              }),
-                    },
-                ]),
-            ),
+            responses: this.describeResponses(feature.responses),
         };
+
+        if (feature.parameters.length > 0) {
+            description.parameters = feature.parameters.map((parameter) => ({
+                name: parameter.name,
+                in: parameter.in,
+                required: parameter.required ?? parameter.in === "path",
+                description: parameter.description,
+                ...(parameter.schema === undefined ? {} : { schema: parameter.schema }),
+            }));
+        }
+
+        if (feature.requestBody !== undefined) {
+            description.requestBody = this.describeRequestBody(feature.requestBody);
+        }
+
+        return description;
+    }
+
+    /**
+     * Builds the documented responses, referencing each named component.
+     * Used for building OpenAPI JSON output.
+     */
+    private describeResponses(
+        responses: FeatureRoute["responses"],
+    ): NonNullable<DescribeRouteOptions["responses"]> {
+        const described: NonNullable<DescribeRouteOptions["responses"]> = {};
+        for (const [status, response] of Object.entries(responses ?? {})) {
+            if (response.schemaName === undefined) {
+                described[status] = { description: response.description };
+            } else {
+                described[status] = {
+                    description: response.description,
+                    content: {
+                        "application/json": {
+                            schema: { $ref: `#/components/schemas/${response.schemaName}` },
+                        },
+                    },
+                };
+            }
+        }
+        return described;
+    }
+
+    /**
+     * Builds the documented request body, referencing its named component.
+     * Used for building OpenAPI JSON output.
+     */
+    private describeRequestBody(
+        requestBody: RequestBodyDefinition,
+    ): DescribeRouteOptions["requestBody"] {
+        if (requestBody.schemaName === undefined) {
+            return {
+                required: requestBody.required ?? true,
+                description: requestBody.description,
+                content: { "application/json": { schema: {} } },
+            };
+        }
+        return {
+            required: requestBody.required ?? true,
+            description: requestBody.description,
+            content: {
+                "application/json": {
+                    schema: { $ref: `#/components/schemas/${requestBody.schemaName}` },
+                },
+            },
+        };
+    }
+
+    /** Closes the services the app built: the workflow database pool. */
+    async close(): Promise<void> {
+        await this.services.workflows.close();
     }
 
     /**
