@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-25 |
+| Status | Closed — deferred to a later epic (target: Epic 12 or Epic 13) |
+| Last updated | 2026-09-01 |
 | Picked up | Yes |
 | Owner | Thomas |
 | Blocked by | [E1-05](e1-05-build-workflow-example-validation-suite.md), [E1-06](e1-06-add-control-api-workflow-operations.md) |
@@ -29,9 +29,13 @@ The task also creates a first Rostrum authoring skill or equivalent instructions
 
 - Authors need instructions that exercise the same specification, API, and validation results implemented by Rostrum.
 
+## Disposition
+
+This task is closed for Epic 1. Revisit the human and automated-author guidance in a later authoring epic, tentatively Epic 12 or Epic 13.
+
 ## Blocks
 
-- [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
+- None
 
 ## Acceptance criteria
 

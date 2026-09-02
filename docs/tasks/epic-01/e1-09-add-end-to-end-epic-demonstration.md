@@ -2,11 +2,11 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-25 |
+| Status | Closed — superseded by [E2-13: Add authoring lifecycle integration tests](../epic-02/e2-13-add-authoring-lifecycle-integration-tests.md) |
+| Last updated | 2026-09-01 |
 | Picked up | Yes |
 | Owner | Thomas |
-| Blocked by | [E1-06](e1-06-add-control-api-workflow-operations.md), [E1-07](e1-07-add-workflow-draft-version-storage.md), [E1-08](e1-08-publish-workflow-authoring-guidance.md) |
+| Blocked by | None |
 
 ## Task
 
@@ -32,9 +32,13 @@ This task creates one repeatable proof of the complete Epic 1 product state. It:
 
 - Individual tests need one end-to-end counterpart that proves the assembled product state.
 
+## Disposition
+
+This task is superseded by [E2-13: Add authoring lifecycle integration tests](../epic-02/e2-13-add-authoring-lifecycle-integration-tests.md), which owns end-to-end authoring-lifecycle coverage over the real HTTP and database boundaries.
+
 ## Blocks
 
-- Epic 02: Local workflow execution
+- None
 
 ## Acceptance criteria
 

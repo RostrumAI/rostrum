@@ -219,7 +219,7 @@ Purpose: "Shared test vectors reproduce the same published digest across intende
 
 - Compute `digest = sha256(hex, RFC8785(document))` at **publish** time (and optionally at save time, stored with the revision, so publish can reuse it — deterministic either way).
 - Store the digest on the published-version row; E1-07's "stored-digest verification" = recompute from the stored canonical bytes and compare.
-- **Test vectors:** the E1-S1 example documents (sequential, conditional, fan-out/fan-in, loop, grouped) become vector fixtures: canonical text + expected `sha256` hex. Vector digests must be produced by two independent implementations (or cross-checked in E1-05/E1-09) — never generated and trusted from one codebase. Edge-case vectors to include: key-order insensitivity, number edge cases (`1.0`/`1`, `1e2`, integers ≥ 2^53 rounding), string escaping (`\u0041` vs `A`), UTF-8/Unicode (incl. NFC vs NFD producing *different* digests — assert the defined behavior), `-0`, `{}`/`[]`, deep nesting, duplicate keys (parse rejection).
+- **Test vectors:** the E1-S1 example documents (sequential, conditional, fan-out/fan-in, loop, grouped) become vector fixtures: canonical text + expected `sha256` hex. Vector digests must be produced by two independent implementations (or cross-checked in E1-05/E2-13) — never generated and trusted from one codebase. Edge-case vectors to include: key-order insensitivity, number edge cases (`1.0`/`1`, `1e2`, integers ≥ 2^53 rounding), string escaping (`\u0041` vs `A`), UTF-8/Unicode (incl. NFC vs NFD producing *different* digests — assert the defined behavior), `-0`, `{}`/`[]`, deep nesting, duplicate keys (parse rejection).
 
 ---
 

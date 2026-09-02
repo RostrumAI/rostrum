@@ -35,8 +35,7 @@ Every validation and publication decision uses the shared workflow library. Publ
 
 ## Blocks
 
-- [E1-08: Document workflow authoring for humans and agents](e1-08-publish-workflow-authoring-guidance.md)
-- [E1-09: Prove draft-to-publication behavior end to end](e1-09-add-end-to-end-epic-demonstration.md)
+- [E2-13: Add authoring lifecycle integration tests](../epic-02/e2-13-add-authoring-lifecycle-integration-tests.md)
 
 ## Acceptance criteria
 
