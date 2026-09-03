@@ -43,10 +43,14 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 - [E1-S2: Validation checks, finding shape, and execution order](decisions/epic-01/e1-s2-validation-behavior.md)
 - [E1-S3: Draft revision and publication lifecycle](decisions/epic-01/e1-s3-draft-publication-lifecycle.md)
 - [E1-S4: Interface versioning methodology and runtime impact](decisions/epic-01/e1-s4-interface-versioning-methodology.md)
+- [E2-S1: Local execution semantics and runtime state](decisions/epic-02/e2-s1-local-execution-semantics.md)
+- [E2-S2: Local daemon transport](decisions/epic-02/e2-s2-local-daemon-transport.md)
 
 ### Results
 
 - [E1-S0: Proof-of-concept verification](results/epic-01/e1-s0-proof-of-concept.md)
+- [E2-S1: Local execution semantics proof of concept](results/epic-02/e2-s1-proof-of-concept.md)
+- [E2-S2: Local daemon transport proof of concept](results/epic-02/e2-s2-proof-of-concept.md)
 
 ### Specifications
 

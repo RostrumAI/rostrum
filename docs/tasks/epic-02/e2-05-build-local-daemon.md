@@ -3,7 +3,7 @@
 | Tracking | Value |
 | --- | --- |
 | Status | Not started |
-| Last updated | 2026-08-28 |
+| Last updated | 2026-09-03 |
 | Picked up | No |
 | Owner | Unassigned |
 | Blocked by | [E2-S2](e2-s2-select-local-daemon-transport.md), [E2-01](e2-01-clarify-workflow-interface-terminology.md), [E2-02](e2-02-establish-task-tracking.md) |
@@ -12,8 +12,8 @@
 
 This task builds the daemon, a background process that runs independently on the local machine. It adds:
 
-- the transport selected by E2-S2, the communication mechanism used between independently running processes;
-- validated configuration;
+- the approved E2-S2 transport: JSON over HTTP on loopback TCP, serving the four daemon operations `POST /api/v1/runs`, `GET /api/v1/runs/{runId}`, `GET /api/v1/system/health`, and `GET /api/v1/system/version` under `/api/v1` ([E2-S2 decision](../../decisions/epic-02/e2-s2-local-daemon-transport.md));
+- validated configuration layered over an optional YAML file named by `DAEMON_CONFIG`, with the approved variables `HOST`, `PORT`, `DATABASE_URL`, `NODE_ENV`, `LOG_LEVEL`, and `IDLE_TIMEOUT` and their defaults from the E2-S2 configuration matrix;
 - structured logging;
 - health and version operations;
 - startup and graceful shutdown;
@@ -37,8 +37,10 @@ The daemon must own workflow execution after the invoking client disconnects. Bu
 ## Acceptance criteria
 
 - Documented commands build, start, inspect, stop, and test the daemon.
-- The daemon reports health and version independently of the Control API.
-- The daemon rejects invalid configuration before accepting requests and returns an actionable error.
+- The daemon reports health and version independently of the Control API through `GET /api/v1/system/health` and `GET /api/v1/system/version`, and the version operation reports the workflow `interfaceVersion` the daemon can execute.
+- The daemon logs and echoes an optional caller-supplied `x-request-id` header on every request; the header never affects routing or acceptance.
+- `idleTimeout` is configured (default 60 seconds) above the slowest legitimate response path rather than Bun's 10-second default.
+- The daemon rejects invalid configuration with the offending path before the socket opens and returns an actionable error.
 - The transport supports correlated requests, meaning requests matched with their corresponding responses, between independently running processes.
 - Graceful shutdown stops accepting new requests, invokes registered shutdown handlers, and ends cleanly.
-- Integration tests exercise the real process and the selected E2-S2 transport without requiring workflow execution.
+- Integration tests exercise the real process and the E2-S2 transport through the client wrapper without requiring workflow execution.

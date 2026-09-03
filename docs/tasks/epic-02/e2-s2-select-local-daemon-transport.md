@@ -2,8 +2,8 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Not started |
-| Last updated | 2026-08-28 |
+| Status | Completed |
+| Last updated | 2026-09-03 |
 | Picked up | Yes |
 | Owner | Stephen |
 | Blocked by | [Epic 01](../../epics/epic-01-shape-of-a-workflow.md) |
