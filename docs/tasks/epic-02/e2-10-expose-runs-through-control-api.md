@@ -48,5 +48,5 @@ The Control API is the single caller boundary for local and later hosted executi
 - `currentSteps` matches the daemon projection (the daemon-generated view of run state) and is empty for `queued` and terminal runs.
 - `succeeded` runs return output and an empty failure list; `failed` runs return no output and the complete ordered failure list.
 - Unknown runs return the daemon's `404` pass-through (E2-03 and E2-10 own the final public code), and an unavailable daemon maps to `503 run.daemon.unavailable` in the public error shape.
-- Every daemon call goes through the shared client wrapper, carries the `DAEMON_TIMEOUT_MS` deadline and a generated `x-request-id` header, and maps transport failures to `504 run.daemon.timeout` and `500 run.daemon.protocol` without creating, mutating, or failing a run.
+- Every daemon call goes through the shared client wrapper, carries the `DAEMON_TIMEOUT_MS` deadline, and maps transport failures to `504 run.daemon.timeout` and `500 run.daemon.protocol` without creating, mutating, or failing a run.
 - API integration tests prove that no graph or handler logic executes inside the Control API process.

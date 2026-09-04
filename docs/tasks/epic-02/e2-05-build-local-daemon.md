@@ -38,7 +38,6 @@ The daemon must own workflow execution after the invoking client disconnects. Bu
 
 - Documented commands build, start, inspect, stop, and test the daemon.
 - The daemon reports health and version independently of the Control API through `GET /api/v1/system/health` and `GET /api/v1/system/version`, and the version operation reports the workflow `interfaceVersion` the daemon can execute.
-- The daemon logs and echoes an optional caller-supplied `x-request-id` header on every request; the header never affects routing or acceptance.
 - `idleTimeout` is configured (default 60 seconds) above the slowest legitimate response path rather than Bun's 10-second default.
 - The daemon rejects invalid configuration with the offending path before the socket opens and returns an actionable error.
 - The transport supports correlated requests, meaning requests matched with their corresponding responses, between independently running processes.
