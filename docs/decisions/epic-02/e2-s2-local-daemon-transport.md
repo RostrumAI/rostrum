@@ -41,6 +41,29 @@ The daemon interface is internal: it appears in no public document, and the Cont
 
 Routes mount under `/api/v1` composed with feature folders, mirroring the Control API's conventions: `src/features/runs/` holds the submit and retrieve slices, and `src/features/system/` holds health and version. A breaking daemon-interface change adds `/api/v2` rather than mutating `/api/v1`, consistent with E1-S1's exact-match versioning philosophy.
 
+The proposed layout places the daemon beside the Control API and puts every shared contract in `packages/`:
+
+```text
+rostrum/
+├── apps/
+│   ├── control-api/            # Control API process (existing)
+│   │   └── src/
+│   │       ├── features/
+│   │       │   ├── system/     # health.ts, version.ts
+│   │       │   └── workflows/  # authoring operations
+│   │       └── app.ts
+│   └── daemon/                 # Daemon process (E2-05), package @rostrum/daemon
+│       └── src/
+│           ├── features/
+│           │   ├── runs/       # submit.ts, retrieve.ts → /api/v1/runs
+│           │   └── system/     # health.ts, version.ts → /api/v1/system
+│           └── app.ts
+└── packages/
+    ├── contracts/              # E2-03: shared TypeBox schemas and client wrapper
+    ├── database/               # published-version retrieval, shared by both apps
+    └── workflow/               # document schema, validator, digest rules
+```
+
 Epic 02 adds no list, cancel, retry, or pause operations; Epic 03 owns run control. There is no streaming: one request receives exactly one response.
 
 ## How the Control API calls the daemon
