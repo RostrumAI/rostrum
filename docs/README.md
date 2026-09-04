@@ -50,7 +50,6 @@ The product plan organizes Rostrum around delivery milestones and a showcase sui
 
 - [E1-S0: Proof-of-concept verification](results/epic-01/e1-s0-proof-of-concept.md)
 - [E2-S1: Local execution semantics proof of concept](results/epic-02/e2-s1-proof-of-concept.md)
-- [E2-S2: Local daemon transport proof of concept](results/epic-02/e2-s2-proof-of-concept.md)
 
 ### Specifications
 

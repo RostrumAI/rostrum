@@ -2,10 +2,10 @@
 
 | Tracking | Value |
 | --- | --- |
-| Status | Completed |
-| Last updated | 2026-09-03 |
+| Status | Proposed — awaiting approval |
+| Last updated | 2026-09-04 |
 | Picked up | Yes |
-| Owner | Stephen |
+| Owner | Thomas |
 | Blocked by | [Epic 01](../../epics/epic-01-shape-of-a-workflow.md) |
 
 ## Task
