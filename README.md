@@ -1,9 +1,6 @@
 # Rostrum
 
-Rostrum is a platform for defining and executing workflows. This repository
-contains the codebase: shared workflow libraries in `packages/`, runnable
-applications in `apps/`, and the research, strategy, decision, result, and
-task records in `docs/`.
+Rostrum is a platform for defining and executing workflows. This repository contains the implementation: shared workflow libraries in `packages/` and runnable applications in `apps/`. Product strategy, planning, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs).
 
 ## Prerequisites
 
@@ -148,11 +145,9 @@ A test asserts that the served document matches the checked-in copy.
 | --- | --- |
 | `apps/` | Runnable applications; `control-api/` is the Control API process |
 | `packages/` | Shared libraries; `workflow/` is the shared workflow library and `database/` owns Postgres persistence |
-| `docs/` | Research, strategy, epics, decisions, results, and tasks |
 | `scripts/` | One-off repository scripts |
 | `tmp/` | Scratch space for proof-of-concept work, excluded from lint and format |
 
 ## Documentation
 
-All project documentation lives in `docs/`, including the workflow interface
-v1 specification under `docs/specs/`.
+Product strategy, roadmap milestones, technical Epics, implementation plans, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs). Runtime code, tests, migrations, fixtures, generated artifacts, and code-derived API documents remain in this repository.
