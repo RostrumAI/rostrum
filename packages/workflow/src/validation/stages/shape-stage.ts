@@ -26,7 +26,7 @@ const CODE_BY_KEYWORD: Record<string, string> = {
 };
 
 /**
- * Stage 2: document shape, enforced by the interface version's TypeBox
+ * Stage 2: document shape, enforced by the workflow-format version's TypeBox
  * schema through `Schema.Compile` (JSON Schema 2020-12).
  *
  * Required fields, types, UUID v7 formats, `additionalProperties: false`,
@@ -37,7 +37,7 @@ const CODE_BY_KEYWORD: Record<string, string> = {
  */
 export class ShapeStage implements ValidationStage {
     readonly id = "shape";
-    readonly prerequisites: readonly string[] = ["version"];
+    readonly prerequisites: readonly string[] = ["format"];
 
     private readonly compiled: Validator;
 

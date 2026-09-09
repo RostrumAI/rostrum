@@ -60,14 +60,14 @@ export class DuplicateWorkflowIdError extends StorageError {
 }
 
 /**
- * Raised when a stored published version fails verification at retrieval:
+ * Raised when a stored publication fails verification at retrieval:
  * either the recomputed digest differs from the stored digest or the stored
  * text is not in canonical form (digest verification).
  */
 export class DigestVerificationError extends StorageError {
-    constructor(workflowId: string, versionNumber: number, reason: string) {
+    constructor(workflowId: string, publicationNumber: number, reason: string) {
         super(
-            `Published version ${versionNumber} of workflow ${workflowId} failed verification: ${reason}`,
+            `Publication ${publicationNumber} of workflow ${workflowId} failed verification: ${reason}`,
         );
         this.name = "DigestVerificationError";
     }

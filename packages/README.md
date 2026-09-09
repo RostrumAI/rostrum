@@ -3,7 +3,7 @@
 Shared libraries (Bun workspaces). Consumed by applications without a build
 step.
 
-- `workflow/` — the shared workflow library: the workflow interface v1
+- `workflow/` — the shared workflow library: the workflow format v1
   document schema, the validator, stable findings, and the digest rules.
 
 - `database/` — Postgres persistence owned end to end: the typed Kysely

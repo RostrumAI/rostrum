@@ -59,10 +59,10 @@ export const RevisionIdSchema = Type.String({
     description: "The revision id.",
 });
 
-/** The published version number as a path parameter value. */
-export const VersionNumberSchema = Type.String({
+/** The publication number as a path parameter value. */
+export const PublicationNumberSchema = Type.String({
     pattern: "^[1-9][0-9]*$",
-    description: "The per-workflow published version number.",
+    description: "The per-workflow publication number.",
 });
 
 /** The revision shape every draft operation returns: create, save, rewind, and both retrievals. */
@@ -105,9 +105,9 @@ export const ValidateResponseSchema = Type.Object(
 export const PublishResponseSchema = Type.Object(
     {
         workflowId: Type.String(),
-        versionNumber: Type.Integer({ description: "The per-workflow published version number." }),
-        interfaceVersion: Type.String({
-            description: "The exact interface version token the published content satisfies.",
+        publicationNumber: Type.Integer({ description: "The per-workflow publication number." }),
+        workflowFormatVersion: Type.String({
+            description: "The exact format version token the published content satisfies.",
         }),
         digest: Type.String({
             description:
@@ -117,14 +117,14 @@ export const PublishResponseSchema = Type.Object(
     { additionalProperties: false },
 );
 
-/** The body of GET /workflows/:workflowId/versions/:versionNumber. */
-export const PublishedVersionResponseSchema = Type.Object(
+/** The body of GET /workflows/:workflowId/publications/:publicationNumber. */
+export const PublicationResponseSchema = Type.Object(
     {
-        versionNumber: Type.Integer(),
+        publicationNumber: Type.Integer(),
         revisionId: Type.String({
             description: "The source revision the published bytes came from.",
         }),
-        interfaceVersion: Type.String(),
+        workflowFormatVersion: Type.String(),
         digest: Type.String(),
         content: Type.String({
             description:
@@ -143,7 +143,7 @@ export const RewindRequestSchema = Type.Object(
 /** The permissive document member of the request bodies. */
 export const WorkflowDocumentSchema = Type.Unknown({
     description:
-        "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract.",
+        "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract.",
 });
 
 /**

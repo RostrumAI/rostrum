@@ -14,7 +14,7 @@ const app = await ControlApiApp.create();
 const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: app.routes.fetch });
 
 try {
-    const health = await fetch(`http://127.0.0.1:${server.port}/api/v1/system/health`);
+    const health = await fetch(`http://127.0.0.1:${server.port}/api/system/health`);
     const healthBody = await health.json();
     if (health.status !== 200 || (healthBody as { status: string }).status !== "ok") {
         throw new Error(`health check failed with status ${health.status}`);

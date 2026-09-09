@@ -3,10 +3,10 @@ import { parseWorkflow } from "./parse-workflow";
 
 describe("parseWorkflow", () => {
     test("accepts a valid document and carries its text and value", () => {
-        const parsed = parseWorkflow(`{"interfaceVersion":"v1","name":"x"}`);
+        const parsed = parseWorkflow(`{"workflowFormatVersion":"v1","name":"x"}`);
         expect(parsed.ok).toBe(true);
         if (parsed.ok) {
-            expect(parsed.document).toEqual({ interfaceVersion: "v1", name: "x" });
+            expect(parsed.document).toEqual({ workflowFormatVersion: "v1", name: "x" });
         }
     });
 

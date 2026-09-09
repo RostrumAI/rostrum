@@ -1,12 +1,12 @@
 /**
  * Entry point of the shared workflow package.
  *
- * The package implements workflow interface v1 for every consumer —
+ * The package implements workflow format v1 for every consumer —
  * Control API, daemon, conformance harness — from one public contract:
  *
  * - `WorkflowValidator` reads workflow JSON (strict parse: duplicate
  *   keys, `NaN`/`Infinity`, and invalid UTF-8 are errors), selects the
- *   frozen rule set named by `interfaceVersion` by exact match, and runs
+ *   frozen rule set named by `workflowFormatVersion` by exact match, and runs
  *   the eight-stage validation pipeline with prerequisite gating;
  * - findings carry stable codes, JSON Pointers, line and column when
  *   text is available, related locations, and structured details,
@@ -16,7 +16,7 @@
  *   metadata members removed.
  *
  * The machine-readable document schema lives in `./schema`; its emitted
- * JSON Schema 2020-12 artifact describes the interface's document shape.
+ * JSON Schema 2020-12 artifact describes the format's document shape.
  */
 
 export { insertWorkflowId, replaceWorkflowId } from "./document/id-splice";
@@ -33,11 +33,11 @@ export { parseWorkflow } from "./parse/parse-workflow";
 export { CanonicalizationError, canonicalize } from "./publish/canonical-json";
 export type { PublicationPreparation } from "./publish/publication-preparer";
 export { PublicationPreparer } from "./publish/publication-preparer";
-export type { InterfaceRuleSet } from "./rules/interface-rule-set";
-export { RuleSetRegistry } from "./rules/interface-rule-set";
 export type { StepTypeRegistration } from "./rules/step-type-registry";
 export { StepTypeRegistry } from "./rules/step-type-registry";
 export { V1_RULE_SET } from "./rules/v1";
+export type { WorkflowFormatRuleSet } from "./rules/workflow-format-rule-set";
+export { WorkflowFormatRegistry } from "./rules/workflow-format-rule-set";
 export type {
     WorkflowConditional,
     WorkflowDocument as WorkflowDocumentType,

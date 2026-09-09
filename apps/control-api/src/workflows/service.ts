@@ -1,20 +1,20 @@
 import type {
     CreatedDraft,
-    PublishedVersion,
+    Publication,
     PublishResult,
     SaveRevisionResult,
     StoredRevision,
 } from "@rostrum/database";
 import {
     type Finding,
-    type InterfaceRuleSet,
     insertWorkflowId,
     type PublicationPreparation,
     PublicationPreparer,
     parseWorkflow,
-    type RuleSetRegistry,
     replaceWorkflowId,
     type ValidationResult,
+    type WorkflowFormatRegistry,
+    type WorkflowFormatRuleSet,
     type WorkflowValidator,
 } from "@rostrum/workflow";
 import { v7 as mintUuidV7 } from "uuid";
@@ -30,7 +30,7 @@ export interface ValidateOutcome {
 
 /**
  * The result of one publish attempt. Successful outcomes carry the
- * interface version and digest the API answers with, computed from the
+ * format version and digest the API answers with, computed from the
  * current revision's validated document; idempotent re-publishes return
  * the same values, since the digest is deterministic on the revision's
  * content.
@@ -38,8 +38,8 @@ export interface ValidateOutcome {
 export type PublishWorkflowResult =
     | {
           outcome: "published" | "already-published";
-          versionNumber: number;
-          interfaceVersion: string;
+          publicationNumber: number;
+          workflowFormatVersion: string;
           digest: string;
       }
     | { outcome: "blocking-findings"; findings: readonly Finding[] }
@@ -49,18 +49,18 @@ export type PublishWorkflowResult =
 /**
  * The workflow-authoring operations over one workflow database: parse,
  * validate, store drafts and revisions, rewind, publish, and retrieve
- * published versions. Validation runs on the text that will be stored,
+ * publications. Validation runs on the text that will be stored,
  * so the findings a save returns anchor to the text retrieval returns.
  */
 export class WorkflowService {
     private readonly database: WorkflowDatabase;
     private readonly validator: WorkflowValidator;
-    private readonly registry: RuleSetRegistry;
+    private readonly registry: WorkflowFormatRegistry;
 
     private constructor(
         database: WorkflowDatabase,
         validator: WorkflowValidator,
-        registry: RuleSetRegistry,
+        registry: WorkflowFormatRegistry,
     ) {
         this.database = database;
         this.validator = validator;
@@ -186,9 +186,9 @@ export class WorkflowService {
 
     /**
      * Publishes the draft's current revision: re-validates the stored
-     * content, selects the declared version's rule set by exact match, and
-     * stores the canonical text under the next per-workflow version number.
-     * Republishing the same revision returns the existing version.
+     * content, selects the declared format version's rule set by exact match, and
+     * stores the canonical text under the next per-workflow publication number.
+     * Republishing the same revision returns the existing publication.
      */
     async publish(workflowId: string): Promise<PublishWorkflowResult> {
         const current = await this.database.workflows.getCurrentRevision(workflowId);
@@ -203,24 +203,24 @@ export class WorkflowService {
         if (!parsed.ok || !isJsonObject(parsed.document)) {
             throw new Error(`stored revision ${current.revisionId} is not a JSON object`);
         }
-        const { ruleSet, interfaceVersion } = this.selectRuleSet(parsed.document);
+        const { ruleSet, workflowFormatVersion } = this.selectRuleSet(parsed.document);
         const prepared = await new PublicationPreparer(ruleSet).prepare(parsed.document);
         const stored = await this.database.workflows.publish({
             workflowId,
             revisionId: current.revisionId,
             canonicalText: prepared.canonicalText,
             digest: prepared.digest,
-            interfaceVersion,
+            workflowFormatVersion,
         });
-        return this.publishResult(stored, interfaceVersion, prepared);
+        return this.publishResult(stored, workflowFormatVersion, prepared);
     }
 
-    /** Returns one published version after storage-side digest verification, or null. */
-    async getPublishedVersion(
+    /** Returns one publication after storage-side digest verification, or null. */
+    async getPublication(
         workflowId: string,
-        versionNumber: number,
-    ): Promise<PublishedVersion | null> {
-        return this.database.workflows.getPublishedVersion(workflowId, versionNumber);
+        publicationNumber: number,
+    ): Promise<Publication | null> {
+        return this.database.workflows.getPublication(workflowId, publicationNumber);
     }
 
     /** Closes the underlying connection pool. */
@@ -237,14 +237,14 @@ export class WorkflowService {
         return this.validator.validate(text);
     }
 
-    /** Selects the declared interface version's rule set by exact match. */
+    /** Selects the declared format version's rule set by exact match. */
     private selectRuleSet(document: Record<string, unknown>): {
-        ruleSet: InterfaceRuleSet;
-        interfaceVersion: string;
+        ruleSet: WorkflowFormatRuleSet;
+        workflowFormatVersion: string;
     } {
-        const declared = document.interfaceVersion;
+        const declared = document.workflowFormatVersion;
         if (typeof declared !== "string") {
-            throw new Error("validated document declares a non-string interfaceVersion");
+            throw new Error("validated document declares a non-string workflowFormatVersion");
         }
         const ruleSet = this.registry.select(declared);
         // An unknown version is a blocking finding, so a validated document
@@ -252,13 +252,13 @@ export class WorkflowService {
         if (ruleSet === undefined) {
             throw new Error(`no rule set registered for validated version '${declared}'`);
         }
-        return { ruleSet, interfaceVersion: declared };
+        return { ruleSet, workflowFormatVersion: declared };
     }
 
     /** Maps the storage outcome onto the API result, adding the computed publication values. */
     private publishResult(
         stored: PublishResult,
-        interfaceVersion: string,
+        workflowFormatVersion: string,
         prepared: PublicationPreparation,
     ): PublishWorkflowResult {
         switch (stored.outcome) {
@@ -266,8 +266,8 @@ export class WorkflowService {
             case "already-published":
                 return {
                     outcome: stored.outcome,
-                    versionNumber: stored.versionNumber,
-                    interfaceVersion,
+                    publicationNumber: stored.publicationNumber,
+                    workflowFormatVersion,
                     digest: prepared.digest,
                 };
             default:

@@ -1,5 +1,5 @@
 import { FindingFactory } from "../findings";
-import type { InterfaceRuleSet } from "../rules/interface-rule-set";
+import type { WorkflowFormatRuleSet } from "../rules/workflow-format-rule-set";
 import type { WorkflowDocument } from "../schema";
 import type { SourceMap } from "../source-map";
 import { WorkflowGraph } from "./workflow-graph";
@@ -9,7 +9,7 @@ import { WorkflowGraph } from "./workflow-graph";
  *
  * The context carries the parsed document, the source map from stage 0,
  * and the finding factory that attaches line and column numbers. The
- * version stage selects the interface rule set, and stages that build
+ * format stage selects the workflow-format rule set, and stages that build
  * graph structures share one lazily constructed {@link WorkflowGraph}.
  */
 export class ValidationContext {
@@ -20,7 +20,7 @@ export class ValidationContext {
     /** Finding factory bound to the source map. */
     readonly findings: FindingFactory;
 
-    private selectedRuleSet: InterfaceRuleSet | null = null;
+    private selectedRuleSet: WorkflowFormatRuleSet | null = null;
     private documentGraph: WorkflowGraph | null = null;
 
     /** Constructs a context for one validation run. */
@@ -30,9 +30,9 @@ export class ValidationContext {
         this.findings = new FindingFactory(sourceMap);
     }
 
-    get ruleSet(): InterfaceRuleSet {
+    get ruleSet(): WorkflowFormatRuleSet {
         if (!this.selectedRuleSet) {
-            throw new Error("No interface rule set was selected for this validation run");
+            throw new Error("No workflow-format rule set was selected for this validation run");
         }
         return this.selectedRuleSet;
     }
@@ -51,7 +51,7 @@ export class ValidationContext {
     }
 
     /** Records the rule set chosen by exact version match. */
-    selectRuleSet(ruleSet: InterfaceRuleSet): void {
+    selectRuleSet(ruleSet: WorkflowFormatRuleSet): void {
         this.selectedRuleSet = ruleSet;
     }
 

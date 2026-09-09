@@ -5,7 +5,7 @@ import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 import type { WorkflowGraph } from "../workflow-graph";
 
-/** Predicate operators allowed in v1 leaf conditions (workflow interface v1). */
+/** Predicate operators allowed in v1 leaf conditions (workflow format v1). */
 const ALLOWED_OPERATORS: Record<string, true> = {
     eq: true,
     neq: true,

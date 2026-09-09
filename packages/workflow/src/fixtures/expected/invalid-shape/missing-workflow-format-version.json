@@ -2,9 +2,9 @@
     "validForPublication": false,
     "findings": [
         {
-            "code": "workflow.version.missing",
+            "code": "workflow.format.missing",
             "blocking": true,
-            "path": "/interfaceVersion"
+            "path": "/workflowFormatVersion"
         }
     ]
 }

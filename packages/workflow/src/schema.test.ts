@@ -49,10 +49,10 @@ describe("incomplete drafts are saveable documents", () => {
 });
 
 describe("invalid shape examples fail for the expected reason", () => {
-    test("unknown-interface-version.json: interfaceVersion is not v1", () => {
-        const document = loadFixture("invalid-shape", "unknown-interface-version.json");
+    test("unknown-workflow-format-version.json: workflowFormatVersion is not v1", () => {
+        const document = loadFixture("invalid-shape", "unknown-workflow-format-version.json");
         const pointers = [...validator.Errors(document)].map((error) => error.instancePath);
-        expect(pointers).toContain("/interfaceVersion");
+        expect(pointers).toContain("/workflowFormatVersion");
     });
 
     test("missing-required-field.json: firstNode is absent", () => {

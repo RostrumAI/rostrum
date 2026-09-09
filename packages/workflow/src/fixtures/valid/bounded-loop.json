@@ -1,5 +1,5 @@
 {
-    "interfaceVersion": "v1",
+    "workflowFormatVersion": "v1",
     "id": "0192b0a0-7e1d-7000-8000-000000000030",
     "name": "Batch file analysis",
     "description": "Loop over files, analyze each, summarize all.",

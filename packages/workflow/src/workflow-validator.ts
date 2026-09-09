@@ -1,9 +1,9 @@
 import { type Finding, sortFindings } from "./findings";
 import { JsonSourceParser } from "./parse/json-source-parser";
-import { RuleSetRegistry } from "./rules/interface-rule-set";
 import { V1_RULE_SET } from "./rules/v1";
+import { WorkflowFormatRegistry } from "./rules/workflow-format-rule-set";
 import type { SourceMap } from "./source-map";
-import { VersionStage } from "./validation/stages/version-stage";
+import { FormatStage } from "./validation/stages/format-stage";
 import { ValidationContext } from "./validation/validation-context";
 import { ValidationPipeline, type ValidationStage } from "./validation/validation-stage";
 
@@ -17,20 +17,20 @@ export interface ValidationResult {
 
 /**
  * Reads workflow JSON and validates it under the rules selected by its
- * declared `interfaceVersion`.
+ * declared `workflowFormatVersion`.
  *
  * Stage 0 parses the raw input (duplicate keys, `NaN`/`Infinity`, and
- * invalid UTF-8 are errors) and stage 1 selects the interface rule set
+ * invalid UTF-8 are errors) and stage 1 selects the workflow-format rule set
  * by exact match; the selected rule set then runs its own frozen stages
  * 2 through 8 with prerequisite gating. The same document produces the
  * same ordered findings whether it arrives as text or already parsed;
  * only the line and column numbers differ.
  */
 export class WorkflowValidator {
-    private readonly registry: RuleSetRegistry;
+    private readonly registry: WorkflowFormatRegistry;
 
-    /** Constructs a validator over a registry of supported interface rule sets. */
-    constructor(registry: RuleSetRegistry) {
+    /** Constructs a validator over a registry of supported workflow-format rule sets. */
+    constructor(registry: WorkflowFormatRegistry) {
         this.registry = registry;
     }
 
@@ -64,14 +64,14 @@ export class WorkflowValidator {
     }
 
     /**
-     * Runs the version stage over the rule-set registry, then the selected
-     * rule set's stages. An unknown version runs the version stage alone,
+     * Runs the format stage over the rule-set registry, then the selected
+     * rule set's stages. An unknown version runs the format stage alone,
      * so its finding is the only output.
      */
     private validateParsed(document: unknown, sourceMap: SourceMap | null): ValidationResult {
         const context = new ValidationContext(document, sourceMap);
-        const declared = declaredInterfaceVersion(document);
-        const stages: ValidationStage[] = [new VersionStage(this.registry)];
+        const declared = declaredWorkflowFormatVersion(document);
+        const stages: ValidationStage[] = [new FormatStage(this.registry)];
         const selected = typeof declared === "string" ? this.registry.select(declared) : undefined;
         if (selected) {
             stages.push(...selected.stages);
@@ -88,15 +88,15 @@ export class WorkflowValidator {
     }
 }
 
-/** Reads the declared `interfaceVersion` member when the document is a JSON object. */
-function declaredInterfaceVersion(document: unknown): unknown {
+/** Reads the declared `workflowFormatVersion` member when the document is a JSON object. */
+function declaredWorkflowFormatVersion(document: unknown): unknown {
     if (typeof document !== "object" || document === null || Array.isArray(document)) {
         return undefined;
     }
-    return (document as Record<string, unknown>).interfaceVersion;
+    return (document as Record<string, unknown>).workflowFormatVersion;
 }
 
-/** Creates a validator that supports workflow interface v1. */
+/** Creates a validator that supports workflow format v1. */
 export function createWorkflowValidator(): WorkflowValidator {
-    return new WorkflowValidator(new RuleSetRegistry([V1_RULE_SET]));
+    return new WorkflowValidator(new WorkflowFormatRegistry([V1_RULE_SET]));
 }

@@ -13,9 +13,9 @@ export type HttpMethod = (typeof HTTP_METHODS)[number];
 
 /**
  * Route binding a feature module must export as `route`. The loader joins
- * `path` with the module's folder inside `src/features` and the `/api/v1`
+ * `path` with the module's folder inside `src/features` and the `/api`
  * prefix, so a module at `features/system/health.ts` with path `/health`
- * serves `GET /api/v1/system/health`. A module whose folder is the whole
+ * serves `GET /api/system/health`. A module whose folder is the whole
  * route binds `path: "/"`; the collection route of a feature area.
  */
 export interface FeatureRoute {
@@ -88,7 +88,7 @@ export interface FeatureModule {
 export interface LoadedFeature {
     /** Module path relative to `src/features`, e.g. `system/health.ts`. */
     file: string;
-    /** Route path under the versioned prefix, e.g. `/system/health`. */
+    /** Route path under the `/api` prefix, e.g. `/system/health`. */
     path: string;
     /** OpenAPI tag: the top-level folder inside `src/features`. */
     tag: string;

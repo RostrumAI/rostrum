@@ -165,27 +165,6 @@
         },
         "additionalProperties": false
       },
-      "Version": {
-        "type": "object",
-        "required": [
-          "service",
-          "version",
-          "interfaceVersion"
-        ],
-        "properties": {
-          "service": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          },
-          "interfaceVersion": {
-            "type": "string",
-            "const": "v1"
-          }
-        },
-        "additionalProperties": false
-      },
       "CreateDraftRequest": {
         "type": "object",
         "required": [
@@ -204,7 +183,7 @@
             "description": "Optional display label for the first revision."
           },
           "document": {
-            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
+            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
           }
         },
         "additionalProperties": false
@@ -325,21 +304,21 @@
         "type": "object",
         "required": [
           "workflowId",
-          "versionNumber",
-          "interfaceVersion",
+          "publicationNumber",
+          "workflowFormatVersion",
           "digest"
         ],
         "properties": {
           "workflowId": {
             "type": "string"
           },
-          "versionNumber": {
+          "publicationNumber": {
             "type": "integer",
-            "description": "The per-workflow published version number."
+            "description": "The per-workflow publication number."
           },
-          "interfaceVersion": {
+          "workflowFormatVersion": {
             "type": "string",
-            "description": "The exact interface version token the published content satisfies."
+            "description": "The exact format version token the published content satisfies."
           },
           "digest": {
             "type": "string",
@@ -348,24 +327,24 @@
         },
         "additionalProperties": false
       },
-      "PublishedVersionResponse": {
+      "PublicationResponse": {
         "type": "object",
         "required": [
-          "versionNumber",
+          "publicationNumber",
           "revisionId",
-          "interfaceVersion",
+          "workflowFormatVersion",
           "digest",
           "content"
         ],
         "properties": {
-          "versionNumber": {
+          "publicationNumber": {
             "type": "integer"
           },
           "revisionId": {
             "type": "string",
             "description": "The source revision the published bytes came from."
           },
-          "interfaceVersion": {
+          "workflowFormatVersion": {
             "type": "string"
           },
           "digest": {
@@ -415,7 +394,7 @@
             "description": "Optional display label for the new revision."
           },
           "document": {
-            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
+            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
           }
         },
         "additionalProperties": false
@@ -496,14 +475,14 @@
         "additionalProperties": false
       },
       "WorkflowDocument": {
-        "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow interface, not the transport contract."
+        "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
       }
     }
   },
   "paths": {
-    "/api/v1/system/health": {
+    "/api/system/health": {
       "get": {
-        "operationId": "getApiV1SystemHealth",
+        "operationId": "getApiSystemHealth",
         "tags": [
           "system"
         ],
@@ -521,29 +500,9 @@
         }
       }
     },
-    "/api/v1/system/version": {
-      "get": {
-        "operationId": "getApiV1SystemVersion",
-        "tags": [
-          "system"
-        ],
-        "responses": {
-          "200": {
-            "description": "Service and workflow interface version",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Version"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/workflows": {
+    "/api/workflows": {
       "post": {
-        "operationId": "postApiV1Workflows",
+        "operationId": "postApiWorkflows",
         "tags": [
           "workflows"
         ],
@@ -582,9 +541,9 @@
         }
       }
     },
-    "/api/v1/workflows/{workflowId}/publish": {
+    "/api/workflows/{workflowId}/publish": {
       "post": {
-        "operationId": "postApiV1WorkflowsByWorkflowIdPublish",
+        "operationId": "postApiWorkflowsByWorkflowIdPublish",
         "tags": [
           "workflows"
         ],
@@ -600,7 +559,7 @@
             }
           },
           "201": {
-            "description": "The current revision was published and stored as an immutable version",
+            "description": "The current revision was published and stored as an immutable publication",
             "content": {
               "application/json": {
                 "schema": {
@@ -645,9 +604,9 @@
         ]
       }
     },
-    "/api/v1/workflows/{workflowId}": {
+    "/api/workflows/{workflowId}": {
       "get": {
-        "operationId": "getApiV1WorkflowsByWorkflowId",
+        "operationId": "getApiWorkflowsByWorkflowId",
         "tags": [
           "workflows"
         ],
@@ -688,9 +647,63 @@
         ]
       }
     },
-    "/api/v1/workflows/{workflowId}/revisions/{revisionId}": {
+    "/api/workflows/{workflowId}/publications/{publicationNumber}": {
       "get": {
-        "operationId": "getApiV1WorkflowsByWorkflowIdRevisionsByRevisionId",
+        "operationId": "getApiWorkflowsByWorkflowIdPublicationsByPublicationNumber",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "The publication: canonical stored text, verified at retrieval by digest recomputation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The workflow has no such publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          },
+          {
+            "name": "publicationNumber",
+            "in": "path",
+            "required": true,
+            "description": "The per-workflow publication number.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$",
+              "description": "The per-workflow publication number."
+            }
+          }
+        ]
+      }
+    },
+    "/api/workflows/{workflowId}/revisions/{revisionId}": {
+      "get": {
+        "operationId": "getApiWorkflowsByWorkflowIdRevisionsByRevisionId",
         "tags": [
           "workflows"
         ],
@@ -742,63 +755,9 @@
         ]
       }
     },
-    "/api/v1/workflows/{workflowId}/versions/{versionNumber}": {
-      "get": {
-        "operationId": "getApiV1WorkflowsByWorkflowIdVersionsByVersionNumber",
-        "tags": [
-          "workflows"
-        ],
-        "responses": {
-          "200": {
-            "description": "The published version: canonical stored text, verified at retrieval by digest recomputation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishedVersionResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The workflow has no such published version",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The workflow id."
-            }
-          },
-          {
-            "name": "versionNumber",
-            "in": "path",
-            "required": true,
-            "description": "The per-workflow published version number.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$",
-              "description": "The per-workflow published version number."
-            }
-          }
-        ]
-      }
-    },
-    "/api/v1/workflows/{workflowId}/rewind": {
+    "/api/workflows/{workflowId}/rewind": {
       "post": {
-        "operationId": "postApiV1WorkflowsByWorkflowIdRewind",
+        "operationId": "postApiWorkflowsByWorkflowIdRewind",
         "tags": [
           "workflows"
         ],
@@ -860,9 +819,9 @@
         }
       }
     },
-    "/api/v1/workflows/{workflowId}/revisions": {
+    "/api/workflows/{workflowId}/revisions": {
       "put": {
-        "operationId": "putApiV1WorkflowsByWorkflowIdRevisions",
+        "operationId": "putApiWorkflowsByWorkflowIdRevisions",
         "tags": [
           "workflows"
         ],
@@ -934,9 +893,9 @@
         }
       }
     },
-    "/api/v1/workflows/validate": {
+    "/api/workflows/validate": {
       "post": {
-        "operationId": "postApiV1WorkflowsValidate",
+        "operationId": "postApiWorkflowsValidate",
         "tags": [
           "workflows"
         ],

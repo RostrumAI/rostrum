@@ -19,7 +19,7 @@ import {
 /**
  * Route binding for rewinding the draft to an earlier revision. The
  * rewind appends a copy of the target as the newest revision and makes it
- * current; nothing is deleted, so every published version's source stays
+ * current; nothing is deleted, so every publication's source stays
  * retrievable.
  */
 export const route: FeatureRoute = {

@@ -1,26 +1,26 @@
 import type { Finding } from "../../findings";
-import type { RuleSetRegistry } from "../../rules/interface-rule-set";
+import type { WorkflowFormatRegistry } from "../../rules/workflow-format-rule-set";
 import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 
 /**
- * Stage 1: selects the interface rule set for the declared
- * `interfaceVersion` by exact match.
+ * Stage 1: selects the workflow-format rule set for the declared
+ * `workflowFormatVersion` by exact match.
  *
- * A missing `interfaceVersion` is `workflow.version.missing`; a token no
- * registered rule set claims is `workflow.version.unknown` with the
+ * A missing `workflowFormatVersion` is `workflow.format.missing`; a token no
+ * registered rule set claims is `workflow.format.unknown` with the
  * supported versions in `details`. Both are blocking, and every later
  * stage is gated on this one, so an unknown version never falls back to
  * another rule set.
  */
-export class VersionStage implements ValidationStage {
-    readonly id = "version";
+export class FormatStage implements ValidationStage {
+    readonly id = "format";
     readonly prerequisites: readonly string[] = [];
 
-    private readonly registry: RuleSetRegistry;
+    private readonly registry: WorkflowFormatRegistry;
 
     /** Constructs the stage over the registry of supported rule sets. */
-    constructor(registry: RuleSetRegistry) {
+    constructor(registry: WorkflowFormatRegistry) {
         this.registry = registry;
     }
 
@@ -30,19 +30,20 @@ export class VersionStage implements ValidationStage {
         if (typeof document !== "object" || document === null || Array.isArray(document)) {
             return [
                 context.findings.create({
-                    code: "workflow.version.missing",
-                    message: "The document is not a JSON object, so interfaceVersion is absent",
+                    code: "workflow.format.missing",
+                    message:
+                        "The document is not a JSON object, so workflowFormatVersion is absent",
                     path: "",
                 }),
             ];
         }
-        const declared = (document as Record<string, unknown>).interfaceVersion;
+        const declared = (document as Record<string, unknown>).workflowFormatVersion;
         if (declared === undefined) {
             return [
                 context.findings.create({
-                    code: "workflow.version.missing",
-                    message: "Missing required field: interfaceVersion",
-                    path: "/interfaceVersion",
+                    code: "workflow.format.missing",
+                    message: "Missing required field: workflowFormatVersion",
+                    path: "/workflowFormatVersion",
                 }),
             ];
         }
@@ -54,9 +55,9 @@ export class VersionStage implements ValidationStage {
                 .join(", ");
             return [
                 context.findings.create({
-                    code: "workflow.version.unknown",
-                    message: `Unknown interfaceVersion ${JSON.stringify(declared)}; supported: ${supported}`,
-                    path: "/interfaceVersion",
+                    code: "workflow.format.unknown",
+                    message: `Unknown workflowFormatVersion ${JSON.stringify(declared)}; supported: ${supported}`,
+                    path: "/workflowFormatVersion",
                     details: { received: declared, supported: this.registry.versions() },
                 }),
             ];

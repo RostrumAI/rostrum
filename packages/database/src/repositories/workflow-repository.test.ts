@@ -60,7 +60,7 @@ function fixtureDocument(base: Record<string, unknown>, name?: string): Record<s
 
 /** Raw submitted bytes with CRLF line endings and an escaped NUL member. */
 const RAW_NUL_CONTENT = `{
-  "interfaceVersion": "v1",\r
+  "workflowFormatVersion": "v1",\r
   "id": "0192b0a0-7e1d-7000-8000-000000000009",
   "name": "nul\\u0000probe",
   "firstNode": "0192b0a0-7e1d-7000-8000-000000000002",
@@ -79,7 +79,7 @@ async function preparePublishInput(
         revisionId,
         canonicalText: prepared.canonicalText,
         digest: prepared.digest,
-        interfaceVersion: document.interfaceVersion as string,
+        workflowFormatVersion: document.workflowFormatVersion as string,
     };
 }
 
@@ -121,7 +121,7 @@ async function withDatabase<T>(run: (database: Storage) => Promise<T>): Promise<
     const db = createDatabase(databaseUrl);
     try {
         await migrateToLatest(db);
-        await sql`TRUNCATE published_versions, revisions, workflows`.execute(db);
+        await sql`TRUNCATE publications, revisions, workflows`.execute(db);
         return await run({ db, workflows: new WorkflowRepository(db, preparer) });
     } finally {
         await db.destroy();
@@ -231,7 +231,7 @@ describe("drafts and revisions", () => {
             const first = createDatabase(databaseUrl);
             try {
                 await migrateToLatest(first);
-                await sql`TRUNCATE published_versions, revisions, workflows`.execute(first);
+                await sql`TRUNCATE publications, revisions, workflows`.execute(first);
                 const firstWorkflows = new WorkflowRepository(first, preparer);
                 const document = conditionalGroupsDocument("Restart durable");
                 created = await firstWorkflows.createDraft({
@@ -257,8 +257,8 @@ describe("drafts and revisions", () => {
                     created.revision.revisionId,
                 );
                 expect(draft?.content).toBe(created.revision.content);
-                const version = await reopenedWorkflows.getPublishedVersion(created.workflowId, 1);
-                expect(version?.digest).toBeDefined();
+                const publication = await reopenedWorkflows.getPublication(created.workflowId, 1);
+                expect(publication?.digest).toBeDefined();
             } finally {
                 await reopened.destroy();
             }
@@ -368,11 +368,11 @@ describe("rewind", () => {
             );
             expect(rewound.outcome).toBe("rewound");
 
-            // The published version still verifies against its stored bytes
+            // The publication still verifies against its stored bytes
             // and its source revision remains retrievable.
-            const version = await database.workflows.getPublishedVersion(workflowId, 1);
-            expect(version?.digest).toBe(input.digest);
-            expect(version?.revisionId).toBe(second.revisionId);
+            const publication = await database.workflows.getPublication(workflowId, 1);
+            expect(publication?.digest).toBe(input.digest);
+            expect(publication?.revisionId).toBe(second.revisionId);
             const source = await database.workflows.getRevision(workflowId, second.revisionId);
             expect(source?.content).toBe(renamedContent);
         });
@@ -451,10 +451,10 @@ describe("input guards", () => {
                     revisionId: mintUuidV7(),
                     canonicalText: "{}",
                     digest: "a".repeat(64),
-                    interfaceVersion: "v1",
+                    workflowFormatVersion: "v1",
                 }),
             ).rejects.toThrow(InvalidWorkflowInputError);
-            await expect(database.workflows.getPublishedVersion(malformed, 1)).rejects.toThrow(
+            await expect(database.workflows.getPublication(malformed, 1)).rejects.toThrow(
                 InvalidWorkflowInputError,
             );
         });
@@ -490,7 +490,7 @@ describe("input guards", () => {
 });
 
 describe("publication", () => {
-    test("publishes once per revision and returns the same version", async () => {
+    test("publishes once per revision and returns the same publication", async () => {
         await withDatabase(async (database) => {
             const document = boundedLoopDocument();
             const validation = validator.validate(JSON.stringify(document));
@@ -507,10 +507,10 @@ describe("publication", () => {
             );
 
             const first = await database.workflows.publish(input);
-            expect(first).toEqual({ outcome: "published", versionNumber: 1 });
+            expect(first).toEqual({ outcome: "published", publicationNumber: 1 });
 
             const repeat = await database.workflows.publish(input);
-            expect(repeat).toEqual({ outcome: "already-published", versionNumber: 1 });
+            expect(repeat).toEqual({ outcome: "already-published", publicationNumber: 1 });
 
             const concurrent = await Promise.all([
                 database.workflows.publish(input),
@@ -519,17 +519,17 @@ describe("publication", () => {
             expect(
                 concurrent.map((entry) =>
                     entry.outcome === "published" || entry.outcome === "already-published"
-                        ? entry.versionNumber
+                        ? entry.publicationNumber
                         : -1,
                 ),
             ).toEqual([1, 1]);
 
-            const version = await database.workflows.getPublishedVersion(workflowId, 1);
-            expect(version?.digest).toBe(input.digest);
-            expect(version?.canonicalText).toBe(input.canonicalText);
-            expect(version?.interfaceVersion).toBe("v1");
-            expect(version?.revisionId).toBe(created.revision.revisionId);
-            expect(await database.workflows.getPublishedVersion(workflowId, 2)).toBeNull();
+            const publication = await database.workflows.getPublication(workflowId, 1);
+            expect(publication?.digest).toBe(input.digest);
+            expect(publication?.canonicalText).toBe(input.canonicalText);
+            expect(publication?.workflowFormatVersion).toBe("v1");
+            expect(publication?.revisionId).toBe(created.revision.revisionId);
+            expect(await database.workflows.getPublication(workflowId, 2)).toBeNull();
         });
     });
 
@@ -548,7 +548,7 @@ describe("publication", () => {
                     revisionId: created.revision.revisionId,
                     canonicalText: "{}",
                     digest: "a".repeat(64),
-                    interfaceVersion: "v1",
+                    workflowFormatVersion: "v1",
                 }),
             ).toEqual({ outcome: "not-found" });
 
@@ -563,7 +563,7 @@ describe("publication", () => {
                     revisionId: other.revision.revisionId,
                     canonicalText: "{}",
                     digest: "a".repeat(64),
-                    interfaceVersion: "v1",
+                    workflowFormatVersion: "v1",
                 }),
             ).toEqual({ outcome: "revision-not-found" });
 
@@ -574,7 +574,7 @@ describe("publication", () => {
                     revisionId: mintUuidV7(),
                     canonicalText: "{}",
                     digest: "a".repeat(64),
-                    interfaceVersion: "v1",
+                    workflowFormatVersion: "v1",
                 }),
             ).toEqual({ outcome: "revision-not-found" });
         });
@@ -611,7 +611,7 @@ describe("publication", () => {
         });
     });
 
-    test("leaves published versions untouched by later draft work", async () => {
+    test("leaves publications untouched by later draft work", async () => {
         await withDatabase(async (database) => {
             const document = boundedLoopDocument();
             const created = await database.workflows.createDraft({
@@ -633,9 +633,9 @@ describe("publication", () => {
             });
 
             // The published bytes survive the later draft edit unchanged.
-            const version = await database.workflows.getPublishedVersion(workflowId, 1);
-            expect(version?.canonicalText).toBe(publishedInput.canonicalText);
-            expect(version?.digest).toBe(publishedInput.digest);
+            const publication = await database.workflows.getPublication(workflowId, 1);
+            expect(publication?.canonicalText).toBe(publishedInput.canonicalText);
+            expect(publication?.digest).toBe(publishedInput.digest);
         });
     });
 
@@ -653,12 +653,12 @@ describe("publication", () => {
 
             // A flipped digest must fail.
             await database.db
-                .updateTable("publishedVersions")
+                .updateTable("publications")
                 .set({ digest: "f".repeat(64) })
                 .where("workflowId", "=", workflowId)
-                .where("versionNumber", "=", 1)
+                .where("publicationNumber", "=", 1)
                 .execute();
-            await expect(database.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
+            await expect(database.workflows.getPublication(workflowId, 1)).rejects.toThrow(
                 DigestVerificationError,
             );
         });
@@ -681,18 +681,18 @@ describe("publication", () => {
             // RFC 8785 canonical text: only the canonical-form branch of the
             // verification catches this replacement. The digest-flip test
             // covers the other branch.
-            const stored = await database.workflows.getPublishedVersion(workflowId, 1);
+            const stored = await database.workflows.getPublication(workflowId, 1);
             if (!stored) {
-                throw new Error("expected a published version before tampering");
+                throw new Error("expected a publication before tampering");
             }
             const pretty = JSON.stringify(JSON.parse(stored.canonicalText), null, 2);
             await database.db
-                .updateTable("publishedVersions")
+                .updateTable("publications")
                 .set({ canonicalText: pretty })
                 .where("workflowId", "=", workflowId)
-                .where("versionNumber", "=", 1)
+                .where("publicationNumber", "=", 1)
                 .execute();
-            await expect(database.workflows.getPublishedVersion(workflowId, 1)).rejects.toThrow(
+            await expect(database.workflows.getPublication(workflowId, 1)).rejects.toThrow(
                 /not in RFC 8785 canonical form/,
             );
         });

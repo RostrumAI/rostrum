@@ -1,4 +1,4 @@
-import type { PublishedVersionRow } from "./published-versions";
+import type { PublicationRow } from "./publications";
 import type { RevisionRow } from "./revisions";
 import type { WorkflowRow } from "./workflows";
 
@@ -14,5 +14,5 @@ import type { WorkflowRow } from "./workflows";
 export interface Database {
     workflows: WorkflowRow;
     revisions: RevisionRow;
-    publishedVersions: PublishedVersionRow;
+    publications: PublicationRow;
 }

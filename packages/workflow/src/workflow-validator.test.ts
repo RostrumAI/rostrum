@@ -20,17 +20,17 @@ describe("WorkflowValidator.validate", () => {
     });
 
     test("attaches line and column when validating text", () => {
-        const text = '{\n  "interfaceVersion": "v2",\n  "id": "x"\n}';
+        const text = '{\n  "workflowFormatVersion": "v2",\n  "id": "x"\n}';
         const result = validator.validate(text);
         const finding = result.findings.find(
-            (candidate) => candidate.code === "workflow.version.unknown",
+            (candidate) => candidate.code === "workflow.format.unknown",
         );
         expect(finding?.line).toBe(2);
-        expect(finding?.column).toBe(23);
+        expect(finding?.column).toBe(28);
     });
 
     test("rejects duplicate keys as parse errors and gates every stage", () => {
-        const text = '{"interfaceVersion":"v1","interfaceVersion":"v1"}';
+        const text = '{"workflowFormatVersion":"v1","workflowFormatVersion":"v1"}';
         const result = validator.validate(text);
         expect(result.findings.map((finding) => finding.code)).toEqual([
             "workflow.parse.duplicate-key",
@@ -53,11 +53,9 @@ describe("WorkflowValidator.validate", () => {
         expect(result.findings[0]?.code).toBe("workflow.parse.invalid-utf8");
     });
 
-    test("never falls back for an unknown interface version", () => {
-        const result = validator.validate('{"interfaceVersion": "v2"}');
-        expect(result.findings.map((finding) => finding.code)).toEqual([
-            "workflow.version.unknown",
-        ]);
+    test("never falls back for an unknown format version", () => {
+        const result = validator.validate('{"workflowFormatVersion": "v2"}');
+        expect(result.findings.map((finding) => finding.code)).toEqual(["workflow.format.unknown"]);
         expect(result.validForPublication).toBe(false);
     });
 });
@@ -93,9 +91,7 @@ describe("createWorkflowValidator", () => {
     });
 
     test("supports only v1", () => {
-        const result = createWorkflowValidator().validate('{"interfaceVersion": "v2"}');
-        expect(result.findings.map((finding) => finding.code)).toEqual([
-            "workflow.version.unknown",
-        ]);
+        const result = createWorkflowValidator().validate('{"workflowFormatVersion": "v2"}');
+        expect(result.findings.map((finding) => finding.code)).toEqual(["workflow.format.unknown"]);
     });
 });

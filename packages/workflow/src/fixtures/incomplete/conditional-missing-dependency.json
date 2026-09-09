@@ -1,5 +1,5 @@
 {
-    "interfaceVersion": "v1",
+    "workflowFormatVersion": "v1",
     "id": "0192b0a0-7e1d-7000-8000-0000000000c0",
     "name": "Condition step missing from dependencies",
     "firstNode": "0192b0a0-7e1d-7000-8000-0000000000c1",

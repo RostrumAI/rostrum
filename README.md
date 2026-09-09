@@ -99,19 +99,17 @@ with `method`, `path`, `status`, and `durationMs`.
 
 | Route | Response |
 | --- | --- |
-| `GET /api/v1/system/health` | `{"status":"ok"}` |
-| `GET /api/v1/system/version` | Service name, package version, and the served workflow interface version (`v1`) |
+| `GET /api/system/health` | `{"status":"ok"}` |
 | `GET /openapi.json` | The generated OpenAPI 3.1 document |
 
-Routes live under the `/api/v1` path prefix. A breaking change to the API or
-the workflow interface creates a new prefix and leaves existing prefixes
-served unchanged. The version route reports the workflow interface version
-as the exact-match `v1` token of the workflow interface.
+Routes live under the `/api` path prefix. The prefix carries no
+API version: a future deliberate stabilization may introduce a versioned
+prefix, but until then routes stay unversioned.
 
 Each route is one feature slice under
 `apps/control-api/src/features/`: a slice exports `route`, `schema`, and
 `handler`, and the folder layout decides the bound path. For example,
-`src/features/system/health.ts` serves `GET /api/v1/system/health`. The
+`src/features/system/health.ts` serves `GET /api/system/health`. The
 server startup validates every slice against this contract; a slice that
 misses it fails startup.
 
@@ -130,7 +128,7 @@ contract.
 ### OpenAPI document
 
 The document at `/openapi.json` is generated code-first from TypeBox schemas
-and is OpenAPI 3.1, the same dialect as the workflow interface JSON Schema.
+and is OpenAPI 3.1, the same dialect as the workflow format JSON Schema.
 The checked-in copy at `apps/control-api/openapi.json` is regenerated with:
 
 ```bash

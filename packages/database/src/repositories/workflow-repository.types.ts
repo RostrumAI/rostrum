@@ -91,30 +91,30 @@ export interface PublishInput {
     canonicalText: string;
     /** SHA-256 lowercase hex over the canonical form minus metadata members. */
     digest: string;
-    /** The interface contract the canonical text satisfies, such as `v1`. */
-    interfaceVersion: string;
+    /** The format contract the canonical text satisfies, such as `v1`. */
+    workflowFormatVersion: string;
 }
 
 /**
  * The result of one publish attempt. `published` and `already-published`
- * return the same version number; `not-found` reports an unknown workflow
+ * return the same publication number; `not-found` reports an unknown workflow
  * and `revision-not-found` a revision that does not belong to it, the two
  * 404 cases of the publish contract, typed instead of thrown.
  */
 export type PublishResult =
-    | { outcome: "published"; versionNumber: number }
-    | { outcome: "already-published"; versionNumber: number }
+    | { outcome: "published"; publicationNumber: number }
+    | { outcome: "already-published"; publicationNumber: number }
     | { outcome: "not-found" }
     | { outcome: "revision-not-found" };
 
-/** One retrieved published version with its verified digest. */
-export interface PublishedVersion {
-    /** The per-draft version number of this publication. */
-    versionNumber: number;
+/** One retrieved publication with its verified digest. */
+export interface Publication {
+    /** The per-draft publication number of this publication. */
+    publicationNumber: number;
     /** The source revision the published bytes came from. */
     revisionId: string;
-    /** The interface contract the canonical text satisfies. */
-    interfaceVersion: string;
+    /** The format contract the canonical text satisfies. */
+    workflowFormatVersion: string;
     /** The full canonical document, metadata members included. */
     canonicalText: string;
     /** SHA-256 lowercase hex over the canonical form minus metadata members. */

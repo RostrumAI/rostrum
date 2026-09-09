@@ -1,9 +1,9 @@
 import { type Static, Type } from "typebox";
 
 /**
- * Workflow interface v1 document schema.
+ * Workflow format v1 document schema.
  *
- * Source of truth for the interface's public JSON Schema 2020-12
+ * Source of truth for the format's public JSON Schema 2020-12
  * artifact. The schema expresses exactly the stage 2 (document shape)
  * contract: required fields, types, UUID v7 string formats, array
  * bounds, `maxIterations >= 1`, and `additionalProperties: false`.
@@ -117,10 +117,10 @@ const Conditional = Type.Object(
     { additionalProperties: false },
 );
 
-/** A workflow interface v1 document. */
+/** A workflow format v1 document. */
 export const WorkflowDocument = Type.Object(
     {
-        interfaceVersion: Type.Literal("v1"),
+        workflowFormatVersion: Type.Literal("v1"),
         id: UuidV7,
         name: Type.String(),
         description: Type.Optional(Type.String()),
