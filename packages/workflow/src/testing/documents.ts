@@ -57,7 +57,7 @@ export function buildDocument(overrides: Partial<WorkflowDocument> = {}): Workfl
     const { steps: overrideSteps, ...rest } = overrides;
     const steps = overrideSteps ?? [resultStep()];
     return {
-        interfaceVersion: "v1",
+        workflowFormatVersion: "v1",
         id: testId(),
         name: "Test workflow",
         firstNode: rest.firstNode ?? steps[0]?.id ?? testId(),

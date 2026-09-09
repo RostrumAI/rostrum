@@ -12,8 +12,8 @@ import type { Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
 import { WorkflowService } from "./workflows/service";
 
-/** Version prefix every feature route mounts under. */
-const API_PREFIX = "/api/v1";
+/** Path prefix every feature route mounts under. */
+const API_PREFIX = "/api";
 
 /**
  * Components shared across features. The TypeBox schemas are embedded
@@ -42,9 +42,8 @@ const CANDIDATE_METHODS = [
  * Routes are mounted on a plain Hono app so tests can drive `routes.fetch()`
  * without a socket and the real process serves the same app over HTTP.
  * Route slices under `src/features` bind themselves at construction: the
- * folder layout decides the versioned path, so a slice never edits a central
- * route table. Foundation surface: versioned `/api/v1` routes, one
- * error shape, and the code-first OpenAPI 3.1 document at `/openapi.json`.
+ * folder layout decides the path, so a slice never edits a central
+ * route table. Foundation surface: `/api` routes, one
  */
 export class ControlApiApp {
     /** The mounted Hono application; serve it with Bun.serve or fetch it directly. */

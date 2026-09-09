@@ -84,7 +84,7 @@ export function canonicalize(value: unknown): string {
 }
 
 /**
- * Computes the published-version digest of a workflow document: SHA-256
+ * Computes the publication digest of a workflow document: SHA-256
  * (lowercase hex) over the RFC 8785 canonical form of the document with
  * the metadata members (`name`, `description` in v1) removed first.
  */

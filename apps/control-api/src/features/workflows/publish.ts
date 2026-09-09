@@ -26,7 +26,8 @@ export const route: FeatureRoute = {
     ],
     responses: {
         "201": {
-            description: "The current revision was published and stored as an immutable version",
+            description:
+                "The current revision was published and stored as an immutable publication",
             schemaName: "PublishResponse",
         },
         "200": {
@@ -56,7 +57,7 @@ export const schema: FeatureSchemas = {
 /**
  * Serves POST /workflows/:workflowId/publish. Re-runs validation on the
  * stored content — the same findings and ordering a save returned — then
- * stores the canonical text with its digest under the next version number.
+ * stores the canonical text with its digest under the next publication number.
  */
 export const createHandler =
     (services: Services): FeatureHandler =>
@@ -69,8 +70,8 @@ export const createHandler =
                 case "already-published": {
                     const body: Static<typeof PublishResponseSchema> = {
                         workflowId,
-                        versionNumber: result.versionNumber,
-                        interfaceVersion: result.interfaceVersion,
+                        publicationNumber: result.publicationNumber,
+                        workflowFormatVersion: result.workflowFormatVersion,
                         digest: result.digest,
                     };
                     return c.json(body, result.outcome === "published" ? 201 : 200);

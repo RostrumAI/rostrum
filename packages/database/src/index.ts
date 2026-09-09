@@ -24,7 +24,7 @@ export {
 export type {
     CreateDraftInput,
     CreatedDraft,
-    PublishedVersion,
+    Publication,
     PublishInput,
     PublishResult,
     RewindResult,
@@ -33,6 +33,6 @@ export type {
     StoredRevision,
 } from "./repositories/workflow-repository.types";
 export type { Database } from "./schema/database";
-export type { PublishedVersionRow } from "./schema/published-versions";
+export type { PublicationRow } from "./schema/publications";
 export type { RevisionRow, RevisionType } from "./schema/revisions";
 export type { WorkflowRow } from "./schema/workflows";

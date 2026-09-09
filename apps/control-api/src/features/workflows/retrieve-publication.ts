@@ -5,15 +5,15 @@ import { ErrorResponseSchema } from "../../schemas";
 import type { Services } from "../../services";
 import { WorkflowApiError, workflowErrorResponse, workflowNotFound } from "../../workflows/errors";
 import {
-    PublishedVersionResponseSchema,
-    VersionNumberSchema,
+    PublicationNumberSchema,
+    PublicationResponseSchema,
     WorkflowIdSchema,
 } from "../../workflows/schemas";
 
-/** Route binding for retrieving one immutable published version. */
+/** Route binding for retrieving one immutable publication. */
 export const route: FeatureRoute = {
     method: "GET",
-    path: "/:workflowId/versions/:versionNumber",
+    path: "/:workflowId/publications/:publicationNumber",
     parameters: [
         {
             name: "workflowId",
@@ -22,20 +22,20 @@ export const route: FeatureRoute = {
             schema: WorkflowIdSchema,
         },
         {
-            name: "versionNumber",
+            name: "publicationNumber",
             in: "path",
-            description: "The per-workflow published version number.",
-            schema: VersionNumberSchema,
+            description: "The per-workflow publication number.",
+            schema: PublicationNumberSchema,
         },
     ],
     responses: {
         "200": {
             description:
-                "The published version: canonical stored text, verified at retrieval by digest recomputation",
-            schemaName: "PublishedVersionResponse",
+                "The publication: canonical stored text, verified at retrieval by digest recomputation",
+            schemaName: "PublicationResponse",
         },
         "404": {
-            description: "The workflow has no such published version",
+            description: "The workflow has no such publication",
             schemaName: "ErrorResponse",
         },
     },
@@ -43,14 +43,14 @@ export const route: FeatureRoute = {
 
 /** OpenAPI components contributed by this slice. */
 export const schema: FeatureSchemas = {
-    PublishedVersionResponse: PublishedVersionResponseSchema,
+    PublicationResponse: PublicationResponseSchema,
     ErrorResponse: ErrorResponseSchema,
 };
 
 /**
- * Serves GET /workflows/:workflowId/versions/:versionNumber. The content
+ * Serves GET /workflows/:workflowId/publications/:publicationNumber. The content
  * is the exact canonical text publication stored; verification stays
- * client-reproducible from it. The version number's shape is enforced by
+ * client-reproducible from it. The publication number's shape is enforced by
  * the documented parameter schema, which answers 400 before the handler.
  */
 export const createHandler =
@@ -58,22 +58,25 @@ export const createHandler =
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
-            const raw = c.req.param("versionNumber") ?? "";
-            const versionNumber = Number.parseInt(raw, 10);
-            const version = await services.workflows.getPublishedVersion(workflowId, versionNumber);
-            if (!version) {
+            const raw = c.req.param("publicationNumber") ?? "";
+            const publicationNumber = Number.parseInt(raw, 10);
+            const publication = await services.workflows.getPublication(
+                workflowId,
+                publicationNumber,
+            );
+            if (!publication) {
                 throw new WorkflowApiError(
                     workflowNotFound(
-                        `Workflow ${workflowId} has no published version ${versionNumber}`,
+                        `Workflow ${workflowId} has no publication ${publicationNumber}`,
                     ),
                 );
             }
-            const body: Static<typeof PublishedVersionResponseSchema> = {
-                versionNumber: version.versionNumber,
-                revisionId: version.revisionId,
-                interfaceVersion: version.interfaceVersion,
-                digest: version.digest,
-                content: version.canonicalText,
+            const body: Static<typeof PublicationResponseSchema> = {
+                publicationNumber: publication.publicationNumber,
+                revisionId: publication.revisionId,
+                workflowFormatVersion: publication.workflowFormatVersion,
+                digest: publication.digest,
+                content: publication.canonicalText,
             };
             return c.json(body);
         } catch (error) {

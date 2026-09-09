@@ -58,7 +58,7 @@ export function invalidWorkflowInput(message: string): ErrorPayload {
     return { status: 400, code: "invalid_workflow_input", message, findings: [] };
 }
 
-/** Maps an unknown workflow or published version to 404. */
+/** Maps an unknown workflow or publication to 404. */
 export function workflowNotFound(message: string): ErrorPayload {
     return { status: 404, code: "not_found", message, findings: [] };
 }

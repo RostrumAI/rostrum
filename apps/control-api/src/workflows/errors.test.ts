@@ -54,7 +54,7 @@ describe("error payload mapping table", () => {
         expect(payload.findings).toEqual([]);
     });
 
-    test("unknown workflow or version maps to 404 not_found", () => {
+    test("unknown workflow or publication maps to 404 not_found", () => {
         const payload = workflowNotFound("Workflow x does not exist");
         expect(payload.status).toBe(404);
         expect(payload.code).toBe("not_found");

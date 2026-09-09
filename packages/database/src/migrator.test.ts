@@ -18,6 +18,7 @@ const EXPECTED_MIGRATIONS = [
     "002_revisions",
     "003_published_versions",
     "004_revision_type",
+    "005_publications",
 ];
 
 async function withDatabase<T>(run: (db: Kysely<Database>) => Promise<T>): Promise<T> {
@@ -33,7 +34,7 @@ async function workflowTables(db: Kysely<Database>): Promise<string[]> {
     const result = await sql<{
         tableName: string;
     }>`select table_name as "tableName" from information_schema.tables where table_schema = 'public'
-            and table_name in ('workflows', 'revisions', 'published_versions')`.execute(db);
+            and table_name in ('workflows', 'revisions', 'publications')`.execute(db);
     return result.rows.map((row) => row.tableName).sort();
 }
 
@@ -57,11 +58,7 @@ describe("migrations", () => {
 
             const reapplied = await migrateToLatest(db);
             expect(reapplied.map((entry) => entry.migrationName)).toEqual(EXPECTED_MIGRATIONS);
-            expect(await workflowTables(db)).toEqual([
-                "published_versions",
-                "revisions",
-                "workflows",
-            ]);
+            expect(await workflowTables(db)).toEqual(["publications", "revisions", "workflows"]);
         });
     });
 });

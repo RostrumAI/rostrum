@@ -3,7 +3,7 @@
  * stages. A binding value is a JSON literal or a reference object with
  * the exact shape `{ "ref": "<path>" }`; an object whose only key is
  * `ref` is always interpreted as a reference, never as a literal
- * (workflow interface v1, Data references).
+ * (workflow format v1, Data references).
  */
 
 /** Matches `step.<stepId>.<outputName>`; step ids are UUID v7 strings. */
@@ -11,7 +11,7 @@ export const STEP_REF_PATTERN = /^step\.([0-9a-f-]{36})\.(.+)$/;
 
 /**
  * The reserved output under which a loop step exposes the array of
- * collected iteration results. The workflow interface specification
+ * collected iteration results. The workflow format specification
  * names `results` as an implicit output of every step that declares a
  * `loop`; authors may also declare it explicitly to document the
  * element shape.

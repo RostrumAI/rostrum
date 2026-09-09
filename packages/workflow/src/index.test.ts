@@ -3,30 +3,30 @@ import { Compile } from "typebox/compile";
 import { WorkflowDocument } from "./index.ts";
 
 describe("package boundary", () => {
-    test("the entry exports the interface v1 document schema", () => {
+    test("the entry exports the format v1 document schema", () => {
         const schema: unknown = WorkflowDocument;
         if (typeof schema === "object" && schema !== null && "properties" in schema) {
             const properties = schema.properties;
             if (
                 typeof properties === "object" &&
                 properties !== null &&
-                "interfaceVersion" in properties
+                "workflowFormatVersion" in properties
             ) {
-                expect(properties.interfaceVersion).toEqual({
+                expect(properties.workflowFormatVersion).toEqual({
                     type: "string",
                     const: "v1",
                 });
                 return;
             }
         }
-        throw new Error("WorkflowDocument.properties.interfaceVersion is missing");
+        throw new Error("WorkflowDocument.properties.workflowFormatVersion is missing");
     });
 });
 
 describe("toolchain seam (TypeBox proof-of-concept)", () => {
     test("TypeBox schemas validate through Compile", () => {
         const compiled = Compile(WorkflowDocument);
-        expect(compiled.Check({ interfaceVersion: "v2" })).toBe(false);
+        expect(compiled.Check({ workflowFormatVersion: "v2" })).toBe(false);
     });
 
     test("native JSON Schema validates through Compile", () => {

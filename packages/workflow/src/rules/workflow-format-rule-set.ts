@@ -3,15 +3,16 @@ import type { ValidationStage } from "../validation/validation-stage";
 import type { StepTypeRegistry } from "./step-type-registry";
 
 /**
- * One frozen interface-version rule set.
+ * One frozen workflow-format rule set.
  *
- * Every release ships each supported version's rule set forward unchanged:
- * the document schema, the step-type registry, the metadata members the
- * digest excludes, and the stages that version runs. Rule selection is an
- * exact match on the declared `interfaceVersion`; an unknown version is a
- * blocking finding, never a fallback to a newer or older rule set.
+ * Every release ships each supported format version's rule set forward
+ * unchanged: the document schema, the step-type registry, the metadata
+ * members the digest excludes, and the stages that version runs. Rule
+ * selection is an exact match on the declared `workflowFormatVersion`;
+ * an unknown version is a blocking finding, never a fallback to a newer
+ * or older rule set.
  */
-export interface InterfaceRuleSet {
+export interface WorkflowFormatRuleSet {
     /** Exact-match version token, for example `"v1"`. */
     readonly version: string;
     /** Document shape schema enforced by the shape stage. */
@@ -25,29 +26,29 @@ export interface InterfaceRuleSet {
 }
 
 /**
- * Selects interface rule sets by exact version match.
+ * Selects workflow-format rule sets by exact version match.
  *
- * The registry is the only version-selection point in the library. The
- * version stage reports an unknown token as `workflow.version.unknown`
+ * The registry is the only format-version-selection point in the library.
+ * The format stage reports an unknown token as `workflow.format.unknown`
  * with the supported versions in `details`; nothing falls back.
  */
-export class RuleSetRegistry {
-    private readonly ruleSets = new Map<string, InterfaceRuleSet>();
+export class WorkflowFormatRegistry {
+    private readonly ruleSets = new Map<string, WorkflowFormatRuleSet>();
 
     /** Constructs a registry over initial rule sets. */
-    constructor(ruleSets: readonly InterfaceRuleSet[] = []) {
+    constructor(ruleSets: readonly WorkflowFormatRuleSet[] = []) {
         for (const ruleSet of ruleSets) {
             this.register(ruleSet);
         }
     }
 
     /** Adds a rule set under its version token and freezes the rule set object. */
-    register(ruleSet: InterfaceRuleSet): void {
+    register(ruleSet: WorkflowFormatRuleSet): void {
         this.ruleSets.set(ruleSet.version, Object.freeze(ruleSet));
     }
 
     /** Gets the rule set for an exact version token, or undefined when the version is unsupported. */
-    select(version: string): InterfaceRuleSet | undefined {
+    select(version: string): WorkflowFormatRuleSet | undefined {
         return this.ruleSets.get(version);
     }
 

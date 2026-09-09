@@ -78,7 +78,7 @@ describe("parse failures are errors, never drafts", () => {
     });
 });
 
-describe("interface versions", () => {
+describe("format versions", () => {
     test("a supported version validates cleanly (valid/minimum.json)", () => {
         const result = validator.validate(
             readFileSync(join(FIXTURES_DIR, "valid/minimum.json"), "utf8"),
@@ -90,24 +90,22 @@ describe("interface versions", () => {
     test("an unsupported version is blocking with no fallback", () => {
         const result = validator.validate(
             readFileSync(
-                join(FIXTURES_DIR, "invalid-shape/unknown-interface-version.json"),
+                join(FIXTURES_DIR, "invalid-shape/unknown-workflow-format-version.json"),
                 "utf8",
             ),
         );
         expect(result.findings).toHaveLength(1);
-        expect(result.findings[0]?.code).toBe("workflow.version.unknown");
+        expect(result.findings[0]?.code).toBe("workflow.format.unknown");
         expect(result.findings[0]?.details?.supported).toEqual(["v1"]);
     });
 
     test("a missing version is blocking before shape runs", () => {
         const result = validator.validate(
             readFileSync(
-                join(FIXTURES_DIR, "invalid-shape/missing-interface-version.json"),
+                join(FIXTURES_DIR, "invalid-shape/missing-workflow-format-version.json"),
                 "utf8",
             ),
         );
-        expect(result.findings.map((finding) => finding.code)).toEqual([
-            "workflow.version.missing",
-        ]);
+        expect(result.findings.map((finding) => finding.code)).toEqual(["workflow.format.missing"]);
     });
 });

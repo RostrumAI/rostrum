@@ -49,9 +49,9 @@ describe("logging", () => {
         await configureLogging("info", (r) => records.push(r));
         getLogger("control-api").warn("handler failed", {
             error: "boom",
-            path: "/api/v1/system/health",
+            path: "/api/system/health",
         });
         expect(records).toHaveLength(1);
-        expect(records[0]?.properties).toEqual({ error: "boom", path: "/api/v1/system/health" });
+        expect(records[0]?.properties).toEqual({ error: "boom", path: "/api/system/health" });
     });
 });

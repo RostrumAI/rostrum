@@ -1,11 +1,11 @@
-import type { InterfaceRuleSet } from "../rules/interface-rule-set";
+import type { WorkflowFormatRuleSet } from "../rules/workflow-format-rule-set";
 import { CanonicalizationError, canonicalize } from "./canonical-json";
 
-/** The canonical published form of a workflow document and its content digest. */
+/** The canonical publication form of a workflow document and its content digest. */
 export interface PublicationPreparation {
     /**
      * The full document in RFC 8785 canonical form, including metadata
-     * members. This is the text stored with a published version.
+     * members. This is the text stored with a publication.
      */
     canonicalText: string;
     /**
@@ -15,7 +15,6 @@ export interface PublicationPreparation {
      */
     digest: string;
 }
-
 /**
  * Prepares a valid workflow document for publication.
  *
@@ -29,8 +28,8 @@ export interface PublicationPreparation {
 export class PublicationPreparer {
     private readonly metadataMembers: readonly string[];
 
-    /** Constructs a preparer bound to one interface rule set's metadata classification. */
-    constructor(ruleSet: InterfaceRuleSet) {
+    /** Constructs a preparer bound to one workflow-format rule set's metadata classification. */
+    constructor(ruleSet: WorkflowFormatRuleSet) {
         this.metadataMembers = ruleSet.metadataMembers;
     }
 

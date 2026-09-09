@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { sortFindings } from "../findings";
-import { RuleSetRegistry } from "../rules/interface-rule-set";
 import { V1_RULE_SET } from "../rules/v1";
+import { WorkflowFormatRegistry } from "../rules/workflow-format-rule-set";
 import { buildDocument, resultStep, taskStep } from "../testing/documents";
 import { CompatibilityStage } from "./stages/compatibility-stage";
-import { VersionStage } from "./stages/version-stage";
+import { FormatStage } from "./stages/format-stage";
 import { ValidationContext } from "./validation-context";
 import { ValidationPipeline } from "./validation-stage";
 
 function pipeline(): ValidationPipeline {
     return new ValidationPipeline([
-        new VersionStage(new RuleSetRegistry([V1_RULE_SET])),
+        new FormatStage(new WorkflowFormatRegistry([V1_RULE_SET])),
         ...V1_RULE_SET.stages,
     ]);
 }
@@ -35,10 +35,10 @@ describe("ValidationPipeline", () => {
         expect(findings.every((finding) => finding.code.startsWith("workflow.shape."))).toBe(true);
     });
 
-    test("gates everything when the version stage blocks", () => {
-        const document = { ...buildDocument(), interfaceVersion: "v9" };
+    test("gates everything when the format stage blocks", () => {
+        const document = { ...buildDocument(), workflowFormatVersion: "v9" };
         const findings = run(document);
-        expect(findings.map((finding) => finding.code)).toEqual(["workflow.version.unknown"]);
+        expect(findings.map((finding) => finding.code)).toEqual(["workflow.format.unknown"]);
     });
 
     test("gates later stages when identity blocks", () => {

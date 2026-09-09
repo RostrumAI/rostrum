@@ -13,7 +13,7 @@ import type { ValidationStage } from "../validation-stage";
  * `default.next` entry must reference an existing step, and a step's
  * `conditional` must reference an existing conditional. The stage also
  * owns the registry rules the schema cannot express: `type` must be
- * registered for the selected interface version, a step carries at most
+ * registered for the selected format version, a step carries at most
  * one of `successors`/`conditional` and of `loop`/`conditional`, and a
  * present `config` validates against the registered config schema.
  */

@@ -1,5 +1,5 @@
 {
-    "interfaceVersion": "v1",
+    "workflowFormatVersion": "v1",
     "id": "0192b0a0-7e1d-7000-8000-000000000084",
     "name": "Cyclic graph",
     "firstNode": "0192b0a0-7e1d-7000-8000-000000000085",

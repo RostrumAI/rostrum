@@ -1,13 +1,6 @@
 import { Type } from "typebox";
 import { FindingSchema } from "./workflows/schemas";
 
-/**
- * The workflow interface version token served by the Control API: an
- * exact-match string, never a numeric ordering. v1 is the literal "v1",
- * and the API selects rules by exact match.
- */
-export const INTERFACE_VERSION = "v1";
-
 /** The single error shape for every Control API error response. */
 export const ErrorResponseSchema = Type.Object(
     {

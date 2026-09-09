@@ -10,7 +10,7 @@ import type { ValidationStage } from "../validation-stage";
  * and consumer's JSON Schema fragments, so a run may still fail when a
  * produced value does not satisfy a consumer. The stage exists
  * to hold that boundary and reserves the code
- * `workflow.io.type-mismatch` for a future interface version that makes
+ * `workflow.io.type-mismatch` for a future format version that makes
  * type compatibility blocking; v1 bindings carry no consumer-side
  * schema, so there is nothing to compare and the stage emits nothing.
  */

@@ -14,7 +14,7 @@ import {
 import type {
     CreateDraftInput,
     CreatedDraft,
-    PublishedVersion,
+    Publication,
     PublishInput,
     PublishResult,
     RewindResult,
@@ -24,21 +24,21 @@ import type {
 } from "./workflow-repository.types";
 
 /**
- * Postgres persistence for drafts, revisions, and published versions.
+ * Postgres persistence for drafts, revisions, and publications.
  * Implements the lifecycle contract:
  *
  * - saves are one transaction — insert the revision, then conditionally
  *   update `workflows.current_revision`; zero rows updated means a stale
  *   `baseRevision`, reported as a conflict with no partial write;
- * - publishes take a row lock on the workflow so per-workflow version
+ * - publishes take a row lock on the workflow so per-workflow publication
  *   numbers stay gapless, and the unique `(workflow_id, revision)` index
- *   makes repeat publishes return the existing single version;
+ *   makes repeat publishes return the existing single publication;
  * - rewind appends a copy of the target revision as the newest revision
  *   and repoints the draft at it; history is never truncated, so every
- *   published version's source revision always stays retrievable.
+ *   publication's source revision always stays retrievable.
  *
- * Published rows have no update or delete path in this class; published
- * versions are immutable by construction.
+ * Publication rows have no update or delete path in this class; publications
+ * are immutable by construction.
  */
 export class WorkflowRepository {
     private readonly db: Kysely<Database>;
@@ -181,7 +181,7 @@ export class WorkflowRepository {
      * target as the newest revision and repointing the current-revision
      * pointer at it. The copy is stored with the `rewind` revision type.
      * Nothing is deleted: the target and every newer revision stay in
-     * history, so published versions always keep their source revisions
+     * history, so publications always keep their source revisions
      * retrievable. Rewinding to the current revision is a no-op.
      */
     async rewind(workflowId: string, targetRevisionId: string): Promise<RewindResult> {
@@ -234,10 +234,10 @@ export class WorkflowRepository {
     }
 
     /**
-     * Stores one immutable published version under the next per-workflow
-     * integer version number. The row lock on the workflow serializes
+     * Stores one immutable publication under the next per-workflow
+     * integer publication number. The row lock on the workflow serializes
      * concurrent publishes; publishing an already-published revision
-     * returns that existing version instead of creating another.
+     * returns that existing publication instead of creating another.
      *
      * Validation and canonicalization happen before this call: the input
      * carries the preparation `PublicationPreparer` produced for a valid
@@ -260,30 +260,30 @@ export class WorkflowRepository {
                 return { outcome: "revision-not-found" } as const;
             }
             const existing = await tx
-                .selectFrom("publishedVersions")
-                .select("versionNumber")
+                .selectFrom("publications")
+                .select("publicationNumber")
                 .where("workflowId", "=", input.workflowId)
                 .where("revisionId", "=", input.revisionId)
                 .executeTakeFirst();
             if (existing) {
                 return {
                     outcome: "already-published",
-                    versionNumber: existing.versionNumber,
+                    publicationNumber: existing.publicationNumber,
                 } satisfies PublishResult;
             }
             const max = await tx
-                .selectFrom("publishedVersions")
-                .select((eb) => eb.fn.max("versionNumber").as("maxVersion"))
+                .selectFrom("publications")
+                .select((eb) => eb.fn.max("publicationNumber").as("maxPublication"))
                 .where("workflowId", "=", input.workflowId)
                 .executeTakeFirstOrThrow();
-            const versionNumber = Number(max.maxVersion ?? 0) + 1;
+            const publicationNumber = Number(max.maxPublication ?? 0) + 1;
             await tx
-                .insertInto("publishedVersions")
+                .insertInto("publications")
                 .values({
                     workflowId: input.workflowId,
-                    versionNumber,
+                    publicationNumber,
                     revisionId: input.revisionId,
-                    interfaceVersion: input.interfaceVersion,
+                    workflowFormatVersion: input.workflowFormatVersion,
                     canonicalText: input.canonicalText,
                     digest: input.digest,
                     createdAt: sql`now()`,
@@ -294,26 +294,26 @@ export class WorkflowRepository {
                 .set({ updatedAt: new Date() })
                 .where("id", "=", input.workflowId)
                 .execute();
-            return { outcome: "published", versionNumber } satisfies PublishResult;
+            return { outcome: "published", publicationNumber } satisfies PublishResult;
         });
     }
 
     /**
-     * Returns one published version after verifying it: the digest is
+     * Returns one publication after verifying it: the digest is
      * recomputed from the stored canonical text and compared to the stored
      * digest, and the text must already be in canonical form. Returns null
-     * when the workflow has no such version.
+     * when the workflow has no such publication.
      */
-    async getPublishedVersion(
+    async getPublication(
         workflowId: string,
-        versionNumber: number,
-    ): Promise<PublishedVersion | null> {
+        publicationNumber: number,
+    ): Promise<Publication | null> {
         this.assertWorkflowId(workflowId);
         const row = await this.db
-            .selectFrom("publishedVersions")
+            .selectFrom("publications")
             .selectAll()
             .where("workflowId", "=", workflowId)
-            .where("versionNumber", "=", versionNumber)
+            .where("publicationNumber", "=", publicationNumber)
             .executeTakeFirst();
         if (!row) {
             return null;
@@ -324,7 +324,7 @@ export class WorkflowRepository {
         } catch {
             throw new DigestVerificationError(
                 workflowId,
-                versionNumber,
+                publicationNumber,
                 "stored text is not valid JSON",
             );
         }
@@ -333,14 +333,14 @@ export class WorkflowRepository {
             if (prepared.digest !== row.digest) {
                 throw new DigestVerificationError(
                     workflowId,
-                    versionNumber,
+                    publicationNumber,
                     `recomputed digest ${prepared.digest} does not equal stored digest ${row.digest}`,
                 );
             }
             if (prepared.canonicalText !== row.canonicalText) {
                 throw new DigestVerificationError(
                     workflowId,
-                    versionNumber,
+                    publicationNumber,
                     "stored text is not in RFC 8785 canonical form",
                 );
             }
@@ -350,14 +350,14 @@ export class WorkflowRepository {
             }
             throw new DigestVerificationError(
                 workflowId,
-                versionNumber,
+                publicationNumber,
                 `stored text cannot be canonicalized: ${error instanceof Error ? error.message : String(error)}`,
             );
         }
         return {
-            versionNumber: row.versionNumber,
+            publicationNumber: row.publicationNumber,
             revisionId: row.revisionId,
-            interfaceVersion: row.interfaceVersion,
+            workflowFormatVersion: row.workflowFormatVersion,
             canonicalText: row.canonicalText,
             digest: row.digest,
             createdAt: row.createdAt,
