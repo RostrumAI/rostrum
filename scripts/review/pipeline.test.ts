@@ -22,6 +22,7 @@ import {
     ruleIdFromComment,
     suppressAnswered,
 } from "./merge.ts";
+import { renderComment } from "./report.ts";
 import { extractJsonObject, normalizeFindings } from "./reviewer.ts";
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
 import { blankInlineCode, newScanState, scanSourceLine } from "./source-text.ts";
@@ -108,9 +109,16 @@ function threadFor(
     };
 }
 
-/** Renders a pipeline comment body the way the report module does. */
-function pipelineComment(ruleId: string): string {
-    return `${COMMENT_MARKER}\n**\`${ruleId}\` · major** — Something is wrong.`;
+/**
+ * Renders the comment the pipeline would actually post for a finding.
+ *
+ * Suppression reads the rule id back out of posted comment text, so the tests
+ * drive the real renderer rather than a hand-built lookalike: a format change
+ * that broke the reader would otherwise leave every case green while rescans
+ * re-posted answered findings.
+ */
+function pipelineComment(ruleId: string, evidence = "code"): string {
+    return renderComment(findingFor({ ruleId, evidence }));
 }
 
 describe("diff parsing", () => {
@@ -511,9 +519,16 @@ describe("lexical context", () => {
 });
 
 describe("suppression", () => {
-    test("reads the rule id out of a pipeline comment", () => {
-        expect(ruleIdFromComment(pipelineComment("REPO-ARCH-01"))).toBe("REPO-ARCH-01");
+    test("reads the rule id out of a rendered pipeline comment", () => {
+        const rendered = renderComment(findingFor({ ruleId: "REPO-ARCH-01" }));
+        expect(rendered).toContain(COMMENT_MARKER);
+        expect(ruleIdFromComment(rendered)).toBe("REPO-ARCH-01");
         expect(ruleIdFromComment("Looks good to me")).toBeNull();
+    });
+
+    test("reads the rule id out of a rendered comment that carries no evidence", () => {
+        const rendered = renderComment(findingFor({ ruleId: "REPO-CONTRACT-05", evidence: "   " }));
+        expect(ruleIdFromComment(rendered)).toBe("REPO-CONTRACT-05");
     });
 
     test("never repeats a finding whose thread is resolved", () => {

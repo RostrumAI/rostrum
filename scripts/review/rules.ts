@@ -219,16 +219,6 @@ export async function runRuleChecks(context: ReviewContext): Promise<Finding[]> 
 }
 
 /**
- * Finds newly added source files with no test covering them.
- *
- * The repository requires a test beside new behavior, and the check is
- * mechanical because it only compares file names: a new source module counts as
- * covered when a test file for it exists on disk or arrives in the same change.
- *
- * @param context - Review context holding the parsed files and the repository checkout.
- * @returns A finding per uncovered new source file.
- */
-/**
  * Resolves each diff line's code and comment regions from the head checkout.
  *
  * Scanning the whole file is what makes the answer correct rather than probable:
@@ -296,6 +286,16 @@ async function readSourceFile(workingDirectory: string, path: string): Promise<s
     }
 }
 
+/**
+ * Finds newly added source files with no test covering them.
+ *
+ * The repository requires a test beside new behavior, and the check is
+ * mechanical because it only compares file names: a new source module counts as
+ * covered when a test file for it exists on disk or arrives in the same change.
+ *
+ * @param context - Review context holding the parsed files and the repository checkout.
+ * @returns A finding per uncovered new source file.
+ */
 export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
     const testPaths = new Set(
         context.files.filter((file) => isTestFile(file.path)).map((file) => file.path),

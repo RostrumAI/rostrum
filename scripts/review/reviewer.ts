@@ -21,8 +21,15 @@ export const API_KEY_ENV = "DEEPSEEK_API_KEY";
 /** Default model for every lens. */
 export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
-/** Default wall-clock ceiling for a single lens, in seconds. */
-export const DEFAULT_LENS_TIMEOUT_SECONDS = 600;
+/**
+ * Default wall-clock ceiling for a single lens, in seconds.
+ *
+ * A large diff is read line by line before the reviewer reports, so the ceiling
+ * has to accommodate a slow read rather than only a slow answer. A lens that
+ * exceeds it is reported as not having completed, which is visible in the
+ * summary rather than silently absent.
+ */
+export const DEFAULT_LENS_TIMEOUT_SECONDS = 900;
 
 /** Thinking effort per lens, tuned to the difficulty of the angle. */
 const THINKING_BY_LENS: Record<string, string> = {

@@ -57,8 +57,13 @@ import type { Finding, PullRequestRef, ReviewContext } from "./types.ts";
 /** Minimum confidence a model finding needs before it is posted. */
 const DEFAULT_CONFIDENCE_FLOOR = 80;
 
-/** Default number of lens reviewers to run at once. */
-const DEFAULT_CONCURRENCY = 3;
+/**
+ * Default number of lens reviewers to run at once.
+ *
+ * Each lens is independent, so they all start together and the review costs one
+ * lens' latency rather than the sum of them.
+ */
+const DEFAULT_CONCURRENCY = 6;
 
 /** Marker an author or maintainer can put in the title or body to skip review. */
 const SKIP_MARKER = "[skip review]";
