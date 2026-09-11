@@ -160,6 +160,39 @@ diff --git a/logo.png b/logo.png
         expect(parseUnifiedDiff(patch)).toHaveLength(0);
     });
 
+    test("rejects a mailbox patch rather than anchoring findings to the wrong lines", () => {
+        // `gh pr diff --patch` returns one of these per commit; their hunk numbers
+        // are relative to each commit's parent, which is not what a comment on the
+        // head commit is validated against.
+        const mailbox = [
+            "From 1a2b3c4d5e6f7890abcdef1234567890abcdef12 Mon Sep 17 00:00:00 2001",
+            "From: Someone <someone@example.com>",
+            "Subject: [PATCH] a change",
+            "",
+            "diff --git a/a.ts b/a.ts",
+            "--- a/a.ts",
+            "+++ b/a.ts",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new",
+        ].join("\n");
+        expect(() => parseUnifiedDiff(mailbox)).toThrow(/mailbox-formatted patch/);
+    });
+
+    test("accepts a source line that reads like a mailbox header", () => {
+        // Inside a patch every content line carries a diff marker, so an added
+        // line that looks like a header cannot be mistaken for one.
+        const patch = [
+            "diff --git a/log.ts b/log.ts",
+            "--- a/log.ts",
+            "+++ b/log.ts",
+            "@@ -1,1 +1,2 @@",
+            " const first = 1;",
+            "+const header = 'From 1a2b3c4d5e6f7890abcdef1234567890abcdef12 Mon Sep 17';",
+        ].join("\n");
+        expect(parseUnifiedDiff(patch)).toHaveLength(1);
+    });
+
     test("treats an added line beginning with `++ ` as content, not a file header", () => {
         const patch = [
             "diff --git a/notes.ts b/notes.ts",

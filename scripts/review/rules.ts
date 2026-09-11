@@ -53,22 +53,29 @@ const CONSOLE_ALLOWED = [
 ];
 
 /** Files where a dependency or configuration change is expected. */
-const isDependencyManifest = (path: string): boolean =>
-    path.endsWith("package.json") || path.endsWith("bun.lock");
+function isDependencyManifest(path: string): boolean {
+    return path.endsWith("package.json") || path.endsWith("bun.lock");
+}
 
 /** Source files under the application, package, and script roots. */
-const isTypeScript = (path: string): boolean => path.endsWith(".ts") || path.endsWith(".tsx");
+function isTypeScript(path: string): boolean {
+    return path.endsWith(".ts") || path.endsWith(".tsx");
+}
 
 /** Test files, which may legitimately use console output and focused cases. */
-const isTestFile = (path: string): boolean =>
-    path.includes(".test.") || path.includes("__tests__") || path.includes("/tests/");
+function isTestFile(path: string): boolean {
+    return path.includes(".test.") || path.includes("__tests__") || path.includes("/tests/");
+}
 
 /** Files that define types only, and so carry no behavior to test. */
-const isDeclarationOrSchema = (path: string): boolean =>
-    path.endsWith(".d.ts") ||
-    /(?:^|\/)(?:types|schemas)\.ts$/.test(path) ||
-    /\.(?:types|schema)\.ts$/.test(path) ||
-    /(?:^|\/)index\.ts$/.test(path);
+function isDeclarationOrSchema(path: string): boolean {
+    return (
+        path.endsWith(".d.ts") ||
+        /(?:^|\/)(?:types|schemas)\.ts$/.test(path) ||
+        /\.(?:types|schema)\.ts$/.test(path) ||
+        /(?:^|\/)index\.ts$/.test(path)
+    );
+}
 
 /** The mechanical checks, in report order. */
 export const RULE_CHECKS: RuleCheck[] = [

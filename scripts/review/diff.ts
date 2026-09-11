@@ -14,6 +14,14 @@ import type { DiffHunk, FileDiff } from "./types.ts";
 /** Matches a hunk header, capturing the old and new file ranges. */
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
+/**
+ * Matches the `From <sha> Mon Sep 17 ...` line that opens a mailbox patch.
+ *
+ * The line is matched at column zero with no diff marker, so a source line that
+ * happens to read `From <sha>` inside a patch is prefixed and cannot match.
+ */
+const MAILBOX_MESSAGE = /^From [0-9a-f]{7,40} [A-Z][a-z]{2} [A-Z][a-z]{2} /;
+
 /** Extensions for files that carry no reviewable source lines. */
 const BINARY_SUFFIXES = [".dump", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".woff"];
 
@@ -60,6 +68,16 @@ export function stripPathPrefix(path: string): string {
  * @returns One entry per reviewable file, in patch order.
  */
 export function parseUnifiedDiff(patch: string): FileDiff[] {
+    for (const line of patch.split("\n")) {
+        if (MAILBOX_MESSAGE.test(line)) {
+            throw new Error(
+                "Received a mailbox-formatted patch, which holds one diff per commit. " +
+                    "Its hunks are numbered against each commit's parent, so findings would " +
+                    "anchor to the wrong lines. Pass the pull request's cumulative diff instead.",
+            );
+        }
+    }
+
     const files: FileDiff[] = [];
     let current: FileDiff | null = null;
     let hunk: DiffHunk | null = null;

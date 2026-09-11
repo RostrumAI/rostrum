@@ -115,10 +115,18 @@ export async function fetchPullRequest(ref: PullRequestRef): Promise<PullRequest
 }
 
 /**
- * Reads the pull request patch.
+ * Reads the pull request's cumulative diff.
+ *
+ * `--patch` must not be passed: it requests GitHub's patch media type, which is
+ * one mailbox-formatted patch per commit rather than one diff for the pull
+ * request. Those hunks are numbered against each commit's own parent, and a file
+ * touched by several commits appears several times, so findings resolve to the
+ * wrong lines — or to lines the head commit's diff does not contain, which makes
+ * GitHub reject the entire review. The default output is the diff against the
+ * merge base, which is the only numbering a comment can be anchored to.
  *
  * @param ref - Pull request identity.
- * @returns Unified diff text.
+ * @returns Unified diff text for the pull request as a whole.
  */
 export async function fetchPatch(ref: PullRequestRef): Promise<string> {
     return runProcessOrThrow([
@@ -128,7 +136,6 @@ export async function fetchPatch(ref: PullRequestRef): Promise<string> {
         String(ref.number),
         "--repo",
         `${ref.owner}/${ref.repo}`,
-        "--patch",
     ]);
 }
 
