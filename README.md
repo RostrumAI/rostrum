@@ -11,11 +11,16 @@ Rostrum is a platform for defining and executing workflows. This repository cont
 
 ```bash
 bun install
+bun run docs:setup
 bun run db:up
 ```
 
 `bun install` creates `node_modules` from the committed `bun.lock`. Use
 `bun install --frozen-lockfile` to fail instead of modifying the lockfile.
+
+`bun run docs:setup` clones the independent development-documentation repository
+into the ignored `dev-docs/` directory. Running it again leaves an existing
+checkout and its local work untouched.
 
 `bun run db:up` starts the Postgres service defined in `docker-compose.yml`
 and waits until it is healthy. The service is reachable at
@@ -30,6 +35,7 @@ the `DATABASE_URL` environment variable.
 | `bun run format` | Formats all files with Biome |
 | `bun run lint` | Lints all files with Biome |
 | `bun run test` | Runs unit and integration tests with `bun test` |
+| `bun run docs:setup` | Clones the development-documentation repository into `dev-docs/` when absent |
 | `bun run db:up` | Starts the local Postgres service |
 | `bun run db:down` | Stops the local Postgres service |
 | `bun run db:migrate` | Applies pending workflow-database migrations to the `DATABASE_URL` target |
@@ -145,9 +151,10 @@ A test asserts that the served document matches the checked-in copy.
 | --- | --- |
 | `apps/` | Runnable applications; `control-api/` is the Control API process |
 | `packages/` | Shared libraries; `workflow/` is the shared workflow library and `database/` owns Postgres persistence |
-| `scripts/` | One-off repository scripts |
+| `dev-docs/` | Ignored checkout of the independent development-documentation repository |
+| `scripts/` | Repository support scripts |
 | `tmp/` | Scratch space for proof-of-concept work, excluded from lint and format |
 
 ## Documentation
 
-Product strategy, roadmap milestones, technical Epics, implementation plans, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs). Runtime code, tests, migrations, fixtures, generated artifacts, and code-derived API documents remain in this repository.
+Product strategy, roadmap milestones, technical Epics, implementation plans, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs). Run `bun run docs:setup` to create an independent, ignored checkout at `dev-docs/`. Commit and push documentation changes from inside that checkout; this repository does not track its commit. Runtime code, tests, migrations, fixtures, generated artifacts, and code-derived API documents remain in this repository.
