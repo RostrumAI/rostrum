@@ -1,0 +1,79 @@
+name: Code review
+
+# `pull_request_target` runs from the base branch, so the workflow definition and
+# the reviewer code it executes are the ones already merged. The pull request's
+# code is never checked out into a job that holds a token: the reviewers read the
+# patch through the API, and the checkout is the head commit of a pull request
+# from a branch in this repository only.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    name: Review pull request
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/rescan') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    steps:
+      - name: Check out the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+
+      - name: Resolve the pull request under review
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          head_sha="$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq .head.sha)"
+          head_repo="$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq .head.repo.full_name)"
+          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "head_repo=${head_repo}" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to review a fork
+        if: steps.target.outputs.head_repo != github.repository
+        run: |
+          echo "Pull requests from forks are not reviewed automatically; run the review locally with 'bun run review --pr ${{ steps.target.outputs.number }}'."
+          echo "skipped=true" >> "$GITHUB_OUTPUT"
+        id: fork
+
+      - name: Set up Bun
+        if: steps.fork.outputs.skipped != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install dependencies
+        if: steps.fork.outputs.skipped != 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Install the reviewer runtime
+        if: steps.fork.outputs.skipped != 'true'
+        run: bun add --global @oh-my-pi/pi-coding-agent@18.1.17
+
+      - name: Review
+        if: steps.fork.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          REVIEW_MODEL: deepseek/deepseek-v4-flash
+        run: bun run review --pr "${{ steps.target.outputs.number }}" --post
+        timeout-minutes: 30
