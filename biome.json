@@ -6,6 +6,7 @@
             "!node_modules",
             "!dist",
             "!tmp",
+            "!dev-docs",
             "!packages/workflow/src/fixtures/invalid-parse",
             "!*.dump",
             "!bun.lock",
