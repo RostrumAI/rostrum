@@ -22,12 +22,6 @@ export const API_KEY_ENV = "DEEPSEEK_API_KEY";
 /** Default thinking effort when a lens has no entry in the per-lens table. */
 const DEFAULT_THINKING = "high";
 
-/** Milliseconds of margin added to an agent's own ceiling before it is killed. */
-const AGENT_TIMEOUT_MARGIN_SECONDS = 60;
-
-/** Fallback agent ceiling in seconds, used when the caller does not supply one. */
-const AGENT_MAX_SECONDS = 900;
-
 /**
  * Ceiling on how many mechanical findings are listed in a lens prompt.
  *
@@ -40,14 +34,20 @@ const MECHANICAL_FINDINGS_IN_PROMPT = 40;
 export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
 /**
- * Default wall-clock ceiling for a single lens, in seconds.
+ * Default wall-clock ceiling for one reviewer run, in seconds.
  *
  * A large diff is read line by line before the reviewer reports, so the ceiling
- * has to accommodate a slow read rather than only a slow answer. A lens that
+ * has to accommodate a slow read rather than only a slow answer. A run that
  * exceeds it is reported as not having completed, which is visible in the
  * summary rather than silently absent.
  */
-export const DEFAULT_LENS_TIMEOUT_SECONDS = 900;
+export const DEFAULT_AGENT_TIMEOUT_SECONDS = 900;
+
+/** Environment variable overriding the reviewer ceiling. */
+export const AGENT_TIMEOUT_ENV = "REVIEW_AGENT_TIMEOUT";
+
+/** Seconds added to a run's own ceiling before the process is killed outright. */
+const AGENT_HARD_KILL_MARGIN_SECONDS = 60;
 
 /** Thinking effort per lens, tuned to the difficulty of the angle. */
 const THINKING_BY_LENS: Record<string, string> = {
@@ -92,6 +92,7 @@ export interface AgentInvocation {
  * @param promptName - Name for the composed prompt file, unique per invocation.
  * @param systemPrompt - System prompt text for this invocation.
  * @param userPrompt - User prompt for this invocation.
+ * @param timeoutSeconds - Wall-clock ceiling passed to the agent itself.
  * @returns The invocation, or a reason it could not be built.
  */
 export async function resolveOmpInvocation(
@@ -102,6 +103,7 @@ export async function resolveOmpInvocation(
     promptName: string,
     systemPrompt: string,
     userPrompt: string,
+    timeoutSeconds: number,
 ): Promise<AgentInvocation> {
     const binary = process.env[OMP_BINARY_ENV] ?? "omp";
     const available = await pathExists(binary);
@@ -130,7 +132,7 @@ export async function resolveOmpInvocation(
         "--system-prompt",
         systemPromptPath,
         "--max-time",
-        String(AGENT_MAX_SECONDS),
+        String(timeoutSeconds),
         userPrompt,
     ];
     // A key stored by an earlier interactive login outranks the provider
@@ -147,17 +149,37 @@ export async function resolveOmpInvocation(
 /**
  * Runs a prepared agent invocation to completion.
  *
+ * The hard kill is deliberately later than the agent's own ceiling: the agent
+ * gets the chance to stop itself and report why, and the kill only catches a run
+ * that has stopped responding altogether.
+ *
  * @param command - Command produced by {@link resolveOmpInvocation}.
+ * @param timeoutSeconds - The same ceiling the command was built with.
  * @returns Exit code and captured output; a killed run reports code 124.
  */
 export async function runAgent(
     command: string[],
+    timeoutSeconds: number,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     return raceWithTimeout(
         command,
-        AGENT_MAX_SECONDS + AGENT_TIMEOUT_MARGIN_SECONDS,
+        timeoutSeconds + AGENT_HARD_KILL_MARGIN_SECONDS,
         workingDirectoryOf(command),
     );
+}
+
+/**
+ * Reads the reviewer ceiling from the environment or falls back to the default.
+ *
+ * @returns A positive number of seconds.
+ */
+export function agentTimeoutSeconds(): number {
+    const raw = process.env[AGENT_TIMEOUT_ENV];
+    if (raw === undefined || raw.trim().length === 0) {
+        return DEFAULT_AGENT_TIMEOUT_SECONDS;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AGENT_TIMEOUT_SECONDS;
 }
 
 /**
@@ -211,12 +233,13 @@ export async function runLens(
         lens.id,
         await buildSystemPrompt(lens, options.skillDirectory),
         buildLensPrompt(context, options.skillDirectory),
+        options.timeoutSeconds,
     );
     if (invocation.command === null) {
         return { lens, findings: [], error: invocation.reason };
     }
 
-    const result = await runAgent(invocation.command);
+    const result = await runAgent(invocation.command, options.timeoutSeconds);
     if (result.exitCode !== 0) {
         // A failed run prints progress before the failure, so the cause is at the
         // end of stderr rather than the beginning.

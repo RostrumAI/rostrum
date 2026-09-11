@@ -26,7 +26,13 @@ import {
     resolveRepository,
     setReviewThreadResolved,
 } from "./github.ts";
-import { DEFAULT_MODEL, extractJsonObject, resolveOmpInvocation, runAgent } from "./reviewer.ts";
+import {
+    agentTimeoutSeconds,
+    DEFAULT_MODEL,
+    extractJsonObject,
+    resolveOmpInvocation,
+    runAgent,
+} from "./reviewer.ts";
 import type { PullRequestRef } from "./types.ts";
 import { parseVerdict, renderVerdictMarker, type Verdict } from "./verdicts.ts";
 
@@ -114,12 +120,13 @@ export async function adjudicateReply(
             metadata.headSha,
             reviewRootOrCwd(options, cwd),
         ),
+        agentTimeoutSeconds(),
     );
     if (invocation.command === null) {
         return { action: "skipped", detail: invocation.reason };
     }
 
-    const result = await runAgent(invocation.command);
+    const result = await runAgent(invocation.command, agentTimeoutSeconds());
     if (result.exitCode !== 0) {
         return { action: "skipped", detail: `adjudicator failed: ${result.stderr.slice(-300)}` };
     }

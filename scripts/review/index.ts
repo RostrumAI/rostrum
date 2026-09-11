@@ -41,8 +41,9 @@ import {
 import { runProcessOrThrow } from "./process.ts";
 import { renderComments, renderSummary } from "./report.ts";
 import {
+    AGENT_TIMEOUT_ENV,
     API_KEY_ENV,
-    DEFAULT_LENS_TIMEOUT_SECONDS,
+    DEFAULT_AGENT_TIMEOUT_SECONDS,
     DEFAULT_MODEL,
     OMP_BINARY_ENV,
     runLens,
@@ -106,9 +107,9 @@ async function main(): Promise<number> {
         max: 16,
     });
     const lensTimeoutSeconds = numericOption(
-        process.env.REVIEW_LENS_TIMEOUT,
-        DEFAULT_LENS_TIMEOUT_SECONDS,
-        "lens timeout",
+        process.env[AGENT_TIMEOUT_ENV],
+        DEFAULT_AGENT_TIMEOUT_SECONDS,
+        "reviewer timeout",
         { min: 30, max: 3600 },
     );
     const requestedLenses = (values.lenses ?? "")

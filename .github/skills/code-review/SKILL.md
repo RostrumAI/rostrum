@@ -146,5 +146,6 @@ bun run review --since origin/main        # review a local branch diff instead
 bun run review --pr 20 --repo-root ../pr-head  # review a checkout other than this one
 ```
 
-Set `DEEPSEEK_API_KEY` to review. Set `REVIEW_MODEL` to override the model, and
-`REVIEW_CONFIDENCE_FLOOR` to override the default confidence floor of 80.
+Set `DEEPSEEK_API_KEY` to review. `REVIEW_MODEL` overrides the model, `REVIEW_CONFIDENCE_FLOOR` the
+default confidence floor of 80, and `REVIEW_AGENT_TIMEOUT` the ceiling in seconds for one reviewer
+run, which is 900 by default so that a large diff can be read rather than timed out.
