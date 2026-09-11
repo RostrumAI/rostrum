@@ -14,7 +14,7 @@
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
-import { adjudicateReply } from "./adjudicate.ts";
+import { adjudicateReply, adjudicateReview } from "./adjudicate.ts";
 
 /** Entry point. Exits non-zero only when the run itself failed. */
 async function main(): Promise<number> {
@@ -22,6 +22,7 @@ async function main(): Promise<number> {
         args: Bun.argv.slice(2),
         options: {
             "comment-id": { type: "string" },
+            "review-id": { type: "string" },
             "pull-request": { type: "string" },
             association: { type: "string" },
             author: { type: "string" },
@@ -31,17 +32,32 @@ async function main(): Promise<number> {
         allowPositionals: false,
     });
 
-    const commentId = Number(values["comment-id"] ?? "");
     const pullRequest = Number(values["pull-request"] ?? "");
-    if (!Number.isInteger(commentId) || !Number.isInteger(pullRequest)) {
-        throw new Error("--comment-id and --pull-request must both be integers.");
+    if (!Number.isInteger(pullRequest)) {
+        throw new Error("--pull-request must be an integer.");
+    }
+    const cwd = join(import.meta.dir, "..", "..");
+    const reviewRoot = values["repo-root"] ?? cwd;
+
+    // A submitted review is how a reply normally arrives, so that path is the
+    // default. `--comment-id` remains for adjudicating a single comment by hand.
+    const reviewId = Number(values["review-id"] ?? "");
+    if (Number.isInteger(reviewId) && reviewId > 0) {
+        const outcomes = await adjudicateReview({ reviewId, pullRequest, reviewRoot }, cwd);
+        for (const outcome of outcomes) {
+            console.log(`${outcome.action}: ${outcome.detail}`);
+        }
+        return 0;
+    }
+
+    const commentId = Number(values["comment-id"] ?? "");
+    if (!Number.isInteger(commentId)) {
+        throw new Error("Pass --review-id (a submitted review) or --comment-id.");
     }
     const bodyPath = values["body-file"];
     if (bodyPath === undefined) {
-        throw new Error("--body-file is required; pass the comment body through a file.");
+        throw new Error("--body-file is required with --comment-id.");
     }
-
-    const cwd = join(import.meta.dir, "..", "..");
     const outcome = await adjudicateReply(
         {
             commentId,
@@ -49,7 +65,7 @@ async function main(): Promise<number> {
             commentAssociation: values.association ?? "NONE",
             commentAuthor: values.author ?? "someone",
             pullRequest,
-            reviewRoot: values["repo-root"] ?? cwd,
+            reviewRoot,
         },
         cwd,
     );

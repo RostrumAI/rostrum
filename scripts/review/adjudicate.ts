@@ -20,6 +20,7 @@ import { numericOption } from "./config.ts";
 import {
     COMMENT_MARKER,
     fetchPullRequest,
+    fetchReviewComments,
     fetchReviewThreads,
     type ReviewThread,
     replyToReviewComment,
@@ -183,6 +184,51 @@ export async function adjudicateReply(
     }
     await setReviewThreadResolved(thread.id, true);
     return { action: "withdrawn", detail: `${verdict}: ${reason}` };
+}
+
+/**
+ * Adjudicates every comment in a submitted review.
+ *
+ * A review can carry more than one comment when replies are batched, and each
+ * one gets its own decision. Comments the reviewer wrote are skipped, as are
+ * reviews that carry no comment at all, which is what an approval looks like.
+ *
+ * @param options - Review id, pull request number, and the checkout to read.
+ * @param cwd - Repository root the tooling runs from.
+ * @returns One outcome per comment considered.
+ */
+export async function adjudicateReview(
+    options: { reviewId: number; pullRequest: number; reviewRoot: string },
+    cwd: string,
+): Promise<AdjudicationOutcome[]> {
+    const { owner, repo } = await resolveRepository(cwd);
+    const ref: PullRequestRef = { owner, repo, number: options.pullRequest };
+    const comments = await fetchReviewComments(ref, options.reviewId);
+    const candidates = comments.filter(
+        (comment) =>
+            !comment.body.includes(COMMENT_MARKER) &&
+            MAINTAINER_ASSOCIATIONS.includes(comment.authorAssociation),
+    );
+    if (candidates.length === 0) {
+        return [{ action: "ignored", detail: "review carries no comment worth adjudicating" }];
+    }
+    const outcomes: AdjudicationOutcome[] = [];
+    for (const comment of candidates) {
+        outcomes.push(
+            await adjudicateReply(
+                {
+                    commentId: comment.id,
+                    commentBody: comment.body,
+                    commentAssociation: comment.authorAssociation,
+                    commentAuthor: comment.author,
+                    pullRequest: options.pullRequest,
+                    reviewRoot: options.reviewRoot,
+                },
+                cwd,
+            ),
+        );
+    }
+    return outcomes;
 }
 
 /**
