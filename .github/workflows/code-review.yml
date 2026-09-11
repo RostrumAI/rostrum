@@ -49,7 +49,6 @@ jobs:
       REPOSITORY: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       COMMENT_ID: ${{ github.event.comment.id }}
-      COMMENT_BODY_FILE: ${{ runner.temp }}/comment.md
       ASSOCIATION: ${{ github.event.comment.author_association }}
       COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
     steps:
@@ -78,9 +77,12 @@ jobs:
           ref: ${{ steps.target.outputs.head_sha }}
           path: pr
 
+      # `runner.temp` is not available to a job-level `env` — the runner does not
+      # exist when that block is evaluated — so the path is taken from the
+      # RUNNER_TEMP variable the runner exports to every step instead.
       - name: Write the comment body to a file
         if: steps.target.outputs.fork == 'false'
-        run: gh api "repos/${REPOSITORY}/pulls/comments/${COMMENT_ID}" --jq .body > "${COMMENT_BODY_FILE}"
+        run: gh api "repos/${REPOSITORY}/pulls/comments/${COMMENT_ID}" --jq .body > "${RUNNER_TEMP}/comment.md"
 
       - name: Set up Bun
         if: steps.target.outputs.fork == 'false'
@@ -109,7 +111,7 @@ jobs:
           --pull-request "${PR_NUMBER}"
           --association "${ASSOCIATION}"
           --author "${COMMENT_AUTHOR}"
-          --body-file "${COMMENT_BODY_FILE}"
+          --body-file "${RUNNER_TEMP}/comment.md"
           --repo-root "${GITHUB_WORKSPACE}/pr"
         timeout-minutes: 20
 
