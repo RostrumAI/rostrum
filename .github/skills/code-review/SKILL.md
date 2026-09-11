@@ -77,15 +77,19 @@ A finding is suppressed when the pull request has already dispositioned it:
 1. **A resolved thread.** The pipeline posted a comment with this rule on this path, and a maintainer
    resolved the thread. Never re-open it, whatever the line number, because the line will have moved
    by the time anyone reads the resolution.
-2. **A human reply.** The pipeline posted a comment with this rule on this path, and a person replied
-   to that thread without resolving it. A reply is a disposition; repeating the finding afterwards is
-   nagging.
+2. **A withdrawn verdict.** A person replied to the finding and the adjudication withdrew it: the
+   reply was right, the behaviour is an accepted tradeoff, or the code had already changed. The
+   reviewer resolves the thread when it withdraws, so this and the first rule agree by construction.
 3. **An open duplicate.** The pipeline has an unresolved comment for this rule within five lines of
    the finding. The same problem at a different place in the same file is still reported.
 
-Suppression is keyed on the rule id and path the posted comment carries, and read from the review
-threads' resolution state rather than from comment text. Something the pull request genuinely fixed
-disappears from the report on its own, because the code no longer matches the rule.
+Suppression is keyed on the rule id and path the posted comment carries. A reply on its own does not
+suppress anything: it triggers an adjudication, and the reviewer may answer the reply and stand behind
+the finding. Treating the reply itself as a disposition would silently overrule that answer on the next
+rescan.
+
+Something the pull request genuinely fixed disappears from the report on its own, because the code no
+longer matches the rule.
 
 A thread that is out of date but unresolved does not suppress anything: the author moved the code
 without addressing the finding, so it is reported again at its new location.
