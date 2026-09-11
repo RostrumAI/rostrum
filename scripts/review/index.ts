@@ -52,7 +52,7 @@ import {
 } from "./rules.ts";
 import type { Finding, PullRequestRef, ReviewContext } from "./types.ts";
 
-/** Default number of findings required for a model finding to be posted. */
+/** Minimum confidence a model finding needs before it is posted. */
 const DEFAULT_CONFIDENCE_FLOOR = 80;
 
 /** Default number of lens reviewers to run at once. */

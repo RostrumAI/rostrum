@@ -26,8 +26,9 @@ identical to the author.
 | `reviewer-contract.md` | The finding contract, severity scale, confidence scale, and reporting rules |
 
 Rules carry a severity and a classification. `mechanical` rules are also checked by
-`bun run review:rules`, which produces findings without a model; do not re-report a `mechanical`
-violation the deterministic pass already found, unless you can show it missed the changed line.
+`bun run review --dry-run-rules`, which produces findings without a model; do not re-report a
+`mechanical` violation the deterministic pass already found, unless you can show it missed the
+changed line.
 
 ## Reviewing a pull request
 
@@ -84,7 +85,7 @@ because the code no longer matches the rule.
 ```bash
 bun run review --pr 20                    # report only
 bun run review --pr 20 --post             # post inline comments
-bun run review --pr 20 --lenses tests,docs # restrict the panel
+bun run review --pr 20 --lenses tests,documentation  # restrict the panel
 bun run review --since origin/main        # review a local branch diff instead
 ```
 

@@ -21,6 +21,7 @@ import {
 } from "./merge.ts";
 import { extractJsonObject, normalizeFindings } from "./reviewer.ts";
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
+import { blankNonCode } from "./source-text.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 
 /** Returns the single parsed file of a patch, failing loudly when parsing dropped it. */
@@ -171,6 +172,31 @@ new file mode 100644
         expect(ruleIds).toContain("REPO-TS-01");
     });
 
+    test("ignores a banned construct that only appears inside a string", () => {
+        const patch = `diff --git a/apps/control-api/src/message.ts b/apps/control-api/src/message.ts
+--- a/apps/control-api/src/message.ts
++++ b/apps/control-api/src/message.ts
+@@ -1 +1 @@
+-old
++const rejection = "value must not be any of the allowed types";
+`;
+        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+    });
+
+    test("treats a backticked term in prose as a mention, not a use", () => {
+        // The backtick is built at runtime so the patch text can live in a template literal.
+        const tick = String.fromCharCode(96);
+        const patch = [
+            "diff --git a/rules/notes.md b/rules/notes.md",
+            "--- a/rules/notes.md",
+            "+++ b/rules/notes.md",
+            "@@ -1 +1 @@",
+            "-old",
+            `+Do not use the term ${tick}backstop${tick} in source or documentation.`,
+        ].join("\n");
+        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+    });
+
     test("flags a single-line unbraced conditional", () => {
         const ruleIds = runRuleChecks(contextFor(ADDED_FILE_PATCH)).map(
             (finding) => finding.ruleId,
@@ -201,6 +227,29 @@ new file mode 100644
 +test("thing", () => {});
 `;
         expect(findUncoveredSourceFiles(contextFor(withTest))).toHaveLength(0);
+    });
+});
+
+describe("source scanning", () => {
+    test("blanks comments without shifting the columns that follow", () => {
+        const line = 'const value = 1; // console.log("noisy")';
+        const blanked = blankNonCode(line);
+        expect(blanked).toHaveLength(line.length);
+        expect(blanked.startsWith("const value = 1;")).toBe(true);
+        expect(blanked).not.toContain("console");
+    });
+
+    test("blanks string, template, and regex contents", () => {
+        expect(blankNonCode('const name = "console.log";')).not.toContain("console");
+        expect(blankNonCode("const pattern = /console.log/g;")).not.toContain("console");
+        expect(blankNonCode("const text = `value: any`;")).not.toContain("any");
+        expect(blankNonCode("const division = total / count / 2;")).toBe(
+            "const division = total / count / 2;",
+        );
+    });
+
+    test("leaves real code intact so the check still fires", () => {
+        expect(blankNonCode("const value: any = read();")).toContain("any");
     });
 });
 

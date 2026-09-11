@@ -15,6 +15,9 @@ import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 /** Environment variable naming the reviewer executable. */
 const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
 
+/** Environment variable holding the reviewer provider's API key. */
+export const API_KEY_ENV = "DEEPSEEK_API_KEY";
+
 /** Default model for every lens. */
 export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
@@ -82,6 +85,14 @@ export async function runLens(
         String(options.timeoutSeconds),
         userPrompt,
     ];
+    // A key stored by an earlier interactive login outranks the provider
+    // environment variable, so a stale credential can silently replace the one
+    // CI supplies. The runtime override is the highest-precedence source, so
+    // the configured key is passed explicitly rather than left to resolution.
+    const apiKey = process.env[API_KEY_ENV];
+    if (apiKey !== undefined && apiKey.length > 0) {
+        command.splice(1, 0, "--api-key", apiKey);
+    }
 
     const result = await raceWithTimeout(
         command,
@@ -89,10 +100,12 @@ export async function runLens(
         context.workingDirectory,
     );
     if (result.exitCode !== 0) {
+        // A failed run prints progress before the failure, so the cause is at the
+        // end of stderr rather than the beginning.
         return {
             lens,
             findings: [],
-            error: `exit ${result.exitCode}: ${result.stderr.slice(0, 400)}`,
+            error: `exit ${result.exitCode}: ${result.stderr.slice(-400)}`,
         };
     }
     const payload = extractJsonObject(result.stdout);
