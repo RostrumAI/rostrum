@@ -75,11 +75,16 @@ async function main(): Promise<number> {
             confidence: { type: "string" },
             concurrency: { type: "string" },
             "dry-run-rules": { type: "boolean", default: false },
+            "repo-root": { type: "string" },
         },
         allowPositionals: false,
     });
 
+    // The corpus and this script come from the checkout the workflow trusts, while
+    // `--repo-root` names the checkout the reviewers read. In CI those differ: the
+    // script runs from the base branch, and the reviewers read the pull request head.
     const repositoryRoot = join(import.meta.dir, "..", "..");
+    const reviewRoot = values["repo-root"] ?? repositoryRoot;
     const skillDirectory = join(repositoryRoot, ".github", "skills", "code-review");
     const model = values.model ?? process.env.REVIEW_MODEL ?? DEFAULT_MODEL;
     const confidenceFloor = Number(
@@ -92,6 +97,9 @@ async function main(): Promise<number> {
         .filter((entry) => entry.length > 0);
 
     const scratch = await mkdtemp(join(tmpdir(), "rostrum-review-"));
+    if (!(await Bun.file(`${reviewRoot}/package.json`).exists())) {
+        throw new Error(`--repo-root does not look like the repository: ${reviewRoot}`);
+    }
     const local = values.since !== undefined;
     const ref = local ? null : await resolveRef(values.pr, repositoryRoot);
     const metadata = ref === null ? null : await fetchPullRequest(ref);
@@ -134,7 +142,7 @@ async function main(): Promise<number> {
         files,
         patch,
         ruleFindings: [],
-        workingDirectory: repositoryRoot,
+        workingDirectory: reviewRoot,
         patchPath,
         resolvedThreads: partitionThreads(threads).resolved.map((entry) => ({
             ruleId: entry.ruleId,

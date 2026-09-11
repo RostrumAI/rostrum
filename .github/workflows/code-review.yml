@@ -1,15 +1,24 @@
 name: Code review
 
-# `pull_request_target` runs from the base branch, so the workflow definition and
-# the reviewer code it executes are the ones already merged. The pull request's
-# code is never checked out into a job that holds a token: the reviewers read the
-# patch through the API, and the checkout is the head commit of a pull request
-# from a branch in this repository only.
+# `pull_request_target` runs the workflow file and the reviewer code from the base
+# branch, so a pull request cannot change the rules it is reviewed against. The
+# pull request head is checked out separately and only ever read: its code is not
+# installed, not executed, and not used to resolve dependencies. The fork guard
+# keeps even that read to branches in this repository.
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
   issue_comment:
     types: [created]
+  # A manual run reviews a pull request on demand. It exists because this workflow
+  # takes effect only once merged: a pull request that changes it cannot trigger it,
+  # so the first run after merge is dispatched rather than automatic.
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Pull request number to review
+        required: true
+        type: string
 
 concurrency:
   group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -35,45 +44,55 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          path: base
 
-      - name: Resolve the pull request under review
+      - name: Read the pull request head and check for a fork
         id: target
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          head_sha="$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq .head.sha)"
-          head_repo="$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq .head.repo.full_name)"
-          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          pull_request="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+          head_sha="$(echo "${pull_request}" | jq -r .head.sha)"
+          head_repo="$(echo "${pull_request}" | jq -r .head.repo.full_name)"
           echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
-          echo "head_repo=${head_repo}" >> "$GITHUB_OUTPUT"
+          if [ "${head_repo}" != "${REPOSITORY}" ]; then
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+            echo "Pull requests from forks are not reviewed automatically. Run 'bun run review --pr ${PR_NUMBER} --repo-root <head checkout>' locally instead."
+          else
+            echo "fork=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Refuse to review a fork
-        if: steps.target.outputs.head_repo != github.repository
-        run: |
-          echo "Pull requests from forks are not reviewed automatically; run the review locally with 'bun run review --pr ${{ steps.target.outputs.number }}'."
-          echo "skipped=true" >> "$GITHUB_OUTPUT"
-        id: fork
+      - name: Check out the pull request head for reading
+        if: steps.target.outputs.fork == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.head_sha }}
+          path: pr
 
       - name: Set up Bun
-        if: steps.fork.outputs.skipped != 'true'
+        if: steps.target.outputs.fork == 'false'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
 
-      - name: Install dependencies
-        if: steps.fork.outputs.skipped != 'true'
+      - name: Install the reviewer dependencies from the base branch
+        if: steps.target.outputs.fork == 'false'
+        working-directory: base
         run: bun install --frozen-lockfile
 
       - name: Install the reviewer runtime
-        if: steps.fork.outputs.skipped != 'true'
+        if: steps.target.outputs.fork == 'false'
         run: bun add --global @oh-my-pi/pi-coding-agent@18.1.17
 
       - name: Review
-        if: steps.fork.outputs.skipped != 'true'
+        if: steps.target.outputs.fork == 'false'
+        working-directory: base
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           REVIEW_MODEL: deepseek/deepseek-v4-flash
-        run: bun run review --pr "${{ steps.target.outputs.number }}" --post
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: bun run review --pr "${PR_NUMBER}" --repo-root "${GITHUB_WORKSPACE}/pr" --post
         timeout-minutes: 30

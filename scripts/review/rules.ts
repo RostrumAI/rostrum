@@ -13,7 +13,7 @@
  */
 
 import { addedLineEntries, visibleLines } from "./diff.ts";
-import { blankNonCode } from "./source-text.ts";
+import { blankInlineCode, blankSourceLines } from "./source-text.ts";
 import type { Finding, ReviewContext } from "./types.ts";
 
 /** One mechanical check over the added lines of a file. */
@@ -30,12 +30,6 @@ interface RuleCheck {
     appliesTo: (path: string) => boolean;
     /** Matches an added line that violates the rule. */
     matches: (line: string) => boolean;
-    /**
-     * Set for checks whose pattern is a word rather than syntax, so that a term
-     * quoted in backticks reads as a mention of it rather than a use of it.
-     * Without this, a document that bans a term cannot name the term.
-     */
-    quotedIsMention?: boolean;
 }
 
 /** Paths that are allowed to write directly to the console. */
@@ -140,7 +134,6 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Use the repository's term for this concept rather than the retired or informal one.",
         appliesTo: (path) => isTypeScript(path) || path.endsWith(".md"),
         matches: (line) => /\b(?:backstop|envelope)\b/i.test(line),
-        quotedIsMention: true,
     },
     {
         id: "REPO-TEST-01",
@@ -154,16 +147,6 @@ export const RULE_CHECKS: RuleCheck[] = [
 ];
 
 /**
- * Blanks backtick-quoted spans so a quoted term reads as a mention.
- *
- * @param line - A single line of source or prose.
- * @returns The line with `` `…` `` contents blanked and the backticks kept.
- */
-function stripBacktickSpans(line: string): string {
-    return line.replace(/`[^`]*`/g, (match) => "`" + " ".repeat(match.length - 2) + "`");
-}
-
-/**
  * Runs the mechanical checks over every added line of the change.
  *
  * @param context - Review context holding the parsed files.
@@ -172,14 +155,20 @@ function stripBacktickSpans(line: string): string {
 export function runRuleChecks(context: ReviewContext): Finding[] {
     const findings: Finding[] = [];
     for (const file of context.files) {
-        for (const entry of addedLineEntries(file)) {
+        const entries = addedLineEntries(file);
+        // Source is scanned lexically, prose only for inline code spans, so a
+        // term quoted in prose reads as a mention while a genuine use still
+        // matches. Blanking runs over the whole file's added lines because a
+        // template literal or block comment spans lines.
+        const scannable = file.path.endsWith(".md")
+            ? entries.map((entry) => blankInlineCode(entry.text))
+            : blankSourceLines(entries.map((entry) => entry.text));
+        for (const [index, entry] of entries.entries()) {
+            const candidate = scannable[index] ?? "";
             for (const check of RULE_CHECKS) {
                 if (!check.appliesTo(file.path)) {
                     continue;
                 }
-                const candidate = check.quotedIsMention
-                    ? stripBacktickSpans(entry.text)
-                    : blankNonCode(entry.text);
                 if (!check.matches(candidate)) {
                     continue;
                 }

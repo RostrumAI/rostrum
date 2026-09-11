@@ -46,13 +46,16 @@ export function ruleIdFromComment(body: string): string | null {
 }
 
 /**
- * Splits pipeline threads into those still open and those already resolved.
+ * Splits pipeline threads into those still open and those already answered.
  *
- * Only threads authored by the pipeline count: a human conversation about the
- * same code must not suppress a finding.
+ * A thread counts as answered when a maintainer resolved it, or when a human
+ * replied to the finding without resolving it: a reply is a disposition, and
+ * repeating the finding afterwards is nagging. A thread the pipeline never
+ * commented on is a human conversation about the same code, which suppresses
+ * nothing — that is a separate discussion, not a verdict on this rule.
  *
  * @param threads - Review threads read from GitHub.
- * @returns Open and resolved pipeline findings.
+ * @returns Open and answered pipeline findings.
  */
 export function partitionThreads(threads: ReviewThread[]): {
     open: AnsweredFinding[];
@@ -61,20 +64,21 @@ export function partitionThreads(threads: ReviewThread[]): {
     const open: AnsweredFinding[] = [];
     const resolved: AnsweredFinding[] = [];
     for (const thread of threads) {
-        const authoredByPipeline = thread.comments.some((comment) =>
+        const pipelineIndex = thread.comments.findIndex((comment) =>
             comment.body.includes(COMMENT_MARKER),
         );
-        if (!authoredByPipeline) {
+        if (pipelineIndex === -1) {
             continue;
         }
-        const ruleId = thread.comments
-            .map((comment) => ruleIdFromComment(comment.body))
-            .find((id): id is string => id !== null);
-        if (ruleId === undefined) {
+        const ruleId = ruleIdFromComment(thread.comments[pipelineIndex]?.body ?? "");
+        if (ruleId === null) {
             continue;
         }
+        const answeredByReply = thread.comments
+            .slice(pipelineIndex + 1)
+            .some((comment) => !comment.body.includes(COMMENT_MARKER));
         const entry: AnsweredFinding = { ruleId, path: thread.path, line: thread.line };
-        if (thread.isResolved) {
+        if (thread.isResolved || answeredByReply) {
             resolved.push(entry);
         } else {
             open.push(entry);

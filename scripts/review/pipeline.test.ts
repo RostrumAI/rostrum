@@ -21,7 +21,7 @@ import {
 } from "./merge.ts";
 import { extractJsonObject, normalizeFindings } from "./reviewer.ts";
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
-import { blankNonCode } from "./source-text.ts";
+import { blankInlineCode, blankSourceLine } from "./source-text.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 
 /** Returns the single parsed file of a patch, failing loudly when parsing dropped it. */
@@ -231,25 +231,57 @@ new file mode 100644
 });
 
 describe("source scanning", () => {
+    /** Scans one standalone line, as the rule pass does with no carry-over state. */
+    function scan(line: string): string {
+        return blankSourceLine(line, { inBlockComment: false, inTemplate: false });
+    }
+
     test("blanks comments without shifting the columns that follow", () => {
         const line = 'const value = 1; // console.log("noisy")';
-        const blanked = blankNonCode(line);
+        const blanked = scan(line);
         expect(blanked).toHaveLength(line.length);
         expect(blanked.startsWith("const value = 1;")).toBe(true);
         expect(blanked).not.toContain("console");
     });
 
     test("blanks string, template, and regex contents", () => {
-        expect(blankNonCode('const name = "console.log";')).not.toContain("console");
-        expect(blankNonCode("const pattern = /console.log/g;")).not.toContain("console");
-        expect(blankNonCode("const text = `value: any`;")).not.toContain("any");
-        expect(blankNonCode("const division = total / count / 2;")).toBe(
+        expect(scan('const name = "console.log";')).not.toContain("console");
+        expect(scan("const pattern = /console\\.log/g;")).not.toContain("console");
+        expect(scan("const text = `value: any`;")).not.toContain("any");
+        expect(scan("const division = total / count / 2;")).toBe(
             "const division = total / count / 2;",
         );
     });
 
+    test("keeps carrying state through an unclosed template literal", () => {
+        const state = { inBlockComment: false, inTemplate: false };
+        const opened = blankSourceLine("const patch = `value: any", state);
+        expect(state.inTemplate).toBe(true);
+        expect(opened).not.toContain("any");
+        const inside = blankSourceLine("+export default function bad(value: any) {", state);
+        expect(inside).not.toContain("any");
+        expect(inside).not.toContain("export default");
+        const closed = blankSourceLine("`;", state);
+        expect(state.inTemplate).toBe(false);
+        expect(closed).toBe(" ;");
+    });
+
     test("leaves real code intact so the check still fires", () => {
-        expect(blankNonCode("const value: any = read();")).toContain("any");
+        expect(scan("const value: any = read();")).toContain("any");
+    });
+
+    test("blanks prose code spans and quoted terms but keeps the sentence", () => {
+        const line = 'Use `database`, not "store", when naming the layer.';
+        const blanked = blankInlineCode(line);
+        expect(blanked).toContain("Use ");
+        expect(blanked).toContain("when naming the layer.");
+        expect(blanked).not.toContain("store");
+        expect(blanked).not.toContain("database");
+    });
+
+    test("does not treat an apostrophe as a quote", () => {
+        const line = "The repository's rule bans the backstop pattern.";
+        expect(blankInlineCode(line)).toBe(line);
     });
 });
 
@@ -274,6 +306,23 @@ describe("suppression", () => {
     test("reports a new occurrence elsewhere in the same file", () => {
         const threads = [threadFor(pipelineComment("REPO-TEST-02"), { line: 2 })];
         expect(suppressAnswered([findingFor({ line: 40 })], threads).kept).toHaveLength(1);
+    });
+
+    test("treats a human reply on a pipeline thread as a disposition", () => {
+        const thread = threadFor(pipelineComment("REPO-TEST-02"));
+        thread.comments.push({
+            author: "Stephen-PP",
+            body: "Intentional: this case is covered by the integration suite.",
+            line: null,
+        });
+        const result = suppressAnswered([findingFor()], [thread]);
+        expect(result.kept).toHaveLength(0);
+        expect(partitionThreads([thread]).resolved).toHaveLength(1);
+    });
+
+    test("keeps reporting while the pipeline is the only voice on the thread", () => {
+        const thread = threadFor(pipelineComment("REPO-TEST-02"));
+        expect(partitionThreads([thread]).open).toHaveLength(1);
     });
 
     test("ignores human discussion about the same code", () => {

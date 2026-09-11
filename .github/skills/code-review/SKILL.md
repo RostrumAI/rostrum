@@ -58,7 +58,9 @@ summary maintenance consistently:
 bun run review --pr <number> --post
 ```
 
-Without `--post` the same command prints the report to stdout and touches nothing.
+Without `--post` the same command prints the report to stdout and touches nothing. `--repo-root`
+names the checkout the reviewers read, which in CI is the pull request head while the script and the
+rule corpus come from the base branch.
 
 ## Rescanning
 
@@ -87,6 +89,7 @@ bun run review --pr 20                    # report only
 bun run review --pr 20 --post             # post inline comments
 bun run review --pr 20 --lenses tests,documentation  # restrict the panel
 bun run review --since origin/main        # review a local branch diff instead
+bun run review --pr 20 --repo-root ../pr-head  # review a checkout other than this one
 ```
 
 Set `DEEPSEEK_API_KEY` to review. Set `REVIEW_MODEL` to override the model, and
