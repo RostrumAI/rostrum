@@ -482,8 +482,17 @@ describe("source scanning", () => {
     });
 
     test("does not treat an apostrophe as a quote", () => {
-        const line = "The repository's rule bans the backstop pattern.";
-        expect(blankInlineCode(line)).toBe(line);
+        // Two apostrophes bracketing a term: if an apostrophe became a delimiter
+        // the term would be blanked, so this fails on that regression. A line
+        // with a lone apostrophe would return unchanged either way and prove
+        // nothing.
+        const bracketed = "Keep 'backstop' in the text.";
+        expect(blankInlineCode(bracketed)).toBe(bracketed);
+        expect(blankInlineCode(bracketed)).toContain("backstop");
+
+        // Possessives are prose punctuation and must survive untouched.
+        const possessive = "The repository's rule bans the backstop pattern.";
+        expect(blankInlineCode(possessive)).toBe(possessive);
     });
 });
 
