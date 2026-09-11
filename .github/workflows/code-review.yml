@@ -1,0 +1,180 @@
+name: Code review
+
+# `pull_request_target` runs the workflow file and the reviewer code from the base
+# branch, so a pull request cannot change the rules it is reviewed against. The
+# pull request head is checked out separately and only ever read: its code is not
+# installed, not executed, and not used to resolve dependencies. The fork guard
+# keeps even that read to branches in this repository.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+  # A reply on a review thread is adjudicated: the reviewer re-reads the code and
+  # either withdraws its finding or stands behind it. This event is deliberately
+  # NOT `pull_request_target`: it checks out the pull request merge ref by default,
+  # so the checkout below is pinned to the base branch and the head is only read.
+  pull_request_review_comment:
+    types: [created]
+  # A manual run reviews a pull request on demand. It exists because this workflow
+  # takes effect only once merged: a pull request that changes it cannot trigger it,
+  # so the first run after merge is dispatched rather than automatic.
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Pull request number to review
+        required: true
+        type: string
+
+concurrency:
+  group: code-review-${{ github.event.inputs.pull_request || github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  adjudicate:
+    name: Answer a reply
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request_review_comment' &&
+      github.event.comment.in_reply_to_id != null &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+      COMMENT_BODY_FILE: ${{ runner.temp }}/comment.md
+      ASSOCIATION: ${{ github.event.comment.author_association }}
+      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+    steps:
+      - name: Check out the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          path: base
+
+      - name: Read the pull request head
+        id: target
+        run: |
+          head_sha="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
+          head_repo="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.repo.full_name)"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          if [ "${head_repo}" != "${REPOSITORY}" ]; then
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fork=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the pull request head for reading
+        if: steps.target.outputs.fork == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.head_sha }}
+          path: pr
+
+      - name: Write the comment body to a file
+        if: steps.target.outputs.fork == 'false'
+        run: gh api "repos/${REPOSITORY}/pulls/comments/${COMMENT_ID}" --jq .body > "${COMMENT_BODY_FILE}"
+
+      - name: Set up Bun
+        if: steps.target.outputs.fork == 'false'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install the reviewer dependencies from the base branch
+        if: steps.target.outputs.fork == 'false'
+        working-directory: base
+        run: bun install --frozen-lockfile
+
+      - name: Install the reviewer runtime
+        if: steps.target.outputs.fork == 'false'
+        run: bun add --global @oh-my-pi/pi-coding-agent@18.1.17
+
+      - name: Adjudicate
+        if: steps.target.outputs.fork == 'false'
+        working-directory: base
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          REVIEW_MODEL: deepseek/deepseek-v4-flash
+        run: >-
+          bun run review:adjudicate
+          --comment-id "${COMMENT_ID}"
+          --pull-request "${PR_NUMBER}"
+          --association "${ASSOCIATION}"
+          --author "${COMMENT_AUTHOR}"
+          --body-file "${COMMENT_BODY_FILE}"
+          --repo-root "${GITHUB_WORKSPACE}/pr"
+        timeout-minutes: 20
+
+  review:
+    name: Review pull request
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/rescan') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.inputs.pull_request || github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - name: Check out the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          path: base
+
+      - name: Read the pull request head and check for a fork
+        id: target
+        run: |
+          pull_request="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+          head_sha="$(echo "${pull_request}" | jq -r .head.sha)"
+          head_repo="$(echo "${pull_request}" | jq -r .head.repo.full_name)"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          if [ "${head_repo}" != "${REPOSITORY}" ]; then
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+            echo "Pull requests from forks are not reviewed automatically. Run 'bun run review --pr ${PR_NUMBER} --repo-root <head checkout>' locally instead."
+          else
+            echo "fork=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the pull request head for reading
+        if: steps.target.outputs.fork == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.head_sha }}
+          path: pr
+
+      - name: Set up Bun
+        if: steps.target.outputs.fork == 'false'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install the reviewer dependencies from the base branch
+        if: steps.target.outputs.fork == 'false'
+        working-directory: base
+        run: bun install --frozen-lockfile
+
+      - name: Install the reviewer runtime
+        if: steps.target.outputs.fork == 'false'
+        run: bun add --global @oh-my-pi/pi-coding-agent@18.1.17
+
+      - name: Review
+        if: steps.target.outputs.fork == 'false'
+        working-directory: base
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          REVIEW_MODEL: deepseek/deepseek-v4-flash
+        run: bun run review --pr "${PR_NUMBER}" --repo-root "${GITHUB_WORKSPACE}/pr" --post
+        timeout-minutes: 45
