@@ -9,6 +9,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { findFile, parseUnifiedDiff, snapToDiff, visibleLines } from "./diff.ts";
 import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
@@ -46,10 +49,19 @@ index 0000000..1111111
 +}
 `;
 
-/** Builds a review context around a patch, for the stages under test. */
+/**
+ * Builds a review context around a patch, for the stages under test.
+ *
+ * The default working directory does not exist, which exercises the fallback
+ * that scans only the diff's own lines. Tests that need the head checkout pass
+ * one in.
+ */
 function contextFor(
     patch: string,
-    resolvedThreads: ReviewContext["resolvedThreads"] = [],
+    options: {
+        workingDirectory?: string;
+        resolvedThreads?: ReviewContext["resolvedThreads"];
+    } = {},
 ): ReviewContext {
     return {
         pullRequest: { owner: "RostrumAI", repo: "rostrum", number: 1 },
@@ -60,9 +72,9 @@ function contextFor(
         files: parseUnifiedDiff(patch),
         patch,
         ruleFindings: [],
-        workingDirectory: "/nonexistent",
+        workingDirectory: options.workingDirectory ?? "/nonexistent",
         patchPath: "/nonexistent/change.patch",
-        resolvedThreads,
+        resolvedThreads: options.resolvedThreads ?? [],
     };
 }
 
@@ -147,6 +159,35 @@ diff --git a/logo.png b/logo.png
         expect(snapToDiff(file, 40)).toBeNull();
     });
 
+    test("re-anchors an invisible line that lands within tolerance", () => {
+        const file = firstFile(ADDED_FILE_PATCH);
+        // Lines 1 to 4 are added; a reviewer naming a neighbouring line the hunk
+        // does not contain must still land on code the author can see.
+        expect(snapToDiff(file, 5)).toBe(4);
+        expect(snapToDiff(file, 6, 1)).toBeNull();
+    });
+
+    test("prefers an added line over a nearer context line", () => {
+        const patch = [
+            "diff --git a/a.ts b/a.ts",
+            "--- a/a.ts",
+            "+++ b/a.ts",
+            "@@ -10,5 +10,5 @@",
+            " context nine",
+            " context ten",
+            "-old",
+            "+added eleven",
+            " context twelve",
+            " context thirteen",
+        ].join("\n");
+        const file = firstFile(patch);
+        expect(snapToDiff(file, 12)).toBe(12);
+        // Line 9 is not shown by the hunk. The added line is 12 and the nearest
+        // visible context line is 10, so a result of 12 proves the added line
+        // was preferred to a nearer context line.
+        expect(snapToDiff(file, 9, 3)).toBe(12);
+    });
+
     test("resolves a path through Git's a/ and b/ prefixes", () => {
         const files = parseUnifiedDiff(ADDED_FILE_PATCH);
         expect(findFile(files, "b/apps/control-api/src/thing.ts")?.path).toBe(
@@ -157,7 +198,7 @@ diff --git a/logo.png b/logo.png
 });
 
 describe("mechanical rules", () => {
-    test("reports banned constructs on added lines only", () => {
+    test("reports banned constructs on added lines only", async () => {
         const patch = `diff --git a/apps/control-api/src/bad.ts b/apps/control-api/src/bad.ts
 new file mode 100644
 --- /dev/null
@@ -167,12 +208,12 @@ new file mode 100644
 +    return value;
 +}
 `;
-        const ruleIds = runRuleChecks(contextFor(patch)).map((finding) => finding.ruleId);
+        const ruleIds = (await runRuleChecks(contextFor(patch))).map((finding) => finding.ruleId);
         expect(ruleIds).toContain("GTS-EXPORTS-01");
         expect(ruleIds).toContain("REPO-TS-01");
     });
 
-    test("ignores a banned construct that only appears inside a string", () => {
+    test("ignores a banned construct that only appears inside a string", async () => {
         const patch = `diff --git a/apps/control-api/src/message.ts b/apps/control-api/src/message.ts
 --- a/apps/control-api/src/message.ts
 +++ b/apps/control-api/src/message.ts
@@ -180,10 +221,10 @@ new file mode 100644
 -old
 +const rejection = "value must not be any of the allowed types";
 `;
-        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+        expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("reads an added line inside a template opened on an unchanged line as content", () => {
+    test("reads an added line inside a template opened on an unchanged line as content", async () => {
         const patch = `diff --git a/apps/control-api/src/embed.ts b/apps/control-api/src/embed.ts
 --- a/apps/control-api/src/embed.ts
 +++ b/apps/control-api/src/embed.ts
@@ -193,10 +234,10 @@ new file mode 100644
  \`;
  const other = 1;
 `;
-        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+        expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("still sees code after an added line closes a template", () => {
+    test("still sees code after an added line closes a template", async () => {
         const patch = `diff --git a/apps/control-api/src/embed.ts b/apps/control-api/src/embed.ts
 --- a/apps/control-api/src/embed.ts
 +++ b/apps/control-api/src/embed.ts
@@ -206,7 +247,7 @@ new file mode 100644
 +\`;
 +export default function bad(): any { return 1; }
 `;
-        const findings = runRuleChecks(contextFor(patch));
+        const findings = await runRuleChecks(contextFor(patch));
         const exported = findings.filter((finding) => finding.ruleId === "GTS-EXPORTS-01");
         expect(exported).toHaveLength(1);
         expect(exported[0]?.line).toBe(4);
@@ -214,7 +255,7 @@ new file mode 100644
         expect(anyFindings.map((finding) => finding.line)).toEqual([4]);
     });
 
-    test("fires the comment-scoped checks the code surface cannot see", () => {
+    test("fires the comment-scoped checks the code surface cannot see", async () => {
         const patch = `diff --git a/apps/control-api/src/legacy.ts b/apps/control-api/src/legacy.ts
 new file mode 100644
 --- /dev/null
@@ -224,12 +265,12 @@ new file mode 100644
 +const legacy = 1;
 +// TODO: remove once the legacy path is gone
 `;
-        const ruleIds = runRuleChecks(contextFor(patch)).map((finding) => finding.ruleId);
+        const ruleIds = (await runRuleChecks(contextFor(patch))).map((finding) => finding.ruleId);
         expect(ruleIds).toContain("REPO-TS-04");
         expect(ruleIds).toContain("REPO-TS-05");
     });
 
-    test("does not fire a comment-scoped check on a backticked mention", () => {
+    test("does not fire a comment-scoped check on a backticked mention", async () => {
         // Built at runtime so the fixture's backticks survive the template literal.
         const tick = String.fromCharCode(96);
         const patch = [
@@ -241,10 +282,10 @@ new file mode 100644
             `+// A directive like ${tick}@ts-expect-error${tick} is honored by the compiler.`,
             "+export const note = 1;",
         ].join("\n");
-        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+        expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("does not fire the comment-scoped checks on a non-comment mention", () => {
+    test("does not fire the comment-scoped checks on a non-comment mention", async () => {
         const patch = `diff --git a/apps/control-api/src/note.ts b/apps/control-api/src/note.ts
 --- a/apps/control-api/src/note.ts
 +++ b/apps/control-api/src/note.ts
@@ -252,10 +293,10 @@ new file mode 100644
 -old
 +const message = "@ts-expect-error is how you suppress a type error";
 `;
-        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+        expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("treats a backticked term in prose as a mention, not a use", () => {
+    test("treats a backticked term in prose as a mention, not a use", async () => {
         // The backtick is built at runtime so the patch text can live in a template literal.
         const tick = String.fromCharCode(96);
         const patch = [
@@ -266,17 +307,17 @@ new file mode 100644
             "-old",
             `+Do not use the term ${tick}backstop${tick} in source or documentation.`,
         ].join("\n");
-        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+        expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("flags a single-line unbraced conditional", () => {
-        const ruleIds = runRuleChecks(contextFor(ADDED_FILE_PATCH)).map(
+    test("flags a single-line unbraced conditional", async () => {
+        const ruleIds = (await runRuleChecks(contextFor(ADDED_FILE_PATCH))).map(
             (finding) => finding.ruleId,
         );
         expect(ruleIds).toContain("REPO-TS-02");
     });
 
-    test("leaves console output alone in scripts and tests", () => {
+    test("leaves console output alone in scripts and tests", async () => {
         const patch = `diff --git a/scripts/tool.ts b/scripts/tool.ts
 --- a/scripts/tool.ts
 +++ b/scripts/tool.ts
@@ -284,7 +325,7 @@ new file mode 100644
 -old
 +console.log("progress");
 `;
-        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+        expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
     test("requires a test beside a new source module", () => {
@@ -373,6 +414,70 @@ describe("source scanning", () => {
     test("does not treat an apostrophe as a quote", () => {
         const line = "The repository's rule bans the backstop pattern.";
         expect(blankInlineCode(line)).toBe(line);
+    });
+});
+
+describe("lexical context", () => {
+    test("reads string content correctly when the opener precedes the diff window", async () => {
+        const root = await mkdtemp(join(tmpdir(), "rostrum-review-test-"));
+        await Bun.write(
+            join(root, "deep.ts"),
+            [
+                "const header = `",
+                "line 1",
+                "line 2",
+                "value: any",
+                "`;",
+                "export const done = 1;",
+                "",
+            ].join("\n"),
+        );
+        // The hunk begins at line 3, so the backtick that opens the literal on
+        // line 1 is not part of the patch.
+        const patch = [
+            "diff --git a/deep.ts b/deep.ts",
+            "--- a/deep.ts",
+            "+++ b/deep.ts",
+            "@@ -3,2 +3,3 @@",
+            " line 2",
+            "+value: any",
+            " `;",
+        ].join("\n");
+        expect(await runRuleChecks(contextFor(patch, { workingDirectory: root }))).toHaveLength(0);
+
+        // Without the checkout the opener is unknowable, so the same content is
+        // read as code; the fallback is approximate and documented as such.
+        const withoutCheckout = await runRuleChecks(contextFor(patch));
+        expect(withoutCheckout.map((finding) => finding.ruleId)).toContain("REPO-TS-01");
+    });
+
+    test("keeps scanning past a template that closes on an unchanged line", async () => {
+        const root = await mkdtemp(join(tmpdir(), "rostrum-review-test-"));
+        await Bun.write(
+            join(root, "notes.ts"),
+            [
+                "const sample = `",
+                "some text",
+                "`;",
+                "// TODO: remove the legacy path",
+                "export const value = 2;",
+                "",
+            ].join("\n"),
+        );
+        // The hunk starts at the line that closes the template, so a scan that
+        // began there would treat the backtick as an opener and blank everything
+        // after it, hiding the marker below.
+        const patch = [
+            "diff --git a/notes.ts b/notes.ts",
+            "--- a/notes.ts",
+            "+++ b/notes.ts",
+            "@@ -3,3 +3,3 @@",
+            " `;",
+            "+// TODO: remove the legacy path",
+            " export const value = 2;",
+        ].join("\n");
+        const findings = await runRuleChecks(contextFor(patch, { workingDirectory: root }));
+        expect(findings.map((finding) => finding.ruleId)).toContain("REPO-TS-05");
     });
 });
 

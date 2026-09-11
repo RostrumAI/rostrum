@@ -52,8 +52,9 @@ export function stripPathPrefix(path: string): string {
 /**
  * Parses a unified diff into per-file hunks indexed by new-file line number.
  *
- * Deleted files, renames, and binary files are returned with no hunks so the
- * caller can still report that the pull request touched them.
+ * Deleted and renamed files appear with no hunks, so a caller can still report
+ * that the pull request touched them. Lockfiles and binary artifacts are dropped
+ * entirely: they have no reviewable lines and no line to anchor a comment to.
  *
  * @param patch - Unified diff text, as produced by `gh pr diff` or `git diff`.
  * @returns One entry per reviewable file, in patch order.

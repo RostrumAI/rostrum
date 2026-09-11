@@ -12,8 +12,8 @@
  * the reviewer can read the surrounding code before reporting.
  */
 
-import { visibleLineEntries, visibleLines } from "./diff.ts";
-import { blankInlineCode, scanSourceLines } from "./source-text.ts";
+import { type LineEntry, visibleLineEntries, visibleLines } from "./diff.ts";
+import { blankInlineCode, type LineRegions, scanSourceLines } from "./source-text.ts";
 import type { Finding, ReviewContext } from "./types.ts";
 
 /** One mechanical check over the added lines of a file. */
@@ -167,21 +167,19 @@ export const RULE_CHECKS: RuleCheck[] = [
  * @param context - Review context holding the parsed files.
  * @returns Certain findings, in file order.
  */
-export function runRuleChecks(context: ReviewContext): Finding[] {
+export async function runRuleChecks(context: ReviewContext): Promise<Finding[]> {
     const findings: Finding[] = [];
     for (const file of context.files) {
-        // Every line the diff shows is scanned in source order, not only the added
-        // ones: a template literal or block comment can open on an unchanged line,
-        // and a scanner that never saw the opener would read the changed lines
-        // inside it as code. Only the added lines are then matched against.
-        //
-        // Prose is scanned only for inline code spans and quoted terms, so a
-        // quoted term reads as a mention rather than a use.
+        // A template literal or block comment can open on a line the diff does not
+        // show, so the regions are resolved against the file as it exists at the
+        // head commit rather than reconstructed from the diff's context window.
+        // The diff is the fallback for a file that is no longer on disk, and its
+        // hunks are scanned separately because the text between them is unknown.
         const entries = visibleLineEntries(file);
         const prose = file.path.endsWith(".md");
         const regions = prose
             ? entries.map((entry) => ({ code: blankInlineCode(entry.text), comments: "" }))
-            : scanSourceLines(entries.map((entry) => entry.text));
+            : await scanFileRegions(context.workingDirectory, file.path, entries);
         for (const [index, entry] of entries.entries()) {
             if (!entry.added) {
                 continue;
@@ -230,6 +228,74 @@ export function runRuleChecks(context: ReviewContext): Finding[] {
  * @param context - Review context holding the parsed files and the repository checkout.
  * @returns A finding per uncovered new source file.
  */
+/**
+ * Resolves each diff line's code and comment regions from the head checkout.
+ *
+ * Scanning the whole file is what makes the answer correct rather than probable:
+ * a template literal opened hundreds of lines before the change leaves no trace
+ * in a three-line context window, and guessing would let a changed line be read
+ * as code when it is string content, or the reverse. When the file is not on disk
+ * — it was deleted, or the checkout is incomplete — the diff's own lines are
+ * scanned one hunk at a time, since the text between hunks is unknown and must
+ * not carry lexical state.
+ *
+ * @param workingDirectory - Root of the checkout at the head commit.
+ * @param path - Repository-relative path of the file.
+ * @param entries - Lines the diff shows, in source order.
+ * @returns One region pair per entry, in the same order.
+ */
+async function scanFileRegions(
+    workingDirectory: string,
+    path: string,
+    entries: LineEntry[],
+): Promise<LineRegions[]> {
+    const source = await readSourceFile(workingDirectory, path);
+    if (source !== null) {
+        const scanned = scanSourceLines(source.split("\n"));
+        return entries.map((entry) => {
+            const region = scanned[entry.line - 1];
+            return region ?? { code: entry.text, comments: "" };
+        });
+    }
+
+    const byLine = new Map<number, LineRegions>();
+    let current: LineEntry[] = [];
+    const flush = (): void => {
+        if (current.length === 0) {
+            return;
+        }
+        const scanned = scanSourceLines(current.map((entry) => entry.text));
+        for (const [index, entry] of current.entries()) {
+            byLine.set(entry.line, scanned[index] ?? { code: entry.text, comments: "" });
+        }
+        current = [];
+    };
+    for (const entry of entries) {
+        const previous = current[current.length - 1];
+        if (previous !== undefined && entry.line !== previous.line + 1) {
+            flush();
+        }
+        current.push(entry);
+    }
+    flush();
+    return entries.map((entry) => byLine.get(entry.line) ?? { code: entry.text, comments: "" });
+}
+
+/**
+ * Reads a file from the head checkout.
+ *
+ * @param workingDirectory - Root of the checkout at the head commit.
+ * @param path - Repository-relative path of the file.
+ * @returns The file's text, or null when it cannot be read.
+ */
+async function readSourceFile(workingDirectory: string, path: string): Promise<string | null> {
+    try {
+        return await Bun.file(`${workingDirectory}/${path}`).text();
+    } catch {
+        return null;
+    }
+}
+
 export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
     const testPaths = new Set(
         context.files.filter((file) => isTestFile(file.path)).map((file) => file.path),

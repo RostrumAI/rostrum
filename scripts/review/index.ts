@@ -154,7 +154,7 @@ async function main(): Promise<number> {
     };
 
     const deterministic = [
-        ...runRuleChecks(context),
+        ...(await runRuleChecks(context)),
         ...findUncoveredSourceFiles(context),
         ...findUnjustifiedDependencyChange(context),
     ];
