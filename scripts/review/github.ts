@@ -275,6 +275,54 @@ export async function replyToReviewComment(
     return parsed.html_url ?? "";
 }
 
+/** One comment in a submitted review, as GitHub returns it. */
+export interface ReviewCommentRecord {
+    /** REST database id, used to reply in the comment's thread. */
+    id: number;
+    /** Comment body. */
+    body: string;
+    /** Author login. */
+    author: string;
+    /** Author's relationship to the repository. */
+    authorAssociation: string;
+}
+
+/**
+ * Lists the comments a submitted review carries.
+ *
+ * A review is how a reply actually reaches this repository: commenting on an
+ * existing inline thread submits a review containing that comment, so the review
+ * submission is the event the adjudicator listens for, and this is where its
+ * comments are read from.
+ *
+ * @param ref - Pull request identity.
+ * @param reviewId - Database id of the review.
+ * @returns Comments in the review, in the order GitHub returns them.
+ */
+export async function fetchReviewComments(
+    ref: PullRequestRef,
+    reviewId: number,
+): Promise<ReviewCommentRecord[]> {
+    const output = await runProcessOrThrow([
+        "gh",
+        "api",
+        "--paginate",
+        `repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/reviews/${reviewId}/comments`,
+    ]);
+    const parsed = JSON.parse(output) as Array<{
+        id: number;
+        body: string;
+        user: { login: string } | null;
+        author_association: string;
+    }>;
+    return parsed.map((comment) => ({
+        id: comment.id,
+        body: comment.body ?? "",
+        author: comment.user?.login ?? "ghost",
+        authorAssociation: comment.author_association,
+    }));
+}
+
 /**
  * Resolves or reopens a review thread.
  *

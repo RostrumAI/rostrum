@@ -11,11 +11,16 @@ on:
   issue_comment:
     types: [created]
   # A reply on a review thread is adjudicated: the reviewer re-reads the code and
-  # either withdraws its finding or stands behind it. This event is deliberately
-  # NOT `pull_request_target`: it checks out the pull request merge ref by default,
-  # so the checkout below is pinned to the base branch and the head is only read.
-  pull_request_review_comment:
-    types: [created]
+  # either withdraws its finding or stands behind it.
+  #
+  # The trigger is the review submission, not `pull_request_review_comment`, because
+  # that event never reaches Actions in this repository: replies and new inline
+  # comments alike produced no run at all, including with a minimal workflow whose
+  # only trigger was that event. Every inline comment does create a review, and
+  # `submitted` fires for it, so that is the channel used here. The job ignores
+  # reviews the reviewer submitted itself and reviews that carry no comment.
+  pull_request_review:
+    types: [submitted]
   # A manual run reviews a pull request on demand. It exists because this workflow
   # takes effect only once merged: a pull request that changes it cannot trigger it,
   # so the first run after merge is dispatched rather than automatic.
@@ -40,17 +45,14 @@ jobs:
     name: Answer a reply
     runs-on: ubuntu-latest
     if: >-
-      github.event_name == 'pull_request_review_comment' &&
-      github.event.comment.in_reply_to_id != null &&
-      github.event.comment.user.type != 'Bot' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      github.event_name == 'pull_request_review' &&
+      github.event.review.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPOSITORY: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      COMMENT_ID: ${{ github.event.comment.id }}
-      ASSOCIATION: ${{ github.event.comment.author_association }}
-      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+      REVIEW_ID: ${{ github.event.review.id }}
     steps:
       - name: Check out the base branch
         uses: actions/checkout@v4
@@ -77,13 +79,6 @@ jobs:
           ref: ${{ steps.target.outputs.head_sha }}
           path: pr
 
-      # `runner.temp` is not available to a job-level `env` — the runner does not
-      # exist when that block is evaluated — so the path is taken from the
-      # RUNNER_TEMP variable the runner exports to every step instead.
-      - name: Write the comment body to a file
-        if: steps.target.outputs.fork == 'false'
-        run: gh api "repos/${REPOSITORY}/pulls/comments/${COMMENT_ID}" --jq .body > "${RUNNER_TEMP}/comment.md"
-
       - name: Set up Bun
         if: steps.target.outputs.fork == 'false'
         uses: oven-sh/setup-bun@v2
@@ -107,11 +102,8 @@ jobs:
           REVIEW_MODEL: deepseek/deepseek-v4-flash
         run: >-
           bun run review:adjudicate
-          --comment-id "${COMMENT_ID}"
+          --review-id "${REVIEW_ID}"
           --pull-request "${PR_NUMBER}"
-          --association "${ASSOCIATION}"
-          --author "${COMMENT_AUTHOR}"
-          --body-file "${RUNNER_TEMP}/comment.md"
           --repo-root "${GITHUB_WORKSPACE}/pr"
         timeout-minutes: 20
 
