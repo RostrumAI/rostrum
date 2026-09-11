@@ -78,7 +78,10 @@ export function scanSourceLines(lines: string[]): LineRegions[] {
  * @returns The line's two regions, each blanked in the region it does not cover.
  */
 export function scanSourceLine(line: string, state: ScanState): LineRegions {
-    const code = [...line];
+    // Indexed in UTF-16 units, not code points, because the scanner's indices and
+    // the comment projection are both measured in those units: spreading the line
+    // into code points would make an astral character shift every later range.
+    const code = line.split("");
     // The comment projection starts empty and receives only comment text, so a
     // check that reads it cannot match an identifier or a literal.
     const comments = Array.from<string>({ length: line.length }).fill(" ");
@@ -272,7 +275,7 @@ function findRegexEnd(line: string, start: number): number {
  * @returns The line with the contents of code spans and quoted terms blanked.
  */
 export function blankInlineCode(line: string): string {
-    const output = [...line];
+    const output = line.split("");
     const delimiters = ["`", '"', "\u201C", "\u201D"];
     let index = 0;
     while (index < line.length) {

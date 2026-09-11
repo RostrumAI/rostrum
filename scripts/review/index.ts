@@ -89,10 +89,22 @@ async function main(): Promise<number> {
     const reviewRoot = values["repo-root"] ?? repositoryRoot;
     const skillDirectory = join(repositoryRoot, ".github", "skills", "code-review");
     const model = values.model ?? process.env.REVIEW_MODEL ?? DEFAULT_MODEL;
-    const confidenceFloor = Number(
-        values.confidence ?? process.env.REVIEW_CONFIDENCE_FLOOR ?? DEFAULT_CONFIDENCE_FLOOR,
+    const confidenceFloor = numericOption(
+        values.confidence ?? process.env.REVIEW_CONFIDENCE_FLOOR,
+        DEFAULT_CONFIDENCE_FLOOR,
+        "confidence floor",
+        { min: 0, max: 100 },
     );
-    const concurrency = Number(values.concurrency ?? DEFAULT_CONCURRENCY);
+    const concurrency = numericOption(values.concurrency, DEFAULT_CONCURRENCY, "concurrency", {
+        min: 1,
+        max: 16,
+    });
+    const lensTimeoutSeconds = numericOption(
+        process.env.REVIEW_LENS_TIMEOUT,
+        DEFAULT_LENS_TIMEOUT_SECONDS,
+        "lens timeout",
+        { min: 30, max: 3600 },
+    );
     const requestedLenses = (values.lenses ?? "")
         .split(",")
         .map((entry) => entry.trim())
@@ -182,7 +194,7 @@ async function main(): Promise<number> {
     const lensResults = await runWithConcurrency(lenses, concurrency, (lens) =>
         runLens(lens, context, {
             model,
-            timeoutSeconds: Number(process.env.REVIEW_LENS_TIMEOUT ?? DEFAULT_LENS_TIMEOUT_SECONDS),
+            timeoutSeconds: lensTimeoutSeconds,
             skillDirectory,
             promptDirectory: scratch,
         }),
@@ -243,6 +255,42 @@ async function main(): Promise<number> {
     );
     console.log("Summary comment updated.");
     return 0;
+}
+
+/**
+ * Parses a numeric override, rejecting a value that is not a usable number.
+ *
+ * An unvalidated override fails silently in the worst way: a `NaN` confidence
+ * floor compares false against every finding, so the review reports nothing and
+ * looks clean, and a zero concurrency runs no reviewer at all. Both are
+ * configuration mistakes, so they are reported as such.
+ *
+ * @param raw - Value from the command line or the environment, if either was set.
+ * @param fallback - Value to use when no override was supplied.
+ * @param label - Name of the setting, used in the error message.
+ * @param bounds - Inclusive range the value must fall within.
+ * @returns The parsed value, or the fallback.
+ * @throws Error when the override is present but not a number within its bounds.
+ */
+function numericOption(
+    raw: string | undefined,
+    fallback: number,
+    label: string,
+    bounds: { min: number; max: number },
+): number {
+    if (raw === undefined || raw.trim().length === 0) {
+        return fallback;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new Error(`Invalid ${label}: "${raw}" is not an integer.`);
+    }
+    if (parsed < bounds.min || parsed > bounds.max) {
+        throw new Error(
+            `Invalid ${label}: ${parsed} is outside the range ${bounds.min} to ${bounds.max}.`,
+        );
+    }
+    return parsed;
 }
 
 /**

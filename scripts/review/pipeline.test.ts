@@ -152,6 +152,22 @@ diff --git a/logo.png b/logo.png
         expect(parseUnifiedDiff(patch)).toHaveLength(0);
     });
 
+    test("treats an added line beginning with `++ ` as content, not a file header", () => {
+        const patch = [
+            "diff --git a/notes.ts b/notes.ts",
+            "--- a/notes.ts",
+            "+++ b/notes.ts",
+            "@@ -1,1 +1,3 @@",
+            " const existing = 1;",
+            "++ counter increment",
+            "+const added = 2;",
+        ].join("\n");
+        const files = parseUnifiedDiff(patch);
+        expect(files).toHaveLength(1);
+        expect(files[0]?.path).toBe("notes.ts");
+        expect(visibleLines(firstFile(patch), "added")).toEqual([2, 3]);
+    });
+
     test("snaps a near-miss line onto the diff and rejects a distant one", () => {
         const file = firstFile(ADDED_FILE_PATCH);
         expect(snapToDiff(file, 2)).toBe(2);
@@ -396,6 +412,19 @@ describe("source scanning", () => {
         const closed = scanSourceLine("`;", state);
         expect(state.inTemplate).toBe(false);
         expect(closed.code).toBe(" ;");
+    });
+
+    test("keeps both projections aligned across an astral character", () => {
+        const line = 'const icon = "\u{1F680}\u{1F680}"; const label: any = 1;';
+        const regions = scanSourceLine(line, newScanState());
+        expect(regions.code).toHaveLength(line.length);
+        expect(regions.comments).toHaveLength(line.length);
+        // The `any` is on the added text after the emoji, so a projection that
+        // shifted by a code unit would hide it.
+        expect(regions.code).toContain("any");
+        expect(codeOf('const icon = "\u{1F680}"; const text = "no any here";')).not.toContain(
+            "any",
+        );
     });
 
     test("leaves real code intact so the check still fires", () => {

@@ -90,7 +90,10 @@ export function parseUnifiedDiff(patch: string): FileDiff[] {
             current.deleted = true;
             continue;
         }
-        if (raw.startsWith("+++ ")) {
+        if (raw.startsWith("+++ ") && hunk === null) {
+            // Only a position outside a hunk holds the file header. Inside a hunk
+            // this text is an added line whose content begins with `++ `, and
+            // treating it as a header would drop the line and rename the file.
             const path = stripPathPrefix(raw.slice(4).trim());
             current.path = path === "/dev/null" ? current.path : path;
             continue;
@@ -184,18 +187,6 @@ export function visibleLineEntries(file: FileDiff): LineEntry[] {
         }
     }
     return entries.sort((left, right) => left.line - right.line);
-}
-
-/**
- * Returns the added line contents of a file, keyed by new-file line number.
- *
- * @param file - Parsed file diff.
- * @returns Added text in ascending line order.
- */
-export function addedLineEntries(file: FileDiff): Array<{ line: number; text: string }> {
-    return visibleLineEntries(file)
-        .filter((entry) => entry.added)
-        .map((entry) => ({ line: entry.line, text: entry.text }));
 }
 
 /**
