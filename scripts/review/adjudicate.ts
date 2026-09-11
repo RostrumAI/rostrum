@@ -16,7 +16,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { numericOption } from "./config.ts";
 import {
     COMMENT_MARKER,
     fetchPullRequest,
@@ -39,8 +39,21 @@ import { parseVerdict, renderVerdictMarker, type Verdict } from "./verdicts.ts";
 /** Repository associations allowed to disposition a finding. */
 const MAINTAINER_ASSOCIATIONS: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR"];
 
-/** Maximum reviewer replies in one thread before it is left to a human. */
-const MAX_ADJUDICATIONS_PER_THREAD = 3;
+/**
+ * Default reviewer replies allowed in one thread before it is left to a human.
+ *
+ * This is a backstop, not a mechanism. The loop is human-driven — the reviewer's
+ * own replies are filtered out by the workflow, so it cannot answer itself — and
+ * what a person will tolerate already bounds the exchange. What this bounds is
+ * cost per thread and, more importantly, how long the reviewer keeps re-arguing a
+ * disagreement it cannot settle. Past the second or third exchange it is
+ * restating itself, and a reviewer that will not stop is one a team learns to
+ * ignore. Override with `REVIEW_MAX_ADJUDICATIONS`.
+ */
+const DEFAULT_MAX_ADJUDICATIONS = 3;
+
+/** Environment variable overriding the per-thread reply budget. */
+export const MAX_ADJUDICATIONS_ENV = "REVIEW_MAX_ADJUDICATIONS";
 
 /** Verdicts that are recorded but do not withdraw the finding. */
 const NON_WITHDRAWING: readonly Verdict[] = ["stands", "needs_human"];
@@ -92,10 +105,18 @@ export async function adjudicateReply(
     if (thread.isResolved) {
         return { action: "ignored", detail: "thread is already resolved" };
     }
-    if (countReviewerReplies(thread) >= MAX_ADJUDICATIONS_PER_THREAD) {
+    const maxAdjudications = numericOption(
+        process.env[MAX_ADJUDICATIONS_ENV],
+        DEFAULT_MAX_ADJUDICATIONS,
+        "max adjudications per thread",
+        { min: 1, max: 20 },
+    );
+    const previousReplies = countReviewerReplies(thread);
+    if (previousReplies > maxAdjudications) {
+        // The closure was already posted; a later reply gets no further response.
         return {
             action: "needs_human",
-            detail: `thread has reached ${MAX_ADJUDICATIONS_PER_THREAD} reviewer replies`,
+            detail: "thread is past its reply budget and has been closed out",
         };
     }
 
@@ -129,6 +150,21 @@ export async function adjudicateReply(
     const result = await runAgent(invocation.command, agentTimeoutSeconds());
     if (result.exitCode !== 0) {
         return { action: "skipped", detail: `adjudicator failed: ${result.stderr.slice(-300)}` };
+    }
+
+    if (previousReplies === maxAdjudications) {
+        // First reply past the budget: say so, and leave the decision to a person.
+        // Without this the reviewer simply stops answering, which reads as having
+        // ignored the last reply rather than as having handed it over.
+        await replyToReviewComment(
+            ref,
+            findingComment.id,
+            renderBudgetExhaustedReply(maxAdjudications),
+        );
+        return {
+            action: "needs_human",
+            detail: `reached ${maxAdjudications} reviewer replies; handed to a person`,
+        };
     }
 
     const payload = extractJsonObject(result.stdout);
@@ -169,7 +205,7 @@ function findThreadWithComment(threads: ReviewThread[], commentId: number): Revi
  * @param thread - Thread to count.
  * @returns Number of reviewer replies after the original finding.
  */
-function countReviewerReplies(thread: ReviewThread): number {
+export function countReviewerReplies(thread: ReviewThread): number {
     const findingIndex = thread.comments.findIndex((comment) =>
         comment.body.includes(COMMENT_MARKER),
     );
@@ -219,6 +255,23 @@ function readReason(payload: unknown): string {
         }
     }
     return "No explanation was produced.";
+}
+
+/**
+ * Renders the reply that ends the reviewer's side of a thread.
+ *
+ * It records a `needs_human` verdict, so the thread is left open and the finding
+ * stays visible: handing a disagreement to a person is not the same as
+ * withdrawing it.
+ *
+ * @param budget - Number of replies the reviewer was allowed.
+ * @returns Comment body including the verdict marker.
+ */
+export function renderBudgetExhaustedReply(budget: number): string {
+    return [
+        renderVerdictMarker("needs_human"),
+        `I have answered ${budget} times on this finding and have nothing further to add without repeating myself. Leaving this to a person to decide.`,
+    ].join("\n\n");
 }
 
 /**

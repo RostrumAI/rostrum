@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
+import { numericOption } from "./config.ts";
 import { findFile, parseUnifiedDiff, snapToDiff } from "./diff.ts";
 import {
     fetchPatch,
@@ -262,42 +263,6 @@ async function main(): Promise<number> {
     );
     console.log("Summary comment updated.");
     return 0;
-}
-
-/**
- * Parses a numeric override, rejecting a value that is not a usable number.
- *
- * An unvalidated override fails silently in the worst way: a `NaN` confidence
- * floor compares false against every finding, so the review reports nothing and
- * looks clean, and a zero concurrency runs no reviewer at all. Both are
- * configuration mistakes, so they are reported as such.
- *
- * @param raw - Value from the command line or the environment, if either was set.
- * @param fallback - Value to use when no override was supplied.
- * @param label - Name of the setting, used in the error message.
- * @param bounds - Inclusive range the value must fall within.
- * @returns The parsed value, or the fallback.
- * @throws Error when the override is present but not a number within its bounds.
- */
-function numericOption(
-    raw: string | undefined,
-    fallback: number,
-    label: string,
-    bounds: { min: number; max: number },
-): number {
-    if (raw === undefined || raw.trim().length === 0) {
-        return fallback;
-    }
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new Error(`Invalid ${label}: "${raw}" is not an integer.`);
-    }
-    if (parsed < bounds.min || parsed > bounds.max) {
-        throw new Error(
-            `Invalid ${label}: ${parsed} is outside the range ${bounds.min} to ${bounds.max}.`,
-        );
-    }
-    return parsed;
 }
 
 /**

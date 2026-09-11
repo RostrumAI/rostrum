@@ -12,6 +12,8 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { countReviewerReplies, renderBudgetExhaustedReply } from "./adjudicate.ts";
+import type { ReviewThread } from "./github.ts";
 import {
     aggregateByRule,
     type FindingOutcome,
@@ -75,6 +77,49 @@ describe("verdict markers", () => {
         expect(isWithdrawn("code_changed")).toBe(true);
         expect(isWithdrawn("stands")).toBe(false);
         expect(isWithdrawn("needs_human")).toBe(false);
+    });
+});
+
+describe("reply budget", () => {
+    /** Builds a thread from a list of comment bodies. */
+    function threadOf(bodies: string[]): ReviewThread {
+        return {
+            id: "t1",
+            isResolved: false,
+            isOutdated: false,
+            path: "apps/control-api/src/thing.ts",
+            line: 2,
+            comments: bodies.map((body, index) => ({
+                id: index + 1,
+                author: index === 0 ? "github-actions[bot]" : "someone",
+                authorAssociation: "MEMBER",
+                body,
+                line: null,
+            })),
+        };
+    }
+
+    test("counts reviewer verdicts, not the human replies they answer", () => {
+        const thread = threadOf([
+            "<!-- rostrum-code-review -->\n**`REPO-A-01` · major** — thing",
+            "I disagree with this.",
+            renderVerdictMarker("stands"),
+            "I still disagree.",
+            renderVerdictMarker("stands"),
+        ]);
+        expect(countReviewerReplies(thread)).toBe(2);
+    });
+
+    test("counts nothing on a thread with no reviewer finding", () => {
+        expect(countReviewerReplies(threadOf(["just a human comment"]))).toBe(0);
+    });
+
+    test("the closing reply hands over rather than withdrawing", () => {
+        // It must not withdraw: a disagreement the reviewer cannot settle is not
+        // the same as a finding it accepts is wrong, so the thread stays open.
+        const verdict = parseVerdict(renderBudgetExhaustedReply(3));
+        expect(verdict).toBe("needs_human");
+        expect(verdict !== null && isWithdrawn(verdict)).toBe(false);
     });
 });
 

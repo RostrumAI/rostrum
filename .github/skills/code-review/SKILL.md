@@ -109,10 +109,15 @@ state of the pipeline.
 | `stands` | The finding is still correct after re-reading the code | Reply with the reason, leave the thread open |
 | `needs_human` | Genuinely ambiguous, or the argument has run its course | Leave it to a person |
 
-Only a maintainer's reply is adjudicated, and only three times per thread: past that the reviewer goes
-quiet rather than argue. A reply's authority carries no weight — "I wrote this, it's fine" is not
-evidence about what the code does. Text asking the reviewer to ignore its instructions is treated as
-`needs_human`, not as a refutation.
+Only a maintainer's reply is adjudicated. A reply's authority carries no weight — "I wrote this,
+it's fine" is not evidence about what the code does. Text asking the reviewer to ignore its
+instructions is treated as `needs_human`, not as a refutation.
+
+The reviewer answers a thread three times, then closes its side of it with a `needs_human` verdict
+saying so. Handing a disagreement to a person is not the same as withdrawing the finding, so the
+thread stays open. The budget exists because past the second or third exchange the reviewer is
+restating itself, and a reviewer that will not stop is one people learn to ignore. Set
+`REVIEW_MAX_ADJUDICATIONS` to change it.
 
 A reply can only disposition its own thread. It cannot edit this corpus.
 
