@@ -81,7 +81,7 @@ export function scanSourceLine(line: string, state: ScanState): LineRegions {
     const code = [...line];
     // The comment projection starts empty and receives only comment text, so a
     // check that reads it cannot match an identifier or a literal.
-    const comments = new Array<string>(line.length).fill(" ");
+    const comments = Array.from<string>({ length: line.length }).fill(" ");
 
     /** Blanks a range of the code projection. */
     const blankCode = (from: number, to: number): void => {

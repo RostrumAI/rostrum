@@ -56,8 +56,14 @@ export interface DiffHunk {
     newLines: number[];
     /** New-file line numbers whose content the pull request introduces. */
     addedLines: number[];
-    /** Added line contents keyed by new-file line number, without the leading `+`. */
-    addedText: Map<number, string>;
+    /**
+     * Line contents keyed by new-file line number, without the leading marker.
+     *
+     * Context lines are included, not only added ones, because a template literal
+     * or block comment can open on an unchanged line and continue into a changed
+     * one; a scanner that saw only added lines would misread what region it is in.
+     */
+    text: Map<number, string>;
 }
 
 /** Identifies the pull request under review. */

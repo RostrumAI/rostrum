@@ -12,7 +12,7 @@
  * the reviewer can read the surrounding code before reporting.
  */
 
-import { addedLineEntries, visibleLines } from "./diff.ts";
+import { visibleLineEntries, visibleLines } from "./diff.ts";
 import { blankInlineCode, scanSourceLines } from "./source-text.ts";
 import type { Finding, ReviewContext } from "./types.ts";
 
@@ -170,28 +170,35 @@ export const RULE_CHECKS: RuleCheck[] = [
 export function runRuleChecks(context: ReviewContext): Finding[] {
     const findings: Finding[] = [];
     for (const file of context.files) {
-        const entries = addedLineEntries(file);
+        // Every line the diff shows is scanned in source order, not only the added
+        // ones: a template literal or block comment can open on an unchanged line,
+        // and a scanner that never saw the opener would read the changed lines
+        // inside it as code. Only the added lines are then matched against.
+        //
         // Prose is scanned only for inline code spans and quoted terms, so a
-        // quoted term reads as a mention. Source is split into code and comment
-        // regions across the whole file's added lines, because a template literal
-        // or block comment spans lines.
-        const regions = file.path.endsWith(".md")
-            ? entries.map((entry) => ({
-                  code: blankInlineCode(entry.text),
-                  comments: "",
-              }))
+        // quoted term reads as a mention rather than a use.
+        const entries = visibleLineEntries(file);
+        const prose = file.path.endsWith(".md");
+        const regions = prose
+            ? entries.map((entry) => ({ code: blankInlineCode(entry.text), comments: "" }))
             : scanSourceLines(entries.map((entry) => entry.text));
         for (const [index, entry] of entries.entries()) {
+            if (!entry.added) {
+                continue;
+            }
             const region = regions[index] ?? { code: "", comments: "" };
             for (const check of RULE_CHECKS) {
                 if (!check.appliesTo(file.path)) {
                     continue;
                 }
+                // Comment text is mention-aware for the same reason prose is: the
+                // document that defines a directive has to be able to name it.
+                const commentText = blankInlineCode(region.comments);
                 const candidates =
                     check.surface === "comments"
-                        ? [region.comments]
+                        ? [commentText]
                         : check.surface === "any"
-                          ? [region.code, region.comments]
+                          ? [region.code, commentText]
                           : [region.code];
                 if (!candidates.some((candidate) => check.matches(candidate))) {
                     continue;

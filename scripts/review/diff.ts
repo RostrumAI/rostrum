@@ -100,7 +100,7 @@ export function parseUnifiedDiff(patch: string): FileDiff[] {
                 hunk = null;
                 continue;
             }
-            hunk = { header: raw, newLines: [], addedLines: [], addedText: new Map() };
+            hunk = { header: raw, newLines: [], addedLines: [], text: new Map() };
             newLine = Number(match[3]);
             current.hunks.push(hunk);
             continue;
@@ -113,12 +113,13 @@ export function parseUnifiedDiff(patch: string): FileDiff[] {
         if (marker === "+") {
             hunk.newLines.push(newLine);
             hunk.addedLines.push(newLine);
-            hunk.addedText.set(newLine, text);
+            hunk.text.set(newLine, text);
             newLine += 1;
         } else if (marker === "-") {
             // Removed lines exist only on the old side; they carry no new-file number.
         } else if (marker === " ") {
             hunk.newLines.push(newLine);
+            hunk.text.set(newLine, text);
             newLine += 1;
         }
         // Anything else is patch metadata or the empty tail of a trailing newline.
@@ -148,6 +149,42 @@ export function visibleLines(file: FileDiff, kind: "all" | "added" = "all"): num
     return [...kindLines].sort((left, right) => left - right);
 }
 
+/** One line visible in a file's diff, with its region markers. */
+export interface LineEntry {
+    /** New-file line number. */
+    line: number;
+    /** Line contents without the leading diff marker. */
+    text: string;
+    /** True when the pull request introduces this line. */
+    added: boolean;
+}
+
+/**
+ * Returns every line a file's diff shows, in source order.
+ *
+ * Context lines are included so a scanner can carry lexical state — an open
+ * template literal, an open block comment — from an unchanged line into a
+ * changed one. Hunk boundaries are respected: state does not leak across a gap
+ * the diff elided, because the elided text is unknown.
+ *
+ * @param file - Parsed file diff.
+ * @returns Line entries in source order.
+ */
+export function visibleLineEntries(file: FileDiff): LineEntry[] {
+    const entries: LineEntry[] = [];
+    for (const hunk of file.hunks) {
+        const added = new Set(hunk.addedLines);
+        for (const line of hunk.newLines) {
+            entries.push({
+                line,
+                text: hunk.text.get(line) ?? "",
+                added: added.has(line),
+            });
+        }
+    }
+    return entries.sort((left, right) => left.line - right.line);
+}
+
 /**
  * Returns the added line contents of a file, keyed by new-file line number.
  *
@@ -155,13 +192,9 @@ export function visibleLines(file: FileDiff, kind: "all" | "added" = "all"): num
  * @returns Added text in ascending line order.
  */
 export function addedLineEntries(file: FileDiff): Array<{ line: number; text: string }> {
-    const entries: Array<{ line: number; text: string }> = [];
-    for (const hunk of file.hunks) {
-        for (const line of hunk.addedLines) {
-            entries.push({ line, text: hunk.addedText.get(line) ?? "" });
-        }
-    }
-    return entries.sort((left, right) => left.line - right.line);
+    return visibleLineEntries(file)
+        .filter((entry) => entry.added)
+        .map((entry) => ({ line: entry.line, text: entry.text }));
 }
 
 /**

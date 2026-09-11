@@ -13,7 +13,7 @@ import { visibleLines } from "./diff.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 
 /** Environment variable naming the reviewer executable. */
-const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
+export const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
 
 /** Environment variable holding the reviewer provider's API key. */
 export const API_KEY_ENV = "DEEPSEEK_API_KEY";
@@ -377,7 +377,7 @@ export async function runWithConcurrency<Item, Result>(
     limit: number,
     worker: (item: Item) => Promise<Result>,
 ): Promise<Result[]> {
-    const results = new Array<Result>(items.length);
+    const results = Array.from<Result>({ length: items.length });
     let next = 0;
     const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
         for (;;) {

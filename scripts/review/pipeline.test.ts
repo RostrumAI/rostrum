@@ -183,6 +183,37 @@ new file mode 100644
         expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
+    test("reads an added line inside a template opened on an unchanged line as content", () => {
+        const patch = `diff --git a/apps/control-api/src/embed.ts b/apps/control-api/src/embed.ts
+--- a/apps/control-api/src/embed.ts
++++ b/apps/control-api/src/embed.ts
+@@ -1,3 +1,4 @@
+ const sample = \`;
++value: any
+ \`;
+ const other = 1;
+`;
+        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+    });
+
+    test("still sees code after an added line closes a template", () => {
+        const patch = `diff --git a/apps/control-api/src/embed.ts b/apps/control-api/src/embed.ts
+--- a/apps/control-api/src/embed.ts
++++ b/apps/control-api/src/embed.ts
+@@ -1,2 +1,4 @@
+ const sample = \`;
++value: any
++\`;
++export default function bad(): any { return 1; }
+`;
+        const findings = runRuleChecks(contextFor(patch));
+        const exported = findings.filter((finding) => finding.ruleId === "GTS-EXPORTS-01");
+        expect(exported).toHaveLength(1);
+        expect(exported[0]?.line).toBe(4);
+        const anyFindings = findings.filter((finding) => finding.ruleId === "REPO-TS-01");
+        expect(anyFindings.map((finding) => finding.line)).toEqual([4]);
+    });
+
     test("fires the comment-scoped checks the code surface cannot see", () => {
         const patch = `diff --git a/apps/control-api/src/legacy.ts b/apps/control-api/src/legacy.ts
 new file mode 100644
@@ -196,6 +227,21 @@ new file mode 100644
         const ruleIds = runRuleChecks(contextFor(patch)).map((finding) => finding.ruleId);
         expect(ruleIds).toContain("REPO-TS-04");
         expect(ruleIds).toContain("REPO-TS-05");
+    });
+
+    test("does not fire a comment-scoped check on a backticked mention", () => {
+        // Built at runtime so the fixture's backticks survive the template literal.
+        const tick = String.fromCharCode(96);
+        const patch = [
+            "diff --git a/apps/control-api/src/notes.ts b/apps/control-api/src/notes.ts",
+            "--- a/apps/control-api/src/notes.ts",
+            "+++ b/apps/control-api/src/notes.ts",
+            "@@ -1 +1,2 @@",
+            "-old",
+            `+// A directive like ${tick}@ts-expect-error${tick} is honored by the compiler.`,
+            "+export const note = 1;",
+        ].join("\n");
+        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
     test("does not fire the comment-scoped checks on a non-comment mention", () => {

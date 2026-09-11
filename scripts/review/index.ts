@@ -40,8 +40,10 @@ import {
 import { runProcessOrThrow } from "./process.ts";
 import { renderComments, renderSummary } from "./report.ts";
 import {
+    API_KEY_ENV,
     DEFAULT_LENS_TIMEOUT_SECONDS,
     DEFAULT_MODEL,
+    OMP_BINARY_ENV,
     runLens,
     runWithConcurrency,
 } from "./reviewer.ts";
@@ -163,9 +165,9 @@ async function main(): Promise<number> {
         return 0;
     }
 
-    if (process.env.DEEPSEEK_API_KEY === undefined && process.env.REVIEW_OMP_BIN === undefined) {
+    if (process.env[API_KEY_ENV] === undefined && process.env[OMP_BINARY_ENV] === undefined) {
         console.error(
-            "DEEPSEEK_API_KEY is not set. The reviewer lenses cannot run without it; set the variable or pass --dry-run-rules.",
+            `${API_KEY_ENV} is not set. The reviewer lenses cannot run without it; set the variable or pass --dry-run-rules.`,
         );
         return 1;
     }
