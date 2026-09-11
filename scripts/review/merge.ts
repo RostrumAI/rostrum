@@ -12,6 +12,7 @@
 import { hunkIndexOf } from "./diff.ts";
 import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
 import type { Finding, ReviewContext, Severity } from "./types.ts";
+import { isWithdrawn, parseVerdict } from "./verdicts.ts";
 
 /** Repository-relative distance within which an open comment suppresses a repeat. */
 const OPEN_THREAD_TOLERANCE = 5;
@@ -49,11 +50,14 @@ export function ruleIdFromComment(body: string): string | null {
 /**
  * Splits pipeline threads into those still open and those already answered.
  *
- * A thread counts as answered when a maintainer resolved it, or when a human
- * replied to the finding without resolving it: a reply is a disposition, and
- * repeating the finding afterwards is nagging. A thread the pipeline never
- * commented on is a human conversation about the same code, which suppresses
- * nothing — that is a separate discussion, not a verdict on this rule.
+ * A finding stops being raised when a maintainer resolves its thread, or when an
+ * adjudication withdrew it. A human reply alone is not enough: the reviewer may
+ * have answered the reply and stood by the finding, and treating the reply as a
+ * disposition would silently overrule that answer on the next rescan.
+ *
+ * A thread the pipeline never commented on is a human conversation about the same
+ * code. It suppresses nothing, because it is a separate discussion rather than a
+ * verdict on this rule.
  *
  * @param threads - Review threads read from GitHub.
  * @returns Open and answered pipeline findings.
@@ -75,17 +79,27 @@ export function partitionThreads(threads: ReviewThread[]): {
         if (ruleId === null) {
             continue;
         }
-        const answeredByReply = thread.comments
-            .slice(pipelineIndex + 1)
-            .some((comment) => !comment.body.includes(COMMENT_MARKER));
         const entry: AnsweredFinding = { ruleId, path: thread.path, line: thread.line };
-        if (thread.isResolved || answeredByReply) {
+        if (thread.isResolved || threadVerdictWithdraws(thread)) {
             resolved.push(entry);
         } else {
             open.push(entry);
         }
     }
     return { open, resolved };
+}
+
+/**
+ * Reports whether an adjudication withdrew the finding on a thread.
+ *
+ * @param thread - Review thread to inspect.
+ * @returns True when the reviewer's own reply records a withdrawing verdict.
+ */
+function threadVerdictWithdraws(thread: ReviewThread): boolean {
+    return thread.comments.some((comment) => {
+        const verdict = parseVerdict(comment.body);
+        return verdict !== null && isWithdrawn(verdict);
+    });
 }
 
 /**

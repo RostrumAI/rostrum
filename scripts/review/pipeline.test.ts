@@ -28,6 +28,7 @@ import { buildLensPrompt, extractJsonObject, normalizeFindings } from "./reviewe
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
 import { blankInlineCode, newScanState, scanSourceLine } from "./source-text.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
+import { renderVerdictMarker } from "./verdicts.ts";
 
 /** Returns the single parsed file of a patch, failing loudly when parsing dropped it. */
 function firstFile(patch: string): FileDiff {
@@ -98,14 +99,28 @@ function findingFor(overrides: Partial<Finding> = {}): Finding {
 /** Builds a review thread from a comment body and its state. */
 function threadFor(
     body: string,
-    options: { resolved?: boolean; line?: number | null; author?: string } = {},
+    options: {
+        resolved?: boolean;
+        line?: number | null;
+        author?: string;
+        association?: string;
+    } = {},
 ): ReviewThread {
     return {
+        id: `thread-${options.line ?? 2}-${options.resolved ?? false}`,
         isResolved: options.resolved ?? false,
         isOutdated: false,
         path: "apps/control-api/src/thing.ts",
         line: options.line === undefined ? 2 : options.line,
-        comments: [{ author: options.author ?? "github-actions", body, line: null }],
+        comments: [
+            {
+                id: 1,
+                author: options.author ?? "github-actions",
+                authorAssociation: options.association ?? "MEMBER",
+                body,
+                line: null,
+            },
+        ],
     };
 }
 
@@ -119,6 +134,19 @@ function threadFor(
  */
 function pipelineComment(ruleId: string, evidence = "code"): string {
     return renderComment(findingFor({ ruleId, evidence }));
+}
+
+/** Builds a thread holding a pipeline finding and the reviewer's verdict reply. */
+function adjudicatedThread(ruleId: string, verdict: string): ReviewThread {
+    const thread = threadFor(pipelineComment(ruleId));
+    thread.comments.push({
+        id: 2,
+        author: "github-actions[bot]",
+        authorAssociation: "NONE",
+        body: verdict,
+        line: null,
+    });
+    return thread;
 }
 
 describe("diff parsing", () => {
@@ -590,21 +618,43 @@ describe("suppression", () => {
         expect(suppressAnswered([findingFor({ line: 40 })], threads).kept).toHaveLength(1);
     });
 
-    test("treats a human reply on a pipeline thread as a disposition", () => {
+    test("does not let a bare human reply suppress the rule across the file", () => {
+        // A reply alone leaves the thread open, so only a nearby duplicate is
+        // suppressed. Treating the reply as a disposition would silence this
+        // rule for the whole file on every later rescan.
         const thread = threadFor(pipelineComment("REPO-TEST-02"));
         thread.comments.push({
+            id: 2,
             author: "Stephen-PP",
-            body: "Intentional: this case is covered by the integration suite.",
+            authorAssociation: "MEMBER",
+            body: "I think this is fine actually.",
             line: null,
         });
-        const result = suppressAnswered([findingFor()], [thread]);
-        expect(result.kept).toHaveLength(0);
-        expect(partitionThreads([thread]).resolved).toHaveLength(1);
+        expect(partitionThreads([thread]).open).toHaveLength(1);
+        expect(suppressAnswered([findingFor({ line: 2 })], [thread]).kept).toHaveLength(0);
+        expect(suppressAnswered([findingFor({ line: 60 })], [thread]).kept).toHaveLength(1);
     });
 
-    test("keeps reporting while the pipeline is the only voice on the thread", () => {
-        const thread = threadFor(pipelineComment("REPO-TEST-02"));
+    test("resolves the thread once the adjudication withdraws the finding", () => {
+        const thread = adjudicatedThread("REPO-TEST-02", renderVerdictMarker("refuted"));
+        expect(partitionThreads([thread]).resolved).toHaveLength(1);
+        // Withdrawn means the rule no longer applies at this path, wherever the
+        // line has moved to.
+        expect(suppressAnswered([findingFor({ line: 60 })], [thread]).kept).toHaveLength(0);
+    });
+
+    test("leaves the thread open when the adjudication stands behind the finding", () => {
+        const thread = adjudicatedThread("REPO-TEST-02", renderVerdictMarker("stands"));
         expect(partitionThreads([thread]).open).toHaveLength(1);
+        expect(partitionThreads([thread]).resolved).toHaveLength(0);
+        // The original comment still suppresses a duplicate of itself, so the
+        // author keeps one open finding rather than two.
+        expect(suppressAnswered([findingFor({ line: 2 })], [thread]).kept).toHaveLength(0);
+    });
+
+    test("records an intentional tradeoff as withdrawn", () => {
+        const thread = adjudicatedThread("REPO-TEST-02", renderVerdictMarker("intentional"));
+        expect(partitionThreads([thread]).resolved).toHaveLength(1);
     });
 
     test("ignores human discussion about the same code", () => {

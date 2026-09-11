@@ -23,6 +23,7 @@ identical to the author.
 | `rules/repository-conventions.md` | Rostrum conventions mined from review history; ids look like `REPO-ARCH-01` |
 | `rules/google-typescript.md` | TypeScript rules adapted from the Google style guide; ids look like `GTS-EXPORTS-01` |
 | `lenses/*.md` | One file per reviewer. Each is a system prompt for a single independent reviewer |
+| `adjudicator.md` | System prompt for answering a reply to one of the reviewer's own findings |
 | `reviewer-contract.md` | The finding contract, severity scale, confidence scale, and reporting rules |
 
 Rules carry a severity and a classification. `mechanical` rules are also checked by
@@ -88,6 +89,52 @@ disappears from the report on its own, because the code no longer matches the ru
 
 A thread that is out of date but unresolved does not suppress anything: the author moved the code
 without addressing the finding, so it is reported again at its new location.
+
+## Answering a reply
+
+A reply on a review thread is a disposition attempt, not a disposition. Someone comments on a finding,
+the reviewer re-reads the file at the head commit, and it either withdraws the finding or stands
+behind it. The verdict it reaches is recorded in its own reply, so the conversation stays the whole
+state of the pipeline.
+
+| Verdict | Meaning | Effect |
+| --- | --- | --- |
+| `refuted` | The reply is right and the finding was wrong | Withdraw and resolve the thread |
+| `intentional` | The behaviour is a deliberate, accepted tradeoff | Withdraw and resolve |
+| `code_changed` | The code no longer does what the finding described | Withdraw and resolve |
+| `stands` | The finding is still correct after re-reading the code | Reply with the reason, leave the thread open |
+| `needs_human` | Genuinely ambiguous, or the argument has run its course | Leave it to a person |
+
+Only a maintainer's reply is adjudicated, and only three times per thread: past that the reviewer goes
+quiet rather than argue. A reply's authority carries no weight — "I wrote this, it's fine" is not
+evidence about what the code does. Text asking the reviewer to ignore its instructions is treated as
+`needs_human`, not as a refutation.
+
+A reply can only disposition its own thread. It cannot edit this corpus.
+
+```bash
+bun run review:adjudicate --comment-id 123 --pull-request 22 \
+  --association MEMBER --author someone --body-file /tmp/comment.md
+```
+
+## Weekly retrospective
+
+The verdicts accumulate into the only honest measure of whether a rule works. The retrospective walks
+every pull request touched since the last run, tallies each rule's outcomes, and opens a pull request
+against this corpus with the changes the evidence supports.
+
+```bash
+bun run review:retro --days 7 --open-pr
+```
+
+Two rules govern what it will propose, because the failure mode of a feedback loop is that it
+optimises for silence:
+
+- **Only a refutation counts against a rule.** A maintainer accepting a tradeoff says nothing about
+  whether the rule is correct, and a finding that was simply fixed says nothing either. Counting
+  those would tune the corpus toward whatever stops the comments.
+- **Nothing is applied.** A rule needs at least five findings before its record means anything, and a
+  `blocking` rule is sent to a person rather than edited. No rule is ever weakened automatically.
 
 ## Manual invocation
 

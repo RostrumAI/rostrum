@@ -19,6 +19,8 @@ export const SUMMARY_MARKER = "<!-- rostrum-code-review-summary -->";
 
 /** One review thread on a pull request, with the comments it holds. */
 export interface ReviewThread {
+    /** GraphQL node id, needed to resolve the thread. */
+    id: string;
     /** True when a maintainer or the pipeline resolved the thread. */
     isResolved: boolean;
     /** True when the anchored line no longer exists in the current diff. */
@@ -33,8 +35,12 @@ export interface ReviewThread {
 
 /** One comment inside a review thread. */
 export interface ReviewComment {
+    /** REST database id, needed to reply within the thread. */
+    id: number;
     /** Comment author login. */
     author: string;
+    /** Comment author's relationship to the repository, such as `OWNER` or `CONTRIBUTOR`. */
+    authorAssociation: string;
     /** Comment body, including any hidden marker. */
     body: string;
     /** Line the comment was anchored to, or null for a reply carried forward. */
@@ -146,12 +152,13 @@ const REVIEW_THREADS_QUERY = `query ($owner: String!, $repo: String!, $number: I
       reviewThreads(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
+          id
           isResolved
           isOutdated
           path
           line
           comments(first: 50) {
-            nodes { author { login } body line }
+            nodes { databaseId author { login } authorAssociation body line }
           }
         }
       }
@@ -195,13 +202,16 @@ export async function fetchReviewThreads(ref: PullRequestRef): Promise<ReviewThr
                         reviewThreads: {
                             pageInfo: { hasNextPage: boolean; endCursor: string | null };
                             nodes: Array<{
+                                id: string;
                                 isResolved: boolean;
                                 isOutdated: boolean;
                                 path: string;
                                 line: number | null;
                                 comments: {
                                     nodes: Array<{
+                                        databaseId: number | null;
                                         author: { login: string } | null;
+                                        authorAssociation: string;
                                         body: string;
                                         line: number | null;
                                     }>;
@@ -215,12 +225,15 @@ export async function fetchReviewThreads(ref: PullRequestRef): Promise<ReviewThr
         const page = parsed.data.repository.pullRequest.reviewThreads;
         for (const node of page.nodes) {
             threads.push({
+                id: node.id,
                 isResolved: node.isResolved,
                 isOutdated: node.isOutdated,
                 path: node.path,
                 line: node.line,
                 comments: node.comments.nodes.map((comment) => ({
+                    id: comment.databaseId ?? 0,
                     author: comment.author?.login ?? "ghost",
+                    authorAssociation: comment.authorAssociation,
                     body: comment.body,
                     line: comment.line,
                 })),
@@ -231,6 +244,96 @@ export async function fetchReviewThreads(ref: PullRequestRef): Promise<ReviewThr
         }
         cursor = page.pageInfo.endCursor;
     }
+}
+
+/**
+ * Replies inside an existing review thread.
+ *
+ * @param ref - Pull request identity.
+ * @param commentId - Database id of the comment being replied to.
+ * @param body - Reply body, including any marker.
+ * @returns The created comment's URL.
+ */
+export async function replyToReviewComment(
+    ref: PullRequestRef,
+    commentId: number,
+    body: string,
+): Promise<string> {
+    const output = await runProcessOrThrow(
+        [
+            "gh",
+            "api",
+            "--method",
+            "POST",
+            `repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/comments/${commentId}/replies`,
+            "--input",
+            "-",
+        ],
+        { stdin: JSON.stringify({ body }) },
+    );
+    const parsed = JSON.parse(output) as { html_url?: string };
+    return parsed.html_url ?? "";
+}
+
+/**
+ * Resolves or reopens a review thread.
+ *
+ * Resolving is how a withdrawn finding stops being raised: the suppression pass
+ * reads the thread's resolution state, so the verdict and the suppression stay
+ * consistent without a second channel carrying the same fact.
+ *
+ * @param threadId - GraphQL node id of the thread.
+ * @param resolved - True to resolve, false to reopen.
+ */
+export async function setReviewThreadResolved(threadId: string, resolved: boolean): Promise<void> {
+    const mutation = resolved
+        ? `mutation ($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { id isResolved } } }`
+        : `mutation ($threadId: ID!) { unresolveReviewThread(input: { threadId: $threadId }) { thread { id isResolved } } }`;
+    await runProcessOrThrow([
+        "gh",
+        "api",
+        "graphql",
+        "-f",
+        `query=${mutation}`,
+        "-F",
+        `threadId=${threadId}`,
+    ]);
+}
+
+/**
+ * Lists pull requests that were updated at or after a moment.
+ *
+ * The retrospective walks pull requests rather than threads because it needs the
+ * conversation and the merge outcome together, and a pull request is where those
+ * meet.
+ *
+ * @param owner - Repository owner.
+ * @param repo - Repository name.
+ * @param since - ISO 8601 timestamp; pull requests updated before it are skipped.
+ * @returns Pull request numbers, newest first.
+ */
+export async function listPullRequestsUpdatedSince(
+    owner: string,
+    repo: string,
+    since: string,
+): Promise<number[]> {
+    const output = await runProcessOrThrow([
+        "gh",
+        "pr",
+        "list",
+        "--repo",
+        `${owner}/${repo}`,
+        "--state",
+        "all",
+        "--search",
+        `updated:>=${since}`,
+        "--limit",
+        "200",
+        "--json",
+        "number",
+    ]);
+    const parsed = JSON.parse(output) as Array<{ number: number }>;
+    return parsed.map((entry) => entry.number);
 }
 
 /** One inline comment to attach to a review. */

@@ -10,6 +10,7 @@
  */
 
 import { visibleLines } from "./diff.ts";
+import { runProcessOrThrow } from "./process.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 
 /** Environment variable naming the reviewer executable. */
@@ -17,6 +18,15 @@ export const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
 
 /** Environment variable holding the reviewer provider's API key. */
 export const API_KEY_ENV = "DEEPSEEK_API_KEY";
+
+/** Default thinking effort when a lens has no entry in the per-lens table. */
+const DEFAULT_THINKING = "high";
+
+/** Milliseconds of margin added to an agent's own ceiling before it is killed. */
+const AGENT_TIMEOUT_MARGIN_SECONDS = 60;
+
+/** Fallback agent ceiling in seconds, used when the caller does not supply one. */
+const AGENT_MAX_SECONDS = 900;
 
 /**
  * Ceiling on how many mechanical findings are listed in a lens prompt.
@@ -59,6 +69,122 @@ export interface LensResult {
     error: string;
 }
 
+/** A prepared agent invocation: the command to run and what to run it with. */
+export interface AgentInvocation {
+    /** Command and arguments, or null when the invocation cannot be built. */
+    command: string[] | null;
+    /** Why the invocation cannot be built, empty when it can. */
+    reason: string;
+}
+
+/**
+ * Builds the command that runs one reviewer agent.
+ *
+ * Every reviewer — a lens, or the adjudicator answering a reply — is the same
+ * headless agent with the same tool set and the same key handling. Building the
+ * command in one place is what keeps them from drifting apart, and what keeps
+ * the key override in a single spot.
+ *
+ * @param workingDirectory - Checkout the agent reads.
+ * @param model - Model selector to run.
+ * @param thinking - Thinking effort for the model.
+ * @param promptDirectory - Directory to write the composed system prompt into.
+ * @param promptName - Name for the composed prompt file, unique per invocation.
+ * @param systemPrompt - System prompt text for this invocation.
+ * @param userPrompt - User prompt for this invocation.
+ * @returns The invocation, or a reason it could not be built.
+ */
+export async function resolveOmpInvocation(
+    workingDirectory: string,
+    model: string,
+    thinking: string,
+    promptDirectory: string,
+    promptName: string,
+    systemPrompt: string,
+    userPrompt: string,
+): Promise<AgentInvocation> {
+    const binary = process.env[OMP_BINARY_ENV] ?? "omp";
+    const available = await pathExists(binary);
+    if (!available) {
+        return {
+            command: null,
+            reason: `reviewer runtime "${binary}" is not on PATH; install @oh-my-pi/pi-coding-agent`,
+        };
+    }
+    const systemPromptPath = `${promptDirectory}/system-${promptName}.md`;
+    await Bun.write(systemPromptPath, systemPrompt);
+    const command = [
+        binary,
+        "-p",
+        "--no-session",
+        "--no-title",
+        "--no-skills",
+        "--cwd",
+        workingDirectory,
+        "--model",
+        model,
+        "--thinking",
+        thinking,
+        "--tools",
+        "read,grep,glob,bash",
+        "--system-prompt",
+        systemPromptPath,
+        "--max-time",
+        String(AGENT_MAX_SECONDS),
+        userPrompt,
+    ];
+    // A key stored by an earlier interactive login outranks the provider
+    // environment variable, so a stale credential can silently replace the one
+    // CI supplies. The runtime override is the highest-precedence source, so
+    // the configured key is passed explicitly rather than left to resolution.
+    const apiKey = process.env[API_KEY_ENV];
+    if (apiKey !== undefined && apiKey.length > 0) {
+        command.splice(1, 0, "--api-key", apiKey);
+    }
+    return { command, reason: "" };
+}
+
+/**
+ * Runs a prepared agent invocation to completion.
+ *
+ * @param command - Command produced by {@link resolveOmpInvocation}.
+ * @returns Exit code and captured output; a killed run reports code 124.
+ */
+export async function runAgent(
+    command: string[],
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    return raceWithTimeout(
+        command,
+        AGENT_MAX_SECONDS + AGENT_TIMEOUT_MARGIN_SECONDS,
+        workingDirectoryOf(command),
+    );
+}
+
+/**
+ * Reads the working directory out of a prepared command.
+ *
+ * @param command - Command produced by {@link resolveOmpInvocation}.
+ * @returns The `--cwd` value, or the process directory when absent.
+ */
+function workingDirectoryOf(command: string[]): string {
+    const index = command.indexOf("--cwd");
+    return index === -1 ? process.cwd() : (command[index + 1] ?? process.cwd());
+}
+
+/**
+ * Reports whether an executable is reachable.
+ *
+ * @param binary - Name or path to test.
+ * @returns True when the binary exists.
+ */
+async function pathExists(binary: string): Promise<boolean> {
+    if (binary.includes("/")) {
+        return Bun.file(binary).size > 0;
+    }
+    const result = await runProcessOrThrow(["which", binary]).catch(() => "");
+    return result.trim().length > 0;
+}
+
 /**
  * Runs one lens against the change.
  *
@@ -77,43 +203,20 @@ export async function runLens(
         promptDirectory: string;
     },
 ): Promise<LensResult> {
-    const systemPromptPath = `${options.promptDirectory}/system-${lens.id}.md`;
-    await Bun.write(systemPromptPath, await buildSystemPrompt(lens, options.skillDirectory));
-    const userPrompt = buildLensPrompt(context, options.skillDirectory);
-    const command = [
-        process.env[OMP_BINARY_ENV] ?? "omp",
-        "-p",
-        "--no-session",
-        "--no-title",
-        "--no-skills",
-        "--cwd",
+    const invocation = await resolveOmpInvocation(
         context.workingDirectory,
-        "--model",
         options.model,
-        "--thinking",
-        THINKING_BY_LENS[lens.id] ?? "high",
-        "--tools",
-        "read,grep,glob,bash",
-        "--system-prompt",
-        systemPromptPath,
-        "--max-time",
-        String(options.timeoutSeconds),
-        userPrompt,
-    ];
-    // A key stored by an earlier interactive login outranks the provider
-    // environment variable, so a stale credential can silently replace the one
-    // CI supplies. The runtime override is the highest-precedence source, so
-    // the configured key is passed explicitly rather than left to resolution.
-    const apiKey = process.env[API_KEY_ENV];
-    if (apiKey !== undefined && apiKey.length > 0) {
-        command.splice(1, 0, "--api-key", apiKey);
+        THINKING_BY_LENS[lens.id] ?? DEFAULT_THINKING,
+        options.promptDirectory,
+        lens.id,
+        await buildSystemPrompt(lens, options.skillDirectory),
+        buildLensPrompt(context, options.skillDirectory),
+    );
+    if (invocation.command === null) {
+        return { lens, findings: [], error: invocation.reason };
     }
 
-    const result = await raceWithTimeout(
-        command,
-        options.timeoutSeconds + 60,
-        context.workingDirectory,
-    );
+    const result = await runAgent(invocation.command);
     if (result.exitCode !== 0) {
         // A failed run prints progress before the failure, so the cause is at the
         // end of stderr rather than the beginning.
@@ -123,6 +226,7 @@ export async function runLens(
             error: `exit ${result.exitCode}: ${result.stderr.slice(-400)}`,
         };
     }
+
     const payload = extractJsonObject(result.stdout);
     if (payload === null) {
         return {
