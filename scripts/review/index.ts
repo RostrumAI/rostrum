@@ -32,6 +32,7 @@ import {
 import { selectLenses } from "./lenses.ts";
 import {
     applyConfidenceFloor,
+    applyPerRuleCap,
     deduplicate,
     partitionThreads,
     sortFindings,
@@ -210,8 +211,9 @@ async function main(): Promise<number> {
     );
     const aboveFloor = applyConfidenceFloor(anchored, confidenceFloor);
     const deduped = deduplicate(aboveFloor, context);
-    const { kept, suppressed } = suppressAnswered(deduped.kept, threads);
-    const findings = sortFindings(kept);
+    const { kept: unanswered, suppressed } = suppressAnswered(deduped.kept, threads);
+    const capped = applyPerRuleCap(sortFindings(unanswered));
+    const findings = capped.kept;
 
     for (const result of lensResults) {
         if (result.error.length > 0) {
@@ -253,7 +255,7 @@ async function main(): Promise<number> {
         renderSummary(context, findings, lensResults, {
             suppressed,
             duplicates: deduped.duplicates,
-            capped: deduped.capped,
+            capped: capped.capped,
             belowFloor: anchored.length - aboveFloor.length,
         }),
     );

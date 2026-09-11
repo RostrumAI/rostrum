@@ -17,6 +17,7 @@ import { findFile, parseUnifiedDiff, snapToDiff, visibleLines } from "./diff.ts"
 import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
 import {
     applyConfidenceFloor,
+    applyPerRuleCap,
     deduplicate,
     partitionThreads,
     ruleIdFromComment,
@@ -626,6 +627,26 @@ describe("merge", () => {
         expect(result.kept).toHaveLength(1);
         expect(result.kept[0]?.lens).toBe("rules");
         expect(result.duplicates).toBe(1);
+    });
+
+    test("caps what will be posted, counting only findings that survive suppression", () => {
+        // Six occurrences of one rule at one path, but an open thread already
+        // covers the first four. The cap must apply to the two remaining, not
+        // spend its budget on the four that suppression removes.
+        // Spaced beyond the suppression tolerance so each open thread answers
+        // exactly its own occurrence.
+        const findings = [10, 20, 30, 40, 50, 60].map((line) =>
+            findingFor({ line, lens: "rules", ruleId: "REPO-TS-01" }),
+        );
+        const threads = [10, 20, 30, 40].map((line) =>
+            threadFor(pipelineComment("REPO-TS-01"), { line }),
+        );
+        const { kept: unanswered, suppressed } = suppressAnswered(findings, threads);
+        expect(suppressed).toBe(4);
+        expect(unanswered.map((finding) => finding.line)).toEqual([50, 60]);
+        const capped = applyPerRuleCap(unanswered);
+        expect(capped.kept.map((finding) => finding.line)).toEqual([50, 60]);
+        expect(capped.capped).toBe(0);
     });
 
     test("collapses two lenses describing one defect at different lines in a hunk", () => {

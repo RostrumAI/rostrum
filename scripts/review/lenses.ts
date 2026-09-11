@@ -13,7 +13,14 @@ import type { FileDiff, Lens } from "./types.ts";
 /** Path segments that mark a change as documentation. */
 const DOCUMENTATION_SUFFIXES = [".md", ".mdx"];
 
-/** Path fragments that mark a change as touching an external trust boundary. */
+/**
+ * Path segments that mark a change as touching an external trust boundary.
+ *
+ * The list is deliberately about *where input enters or leaves*, not about which
+ * subsystem the code belongs to. A request handler is covered by the feature-slice
+ * rule below rather than by a fragment here, because a handler's file name says
+ * nothing about what it does.
+ */
 const SECURITY_PATH_FRAGMENTS = [
     "auth",
     "token",
@@ -114,6 +121,11 @@ export const LENSES: Lens[] = [
             files.some((file) => {
                 if (!isSource(file) && !file.path.endsWith("package.json")) {
                     return false;
+                }
+                // A feature slice is a request handler: it takes caller input by
+                // definition, whatever its file is named.
+                if (/(?:^|\/)(?:apps|apis)\/[^/]+\/src\/features\//.test(file.path)) {
+                    return true;
                 }
                 const parts = segments(file);
                 return SECURITY_PATH_FRAGMENTS.some((fragment) => parts.includes(fragment));

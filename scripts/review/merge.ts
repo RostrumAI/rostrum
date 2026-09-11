@@ -145,7 +145,6 @@ export function deduplicate(
 ): {
     kept: Finding[];
     duplicates: number;
-    capped: number;
 } {
     // First collapse everything that landed on the same line, whatever produced
     // it, so a model finding that restates a mechanical one disappears.
@@ -174,10 +173,29 @@ export function deduplicate(
         }
     }
 
+    return {
+        kept: [...deterministic, ...byRegion.values()],
+        duplicates: findings.length - deterministic.length - byRegion.size,
+    };
+}
+
+/**
+ * Limits how many findings one rule may post at one path.
+ *
+ * This runs after suppression, not before: the budget exists to bound what is
+ * actually posted, and a finding a maintainer has already answered must not
+ * consume it. Capping first would spend the budget on findings that suppression
+ * then removes, so a later genuine occurrence would be dropped without ever
+ * being shown.
+ *
+ * @param findings - Findings that survived suppression, in report order.
+ * @returns The findings to post, with the count dropped for exceeding the cap.
+ */
+export function applyPerRuleCap(findings: Finding[]): { kept: Finding[]; capped: number } {
     const perRulePath = new Map<string, number>();
     const kept: Finding[] = [];
     let capped = 0;
-    for (const finding of sortFindings([...deterministic, ...byRegion.values()])) {
+    for (const finding of findings) {
         const key = `${finding.ruleId}@${finding.path}`;
         const seen = perRulePath.get(key) ?? 0;
         if (seen >= PER_RULE_PATH_CAP) {
@@ -187,7 +205,7 @@ export function deduplicate(
         perRulePath.set(key, seen + 1);
         kept.push(finding);
     }
-    return { kept, duplicates: findings.length - capped - kept.length, capped };
+    return { kept, capped };
 }
 
 /**
