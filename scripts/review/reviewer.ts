@@ -18,6 +18,14 @@ export const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
 /** Environment variable holding the reviewer provider's API key. */
 export const API_KEY_ENV = "DEEPSEEK_API_KEY";
 
+/**
+ * Ceiling on how many mechanical findings are listed in a lens prompt.
+ *
+ * The list exists to tell a reviewer what is already covered, not to reproduce
+ * the deterministic report inside every reviewer's context.
+ */
+const MECHANICAL_FINDINGS_IN_PROMPT = 40;
+
 /** Default model for every lens. */
 export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
@@ -172,6 +180,19 @@ export function buildLensPrompt(context: ReviewContext, skillDirectory: string):
             : context.resolvedThreads
                   .map((thread) => `- ${thread.ruleId} at ${thread.path}: resolved`)
                   .join("\n");
+    // The mechanical findings are certain and already reported, so the reviewers
+    // are told about them: a model finding that restates one is deduplicated away,
+    // and knowing what is covered lets a reviewer spend its attention elsewhere.
+    const mechanical =
+        context.ruleFindings.length === 0
+            ? "None."
+            : context.ruleFindings
+                  .slice(0, MECHANICAL_FINDINGS_IN_PROMPT)
+                  .map(
+                      (finding) =>
+                          `- ${finding.ruleId} at ${finding.path}:${finding.line} — ${finding.title}`,
+                  )
+                  .join("\n");
     return [
         `Review pull request #${context.pullRequest.number} at commit ${context.headSha}.`,
         "",
@@ -190,6 +211,9 @@ export function buildLensPrompt(context: ReviewContext, skillDirectory: string):
         "",
         "Findings already resolved on this pull request, which must not be reported again:",
         resolved,
+        "",
+        "Findings the mechanical pass already reported, which must not be repeated:",
+        mechanical,
         "",
         "Report your findings as the single JSON object described in the reviewer contract and",
         "nothing else.",

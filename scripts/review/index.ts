@@ -159,7 +159,6 @@ async function main(): Promise<number> {
         body: metadata?.body ?? "",
         author: metadata?.author ?? "(local)",
         files,
-        patch,
         ruleFindings: [],
         workingDirectory: reviewRoot,
         patchPath,

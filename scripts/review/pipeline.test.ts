@@ -23,7 +23,7 @@ import {
     suppressAnswered,
 } from "./merge.ts";
 import { renderComment } from "./report.ts";
-import { extractJsonObject, normalizeFindings } from "./reviewer.ts";
+import { buildLensPrompt, extractJsonObject, normalizeFindings } from "./reviewer.ts";
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
 import { blankInlineCode, newScanState, scanSourceLine } from "./source-text.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
@@ -71,7 +71,6 @@ function contextFor(
         body: "",
         author: "tester",
         files: parseUnifiedDiff(patch),
-        patch,
         ruleFindings: [],
         workingDirectory: options.workingDirectory ?? "/nonexistent",
         patchPath: "/nonexistent/change.patch",
@@ -662,6 +661,23 @@ describe("merge", () => {
             80,
         );
         expect(kept.map((finding) => finding.line)).toEqual([3, 4]);
+    });
+});
+
+describe("lens prompt", () => {
+    test("names the mechanical findings the reviewer must not repeat", () => {
+        const context = contextFor(ADDED_FILE_PATCH);
+        context.ruleFindings = [
+            findingFor({ ruleId: "REPO-TS-01", line: 2, lens: "rules", title: "An any type" }),
+        ];
+        const prompt = buildLensPrompt(context, "/skills/code-review");
+        expect(prompt).toContain("REPO-TS-01 at apps/control-api/src/thing.ts:2 — An any type");
+        expect(prompt).toContain("must not be repeated");
+    });
+
+    test("states plainly when the mechanical pass found nothing", () => {
+        const prompt = buildLensPrompt(contextFor(ADDED_FILE_PATCH), "/skills/code-review");
+        expect(prompt).toContain("Findings the mechanical pass already reported");
     });
 });
 

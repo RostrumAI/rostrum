@@ -90,8 +90,6 @@ export interface ReviewContext {
     author: string;
     /** Parsed changed files. */
     files: FileDiff[];
-    /** Raw patch text, in the format `gh pr diff` produces. */
-    patch: string;
     /** Findings the deterministic pass already produced. */
     ruleFindings: Finding[];
     /** Repository root of the checkout under review, used to check for sibling test files. */
