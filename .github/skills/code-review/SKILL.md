@@ -64,23 +64,30 @@ rule corpus come from the base branch.
 
 ## Rescanning
 
-A rescan reviews the current head commit and answers only findings that are still open.
+A rescan reviews the current head commit and reports only findings that are still open. The same
+command performs both the first review and a rescan:
 
 ```bash
 bun run review --pr <number> --post
 ```
 
-Suppression rules, in order:
+A finding is suppressed when the pull request has already dispositioned it:
 
-1. A bot comment whose thread GitHub reports as resolved suppresses a finding with the same rule and
-   the same code evidence, even when the line has moved. Resolved threads are never reopened.
-2. A bot comment whose thread is still open suppresses a duplicate for the same rule and path within
-   five lines.
-3. `resolved` and `outdated` threads are read from the review-thread state, not from comment text.
-4. A human reply saying the finding is intentional suppresses it for that rule and path.
+1. **A resolved thread.** The pipeline posted a comment with this rule on this path, and a maintainer
+   resolved the thread. Never re-open it, whatever the line number, because the line will have moved
+   by the time anyone reads the resolution.
+2. **A human reply.** The pipeline posted a comment with this rule on this path, and a person replied
+   to that thread without resolving it. A reply is a disposition; repeating the finding afterwards is
+   nagging.
+3. **An open duplicate.** The pipeline has an unresolved comment for this rule within five lines of
+   the finding. The same problem at a different place in the same file is still reported.
 
-Never re-post a finding to restate it. If the fix landed, the finding disappears from the report
-because the code no longer matches the rule.
+Suppression is keyed on the rule id and path the posted comment carries, and read from the review
+threads' resolution state rather than from comment text. Something the pull request genuinely fixed
+disappears from the report on its own, because the code no longer matches the rule.
+
+A thread that is out of date but unresolved does not suppress anything: the author moved the code
+without addressing the finding, so it is reported again at its new location.
 
 ## Manual invocation
 
