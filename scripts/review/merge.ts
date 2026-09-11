@@ -9,8 +9,9 @@
  * pipeline keeps no database of its own.
  */
 
+import { hunkIndexOf } from "./diff.ts";
 import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
-import type { Finding, Severity } from "./types.ts";
+import type { Finding, ReviewContext, Severity } from "./types.ts";
 
 /** Repository-relative distance within which an open comment suppresses a repeat. */
 const OPEN_THREAD_TOLERANCE = 5;
@@ -126,31 +127,57 @@ export function suppressAnswered(
 /**
  * Collapses duplicate findings and caps repetition of one rule at one path.
  *
- * Two lenses that find the same problem at the same line produce one comment,
- * preferring the deterministic pass because its finding is certain, then the
+ * Three lenses looking at the same broken condition will each report it, so
+ * collapsing is what keeps the review readable. The key differs by origin: a
+ * deterministic finding is certain and precise, so it is keyed to its exact
+ * line; a model finding is keyed to its hunk, because reviewers describing the
+ * same defect from different angles cite different lines within one region.
+ * Between two findings for the same key, the deterministic pass wins, then the
  * higher confidence, then the more detailed body.
  *
  * @param findings - Candidate findings.
+ * @param context - Review context holding the parsed files, used to resolve hunks.
  * @returns Deduplicated findings, with a count of what was dropped.
  */
-export function deduplicate(findings: Finding[]): {
+export function deduplicate(
+    findings: Finding[],
+    context: ReviewContext,
+): {
     kept: Finding[];
     duplicates: number;
     capped: number;
 } {
-    const byLocation = new Map<string, Finding>();
+    // First collapse everything that landed on the same line, whatever produced
+    // it, so a model finding that restates a mechanical one disappears.
+    const byLine = new Map<string, Finding>();
     for (const finding of findings) {
         const key = `${finding.ruleId}@${finding.path}:${finding.line}`;
-        const existing = byLocation.get(key);
+        const existing = byLine.get(key);
         if (existing === undefined || preferredOver(finding, existing)) {
-            byLocation.set(key, finding);
+            byLine.set(key, finding);
+        }
+    }
+
+    // Then collapse the surviving model findings within a hunk. A deterministic
+    // finding is exact, so it keeps its own line and is never merged into one.
+    const byRegion = new Map<string, Finding>();
+    const deterministic: Finding[] = [];
+    for (const finding of sortFindings([...byLine.values()])) {
+        if (finding.lens === "rules") {
+            deterministic.push(finding);
+            continue;
+        }
+        const key = `${finding.ruleId}@${finding.path}#${regionKey(finding, context)}`;
+        const existing = byRegion.get(key);
+        if (existing === undefined || preferredOver(finding, existing)) {
+            byRegion.set(key, finding);
         }
     }
 
     const perRulePath = new Map<string, number>();
     const kept: Finding[] = [];
     let capped = 0;
-    for (const finding of sortFindings([...byLocation.values()])) {
+    for (const finding of sortFindings([...deterministic, ...byRegion.values()])) {
         const key = `${finding.ruleId}@${finding.path}`;
         const seen = perRulePath.get(key) ?? 0;
         if (seen >= PER_RULE_PATH_CAP) {
@@ -160,7 +187,23 @@ export function deduplicate(findings: Finding[]): {
         perRulePath.set(key, seen + 1);
         kept.push(finding);
     }
-    return { kept, duplicates: findings.length - byLocation.size, capped };
+    return { kept, duplicates: findings.length - capped - kept.length, capped };
+}
+
+/**
+ * Resolves a finding to the hunk it sits in, for grouping model findings.
+ *
+ * @param finding - Finding whose line is resolved.
+ * @param context - Review context holding the parsed files.
+ * @returns The hunk index as a string, or the line number when no hunk matches.
+ */
+function regionKey(finding: Finding, context: ReviewContext): string {
+    const file = context.files.find((candidate) => candidate.path === finding.path);
+    if (file === undefined) {
+        return String(finding.line);
+    }
+    const index = hunkIndexOf(file, finding.line);
+    return index === -1 ? String(finding.line) : String(index);
 }
 
 /**

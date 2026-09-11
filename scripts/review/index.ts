@@ -191,7 +191,7 @@ async function main(): Promise<number> {
         context,
     );
     const aboveFloor = applyConfidenceFloor(anchored, confidenceFloor);
-    const deduped = deduplicate(aboveFloor);
+    const deduped = deduplicate(aboveFloor, context);
     const { kept, suppressed } = suppressAnswered(deduped.kept, threads);
     const findings = sortFindings(kept);
 

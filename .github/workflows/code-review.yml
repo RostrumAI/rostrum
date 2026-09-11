@@ -21,7 +21,7 @@ on:
         type: string
 
 concurrency:
-  group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: code-review-${{ github.event.inputs.pull_request || github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 permissions:
@@ -34,11 +34,16 @@ jobs:
     name: Review pull request
     runs-on: ubuntu-latest
     if: >-
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request_target' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        startsWith(github.event.comment.body, '/rescan') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.inputs.pull_request || github.event.pull_request.number || github.event.issue.number }}
     steps:
       - name: Check out the base branch
         uses: actions/checkout@v4
@@ -48,10 +53,6 @@ jobs:
 
       - name: Read the pull request head and check for a fork
         id: target
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
           pull_request="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
           head_sha="$(echo "${pull_request}" | jq -r .head.sha)"
@@ -90,9 +91,7 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           REVIEW_MODEL: deepseek/deepseek-v4-flash
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: bun run review --pr "${PR_NUMBER}" --repo-root "${GITHUB_WORKSPACE}/pr" --post
         timeout-minutes: 30

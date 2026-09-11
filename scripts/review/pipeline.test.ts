@@ -21,7 +21,7 @@ import {
 } from "./merge.ts";
 import { extractJsonObject, normalizeFindings } from "./reviewer.ts";
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
-import { blankInlineCode, blankSourceLine } from "./source-text.ts";
+import { blankInlineCode, newScanState, scanSourceLine } from "./source-text.ts";
 import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 
 /** Returns the single parsed file of a patch, failing loudly when parsing dropped it. */
@@ -183,6 +183,32 @@ new file mode 100644
         expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
+    test("fires the comment-scoped checks the code surface cannot see", () => {
+        const patch = `diff --git a/apps/control-api/src/legacy.ts b/apps/control-api/src/legacy.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/control-api/src/legacy.ts
+@@ -0,0 +1,3 @@
++// @ts-expect-error the upstream type is wrong
++const legacy = 1;
++// TODO: remove once the legacy path is gone
+`;
+        const ruleIds = runRuleChecks(contextFor(patch)).map((finding) => finding.ruleId);
+        expect(ruleIds).toContain("REPO-TS-04");
+        expect(ruleIds).toContain("REPO-TS-05");
+    });
+
+    test("does not fire the comment-scoped checks on a non-comment mention", () => {
+        const patch = `diff --git a/apps/control-api/src/note.ts b/apps/control-api/src/note.ts
+--- a/apps/control-api/src/note.ts
++++ b/apps/control-api/src/note.ts
+@@ -1 +1 @@
+-old
++const message = "@ts-expect-error is how you suppress a type error";
+`;
+        expect(runRuleChecks(contextFor(patch))).toHaveLength(0);
+    });
+
     test("treats a backticked term in prose as a mention, not a use", () => {
         // The backtick is built at runtime so the patch text can live in a template literal.
         const tick = String.fromCharCode(96);
@@ -231,43 +257,62 @@ new file mode 100644
 });
 
 describe("source scanning", () => {
-    /** Scans one standalone line, as the rule pass does with no carry-over state. */
-    function scan(line: string): string {
-        return blankSourceLine(line, { inBlockComment: false, inTemplate: false });
+    /** Returns the code region of one standalone line, with no carry-over state. */
+    function codeOf(line: string): string {
+        return scanSourceLine(line, newScanState()).code;
     }
 
-    test("blanks comments without shifting the columns that follow", () => {
+    /** Returns the comment region of one standalone line, with no carry-over state. */
+    function commentsOf(line: string): string {
+        return scanSourceLine(line, newScanState()).comments;
+    }
+
+    test("blanks comments from the code region without shifting later columns", () => {
         const line = 'const value = 1; // console.log("noisy")';
-        const blanked = scan(line);
-        expect(blanked).toHaveLength(line.length);
-        expect(blanked.startsWith("const value = 1;")).toBe(true);
-        expect(blanked).not.toContain("console");
+        const code = codeOf(line);
+        expect(code).toHaveLength(line.length);
+        expect(code.startsWith("const value = 1;")).toBe(true);
+        expect(code).not.toContain("console");
     });
 
-    test("blanks string, template, and regex contents", () => {
-        expect(scan('const name = "console.log";')).not.toContain("console");
-        expect(scan("const pattern = /console\\.log/g;")).not.toContain("console");
-        expect(scan("const text = `value: any`;")).not.toContain("any");
-        expect(scan("const division = total / count / 2;")).toBe(
+    test("keeps comment text in the comment region for the checks that read it", () => {
+        expect(commentsOf("// @ts-expect-error upstream type is wrong")).toContain(
+            "@ts-expect-error",
+        );
+        expect(commentsOf("    // TODO: backfill before the next release")).toContain("TODO:");
+        expect(commentsOf("const value: any = 1; // nothing to see")).not.toContain("const");
+    });
+
+    test("keeps directives invisible to code-only checks", () => {
+        expect(codeOf("// @ts-expect-error x")).not.toContain("@ts-expect-error");
+        expect(codeOf("const a = 1; /* TODO: later */")).not.toContain("TODO");
+    });
+
+    test("blanks string, template, and regex contents from both regions", () => {
+        expect(codeOf('const name = "console.log";')).not.toContain("console");
+        expect(codeOf("const pattern = /console\\.log/g;")).not.toContain("console");
+        expect(codeOf("const text = `value: any`;")).not.toContain("any");
+        expect(commentsOf('const name = "TODO: fake";')).not.toContain("TODO");
+        expect(codeOf("const division = total / count / 2;")).toBe(
             "const division = total / count / 2;",
         );
     });
 
-    test("keeps carrying state through an unclosed template literal", () => {
-        const state = { inBlockComment: false, inTemplate: false };
-        const opened = blankSourceLine("const patch = `value: any", state);
+    test("carries state through an unclosed template literal", () => {
+        const state = newScanState();
+        const opened = scanSourceLine("const patch = `value: any", state);
         expect(state.inTemplate).toBe(true);
-        expect(opened).not.toContain("any");
-        const inside = blankSourceLine("+export default function bad(value: any) {", state);
-        expect(inside).not.toContain("any");
-        expect(inside).not.toContain("export default");
-        const closed = blankSourceLine("`;", state);
+        expect(opened.code).not.toContain("any");
+        const inside = scanSourceLine("+export default function bad(value: any) {", state);
+        expect(inside.code).not.toContain("any");
+        expect(inside.code).not.toContain("export default");
+        const closed = scanSourceLine("`;", state);
         expect(state.inTemplate).toBe(false);
-        expect(closed).toBe(" ;");
+        expect(closed.code).toBe(" ;");
     });
 
     test("leaves real code intact so the check still fires", () => {
-        expect(scan("const value: any = read();")).toContain("any");
+        expect(codeOf("const value: any = read();")).toContain("any");
     });
 
     test("blanks prose code spans and quoted terms but keeps the sentence", () => {
@@ -344,13 +389,39 @@ describe("suppression", () => {
 
 describe("merge", () => {
     test("collapses the same finding from two lenses, preferring the deterministic pass", () => {
-        const result = deduplicate([
-            findingFor({ lens: "tests", confidence: 94 }),
-            findingFor({ lens: "rules", confidence: 100 }),
-        ]);
+        const result = deduplicate(
+            [
+                findingFor({ lens: "tests", confidence: 94 }),
+                findingFor({ lens: "rules", confidence: 100 }),
+            ],
+            contextFor(ADDED_FILE_PATCH),
+        );
         expect(result.kept).toHaveLength(1);
         expect(result.kept[0]?.lens).toBe("rules");
         expect(result.duplicates).toBe(1);
+    });
+
+    test("collapses two lenses describing one defect at different lines in a hunk", () => {
+        const result = deduplicate(
+            [
+                findingFor({ line: 3, lens: "correctness", confidence: 90, title: "First angle" }),
+                findingFor({ line: 4, lens: "contracts", confidence: 91, title: "Second angle" }),
+            ],
+            contextFor(ADDED_FILE_PATCH),
+        );
+        expect(result.kept).toHaveLength(1);
+        expect(result.kept[0]?.title).toBe("Second angle");
+    });
+
+    test("keeps determinism precise: two mechanical findings on one hunk both survive", () => {
+        const result = deduplicate(
+            [
+                findingFor({ line: 3, lens: "rules", ruleId: "REPO-TS-01" }),
+                findingFor({ line: 4, lens: "rules", ruleId: "REPO-TS-01" }),
+            ],
+            contextFor(ADDED_FILE_PATCH),
+        );
+        expect(result.kept).toHaveLength(2);
     });
 
     test("filters model guesses but never filters the deterministic pass", () => {

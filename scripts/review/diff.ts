@@ -200,6 +200,18 @@ export function snapToDiff(file: FileDiff, line: number, tolerance = 5): number 
 }
 
 /**
+ * Identifies the hunk a line belongs to, so findings in one region of a file can
+ * be recognised as describing the same issue.
+ *
+ * @param file - Parsed file diff.
+ * @param line - Line number at the head commit.
+ * @returns The hunk's index in the file, or -1 when no hunk contains the line.
+ */
+export function hunkIndexOf(file: FileDiff, line: number): number {
+    return file.hunks.findIndex((hunk) => hunk.newLines.includes(line));
+}
+
+/**
  * Finds the parsed diff for a path, tolerating the prefixes Git may add.
  *
  * @param files - Parsed file diffs.

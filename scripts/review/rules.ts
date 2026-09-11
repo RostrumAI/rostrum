@@ -13,7 +13,7 @@
  */
 
 import { addedLineEntries, visibleLines } from "./diff.ts";
-import { blankInlineCode, blankSourceLines } from "./source-text.ts";
+import { blankInlineCode, scanSourceLines } from "./source-text.ts";
 import type { Finding, ReviewContext } from "./types.ts";
 
 /** One mechanical check over the added lines of a file. */
@@ -30,6 +30,17 @@ interface RuleCheck {
     appliesTo: (path: string) => boolean;
     /** Matches an added line that violates the rule. */
     matches: (line: string) => boolean;
+    /**
+     * Which region of the line the check reads.
+     *
+     * `code` is the default and covers identifiers, syntax, and types with
+     * comments and literals blanked. `comments` covers comment text alone, which
+     * is the only place a directive or a marker is meaningful: blanking comments
+     * before matching would make those checks unable to fire. `any` reads both.
+     *
+     * TypeScript paths only; markdown is always scanned for inline code spans.
+     */
+    surface?: "code" | "comments" | "any";
 }
 
 /** Paths that are allowed to write directly to the console. */
@@ -107,6 +118,7 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Fix the type, or narrow it explicitly. A suppression hides the next real error on the same line.",
         appliesTo: isTypeScript,
         matches: (line) => /@ts-(?:ignore|expect-error|nocheck)\b/.test(line),
+        surface: "comments",
     },
     {
         id: "REPO-TS-05",
@@ -116,6 +128,7 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Resolve the marker or record the work in the task document instead of the source.",
         appliesTo: isTypeScript,
         matches: (line) => /\b(?:TODO|FIXME|XXX|HACK)\b\s*[:(]/.test(line),
+        surface: "comments",
     },
     {
         id: "REPO-CONTRACT-01",
@@ -125,6 +138,7 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Identifiers are server-minted. State the scheme only in the documents that define it.",
         appliesTo: isTypeScript,
         matches: (line) => /\bUUID\s*v7\b/i.test(line) || /\buuidv7\b/i.test(line),
+        surface: "any",
     },
     {
         id: "REPO-WRITING-01",
@@ -134,6 +148,7 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Use the repository's term for this concept rather than the retired or informal one.",
         appliesTo: (path) => isTypeScript(path) || path.endsWith(".md"),
         matches: (line) => /\b(?:backstop|envelope)\b/i.test(line),
+        surface: "any",
     },
     {
         id: "REPO-TEST-01",
@@ -156,20 +171,29 @@ export function runRuleChecks(context: ReviewContext): Finding[] {
     const findings: Finding[] = [];
     for (const file of context.files) {
         const entries = addedLineEntries(file);
-        // Source is scanned lexically, prose only for inline code spans, so a
-        // term quoted in prose reads as a mention while a genuine use still
-        // matches. Blanking runs over the whole file's added lines because a
-        // template literal or block comment spans lines.
-        const scannable = file.path.endsWith(".md")
-            ? entries.map((entry) => blankInlineCode(entry.text))
-            : blankSourceLines(entries.map((entry) => entry.text));
+        // Prose is scanned only for inline code spans and quoted terms, so a
+        // quoted term reads as a mention. Source is split into code and comment
+        // regions across the whole file's added lines, because a template literal
+        // or block comment spans lines.
+        const regions = file.path.endsWith(".md")
+            ? entries.map((entry) => ({
+                  code: blankInlineCode(entry.text),
+                  comments: "",
+              }))
+            : scanSourceLines(entries.map((entry) => entry.text));
         for (const [index, entry] of entries.entries()) {
-            const candidate = scannable[index] ?? "";
+            const region = regions[index] ?? { code: "", comments: "" };
             for (const check of RULE_CHECKS) {
                 if (!check.appliesTo(file.path)) {
                     continue;
                 }
-                if (!check.matches(candidate)) {
+                const candidates =
+                    check.surface === "comments"
+                        ? [region.comments]
+                        : check.surface === "any"
+                          ? [region.code, region.comments]
+                          : [region.code];
+                if (!candidates.some((candidate) => check.matches(candidate))) {
                     continue;
                 }
                 findings.push({
