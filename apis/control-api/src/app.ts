@@ -1,16 +1,22 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
+import {
+    type FeatureBundle,
+    type FeatureRoute,
+    type LoadedFeature,
+    loadFeatures,
+    type RequestBodyDefinition,
+    type ResponseDefinition,
+} from "@rostrum/server/loader";
 import { type Context, Hono } from "hono";
 import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
-import { loadConfig } from "./env";
-import type { FeatureBundle, FeatureRoute, LoadedFeature, RequestBodyDefinition } from "./loader";
-import { loadFeatures, parameterGuard } from "./loader";
 import { accessLog } from "./middleware/access-log";
+import { parameterGuard } from "./parameter-guard";
 import { ErrorResponseSchema } from "./schemas";
 import type { Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
-import { WorkflowService } from "./workflows/service";
 
 /** Path prefix every feature route mounts under. */
 const API_PREFIX = "/api";
@@ -42,8 +48,13 @@ const CANDIDATE_METHODS = [
  * Routes are mounted on a plain Hono app so tests can drive `routes.fetch()`
  * without a socket and the real process serves the same app over HTTP.
  * Route slices under `src/features` bind themselves at construction: the
- * folder layout decides the path, so a slice never edits a central
- * route table. Foundation surface: `/api` routes, one
+ * folder layout decides the path, so a slice never edits a central route
+ * table.
+ *
+ * Construction acquires no resources: the app holds no pool and performs no
+ * probe, so OpenAPI generation and route tests run offline. Each request
+ * supplies the services it borrows, resolved through request-scoped storage
+ * so concurrent requests never observe one another's snapshot.
  */
 export class ControlApiApp {
     /** The mounted Hono application; serve it with Bun.serve or fetch it directly. */
@@ -51,25 +62,64 @@ export class ControlApiApp {
 
     private readonly logger = getLogger("control-api");
 
+    /** Request-scoped services; empty outside a served request. */
+    private readonly services = new AsyncLocalStorage<Services>();
+
     /**
-     * Creates the app with its services built once and every feature
-     * slice under `src/features` loaded, validated, and bound. Prefer
-     * this over the constructor: a slice that misses the feature contract
-     * fails here, before anything serves traffic.
+     * The services view handed to feature factories at bind time. Handlers
+     * read it while serving, when request-scoped storage holds the snapshot
+     * the request was admitted with.
+     */
+    private readonly activeServices: Services;
+
+    private readonly loaded: FeatureBundle<Services>;
+
+    /**
+     * Builds the app from the feature slices under `src/features`. Every slice
+     * is validated against the feature contract here, before anything serves
+     * traffic; no dependency is acquired.
      */
     static async create(): Promise<ControlApiApp> {
-        const services: Services = {
-            workflows: WorkflowService.create(loadConfig().databaseUrl),
-        };
-        return new ControlApiApp(await loadFeatures(join(import.meta.dir, "features")), services);
+        return new ControlApiApp(await loadFeatures<Services>(join(import.meta.dir, "features")));
     }
 
-    private readonly loaded: FeatureBundle;
-    private readonly services: Services;
+    /**
+     * Serves one request against the services snapshot it was admitted with.
+     * Omitting the snapshot serves routes that borrow nothing (health, the
+     * generated contract) without any resource; a route that does borrow
+     * throws, because no snapshot is live.
+     */
+    fetch(request: Request, services?: Services): Response | Promise<Response> {
+        if (services === undefined) return this.routes.fetch(request);
+        return this.services.run(services, () => this.routes.fetch(request));
+    }
 
-    private constructor(loaded: FeatureBundle, services: Services) {
+    /** The generated OpenAPI document, without serving or acquiring anything. */
+    async openApi(): Promise<Response> {
+        return this.routes.fetch(new Request("http://localhost/openapi.json"));
+    }
+
+    private constructor(loaded: FeatureBundle<Services>) {
         this.loaded = loaded;
-        this.services = services;
+        // Capture the storage instance in a local: `this` inside an object
+        // literal's getter is the literal, not the app instance.
+        const storage = this.services;
+        this.activeServices = {
+            get workflows() {
+                const active = storage.getStore();
+                if (active === undefined) {
+                    throw new Error("workflow services are only available while serving a request");
+                }
+                return active.workflows;
+            },
+            get readiness() {
+                const active = storage.getStore();
+                if (active === undefined) {
+                    throw new Error("readiness is only available while serving a request");
+                }
+                return active.readiness;
+            },
+        };
 
         // Registered first so it wraps every route, including 404 responses.
         this.routes.use("*", accessLog());
@@ -79,7 +129,7 @@ export class ControlApiApp {
                 `${API_PREFIX}${feature.path}`,
                 describeRoute(this.describeFeature(feature)),
                 parameterGuard(feature.parameters),
-                feature.createHandler(this.services),
+                feature.createHandler(this.activeServices),
             );
         }
 
@@ -117,7 +167,7 @@ export class ControlApiApp {
      * the feature area folder; each documented response references its module
      * component by name. Used for building OpenAPI JSON output.
      */
-    private describeFeature(feature: LoadedFeature): DescribeRouteOptions {
+    private describeFeature(feature: LoadedFeature<Services>): DescribeRouteOptions {
         const description: DescribeRouteOptions = {
             tags: [feature.tag],
             responses: this.describeResponses(feature.responses),
@@ -148,7 +198,8 @@ export class ControlApiApp {
         responses: FeatureRoute["responses"],
     ): NonNullable<DescribeRouteOptions["responses"]> {
         const described: NonNullable<DescribeRouteOptions["responses"]> = {};
-        for (const [status, response] of Object.entries(responses ?? {})) {
+        const declared: Record<string, ResponseDefinition> = responses ?? {};
+        for (const [status, response] of Object.entries(declared)) {
             if (response.schemaName === undefined) {
                 described[status] = { description: response.description };
             } else {
@@ -188,11 +239,6 @@ export class ControlApiApp {
                 },
             },
         };
-    }
-
-    /** Closes the services the app built: the workflow database pool. */
-    async close(): Promise<void> {
-        await this.services.workflows.close();
     }
 
     /**
@@ -236,10 +282,10 @@ export class ControlApiApp {
     /**
      * Registers 405 handlers for every registered route path and every candidate
      * method the path does not allow. The allowed-method table is derived from
-     * `routes`, which Hono flattens across `route(...)` mounts (verified in hono
-     * 4.13.3), so future routes get 405 handling without a manual table. HEAD is
-     * paired with GET: Hono dispatches HEAD by mapping it to GET, and the Allow
-     * header should state that.
+     * `routes`, which Hono flattens across `route(...)` mounts, so future routes
+     * get 405 handling without a manual table. HEAD is paired with GET: Hono
+     * dispatches HEAD by mapping it to GET, and the Allow header should state
+     * that.
      *
      * Must run after all routes are registered.
      */

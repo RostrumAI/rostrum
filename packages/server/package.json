@@ -1,0 +1,25 @@
+{
+    "name": "@rostrum/server",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        "./config": "./src/config.ts",
+        "./network": "./src/network.ts",
+        "./tokens": "./src/tokens.ts",
+        "./logger": "./src/logger.ts",
+        "./loader": "./src/loader.ts",
+        "./protocol": "./src/protocol.ts",
+        "./readiness": "./src/readiness.ts",
+        "./lifecycle": "./src/lifecycle.ts"
+    },
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "test": "bun test"
+    },
+    "dependencies": {
+        "@logtape/logtape": "^2.3.2",
+        "hono": "^4.13.3",
+        "typebox": "^1.3.12"
+    }
+}

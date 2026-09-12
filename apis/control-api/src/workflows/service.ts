@@ -1,10 +1,12 @@
 import type {
     CreatedDraft,
+    DatabaseHandle,
     Publication,
     PublishResult,
     SaveRevisionResult,
     StoredRevision,
 } from "@rostrum/database";
+import { WorkflowRepository } from "@rostrum/database";
 import {
     type Finding,
     insertWorkflowId,
@@ -12,13 +14,13 @@ import {
     PublicationPreparer,
     parseWorkflow,
     replaceWorkflowId,
+    V1_RULE_SET,
     type ValidationResult,
     type WorkflowFormatRegistry,
     type WorkflowFormatRuleSet,
     type WorkflowValidator,
 } from "@rostrum/workflow";
 import { v7 as mintUuidV7 } from "uuid";
-import { createWorkflowDatabase, type WorkflowDatabase } from "./database";
 import { WorkflowApiError, workflowIdentityConflict, workflowParseFailure } from "./errors";
 import { RULE_SET_REGISTRY, WORKFLOW_VALIDATOR } from "./rule-sets";
 
@@ -53,24 +55,28 @@ export type PublishWorkflowResult =
  * so the findings a save returns anchor to the text retrieval returns.
  */
 export class WorkflowService {
-    private readonly database: WorkflowDatabase;
+    private readonly workflows: WorkflowRepository;
     private readonly validator: WorkflowValidator;
     private readonly registry: WorkflowFormatRegistry;
 
     private constructor(
-        database: WorkflowDatabase,
+        workflows: WorkflowRepository,
         validator: WorkflowValidator,
         registry: WorkflowFormatRegistry,
     ) {
-        this.database = database;
+        this.workflows = workflows;
         this.validator = validator;
         this.registry = registry;
     }
 
-    /** Creates a service over one Postgres URL. */
-    static create(databaseUrl: string): WorkflowService {
+    /**
+     * Creates a service over one service-owned database handle. The service
+     * borrows the handle: it never closes the pool, because readiness probes
+     * and every other operation in the process share that same connection.
+     */
+    static create(database: DatabaseHandle): WorkflowService {
         return new WorkflowService(
-            createWorkflowDatabase(databaseUrl),
+            new WorkflowRepository(database.db, new PublicationPreparer(V1_RULE_SET)),
             WORKFLOW_VALIDATOR,
             RULE_SET_REGISTRY,
         );
@@ -97,7 +103,7 @@ export class WorkflowService {
             ? replaceWorkflowId(parsed.text, workflowId)
             : parsed.text;
         const result = this.validateStoredText(text);
-        return this.database.workflows.createDraft({
+        return this.workflows.createDraft({
             workflowId,
             content: text,
             findings: result.findings,
@@ -129,7 +135,7 @@ export class WorkflowService {
                 // The addressed workflow is authoritative: when it does not
                 // exist the save is 404, and the embedded-id disagreement
                 // only matters against a workflow that exists.
-                const current = await this.database.workflows.getCurrentRevision(workflowId);
+                const current = await this.workflows.getCurrentRevision(workflowId);
                 if (!current) return { outcome: "not-found" };
                 throw new WorkflowApiError(
                     workflowIdentityConflict(
@@ -139,7 +145,7 @@ export class WorkflowService {
             }
         }
         const result = this.validateStoredText(text);
-        return this.database.workflows.saveRevision(workflowId, {
+        return this.workflows.saveRevision(workflowId, {
             baseRevision,
             content: text,
             findings: result.findings,
@@ -149,12 +155,12 @@ export class WorkflowService {
 
     /** Returns the draft's current revision, or null when the workflow does not exist. */
     async getCurrentRevision(workflowId: string): Promise<StoredRevision | null> {
-        return this.database.workflows.getCurrentRevision(workflowId);
+        return this.workflows.getCurrentRevision(workflowId);
     }
 
     /** Returns one stored revision byte-exact, or null when it does not exist. */
     async getRevision(workflowId: string, revisionId: string): Promise<StoredRevision | null> {
-        return this.database.workflows.getRevision(workflowId, revisionId);
+        return this.workflows.getRevision(workflowId, revisionId);
     }
 
     /**
@@ -170,12 +176,12 @@ export class WorkflowService {
         | { outcome: "target-not-found" }
         | { outcome: "not-found" }
     > {
-        const result = await this.database.workflows.rewind(workflowId, targetRevisionId);
+        const result = await this.workflows.rewind(workflowId, targetRevisionId);
         switch (result.outcome) {
             case "rewound":
                 return result;
             case "no-op": {
-                const current = await this.database.workflows.getCurrentRevision(workflowId);
+                const current = await this.workflows.getCurrentRevision(workflowId);
                 if (!current) throw new Error(`workflow ${workflowId} has no current revision`);
                 return { outcome: "no-op", revision: current };
             }
@@ -191,7 +197,7 @@ export class WorkflowService {
      * Republishing the same revision returns the existing publication.
      */
     async publish(workflowId: string): Promise<PublishWorkflowResult> {
-        const current = await this.database.workflows.getCurrentRevision(workflowId);
+        const current = await this.workflows.getCurrentRevision(workflowId);
         if (!current) return { outcome: "not-found" };
         const result = this.validator.validate(current.content);
         if (!result.validForPublication) {
@@ -205,7 +211,7 @@ export class WorkflowService {
         }
         const { ruleSet, workflowFormatVersion } = this.selectRuleSet(parsed.document);
         const prepared = await new PublicationPreparer(ruleSet).prepare(parsed.document);
-        const stored = await this.database.workflows.publish({
+        const stored = await this.workflows.publish({
             workflowId,
             revisionId: current.revisionId,
             canonicalText: prepared.canonicalText,
@@ -220,12 +226,7 @@ export class WorkflowService {
         workflowId: string,
         publicationNumber: number,
     ): Promise<Publication | null> {
-        return this.database.workflows.getPublication(workflowId, publicationNumber);
-    }
-
-    /** Closes the underlying connection pool. */
-    async close(): Promise<void> {
-        await this.database.close();
+        return this.workflows.getPublication(workflowId, publicationNumber);
     }
 
     /**

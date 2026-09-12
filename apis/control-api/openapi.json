@@ -165,6 +165,274 @@
         },
         "additionalProperties": false
       },
+      "ControlApiReadiness": {
+        "anyOf": [
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "checks"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "ready"
+              },
+              "checks": {
+                "type": "object",
+                "required": [
+                  "database",
+                  "daemon"
+                ],
+                "properties": {
+                  "database": {
+                    "type": "object",
+                    "required": [
+                      "status"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "ok"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "daemon": {
+                    "type": "object",
+                    "required": [
+                      "status"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "ok"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "checks"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "not_ready"
+              },
+              "checks": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "database"
+                    ],
+                    "properties": {
+                      "database": {
+                        "type": "object",
+                        "required": [
+                          "status",
+                          "code"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "const": "failed"
+                          },
+                          "code": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "const": "database_unavailable"
+                              },
+                              {
+                                "type": "string",
+                                "const": "database_timeout"
+                              },
+                              {
+                                "type": "string",
+                                "const": "database_schema_unavailable"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "daemon": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "status"
+                            ],
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "const": "ok"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "status",
+                              "code"
+                            ],
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "const": "failed"
+                              },
+                              "code": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "daemon_unavailable"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "daemon_timeout"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "daemon_unauthorized"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "daemon_tls_error"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "daemon_invalid_response"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "daemon_not_ready"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "daemon"
+                    ],
+                    "properties": {
+                      "database": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "status"
+                            ],
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "const": "ok"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "status",
+                              "code"
+                            ],
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "const": "failed"
+                              },
+                              "code": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "database_unavailable"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "database_timeout"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "database_schema_unavailable"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "daemon": {
+                        "type": "object",
+                        "required": [
+                          "status",
+                          "code"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "const": "failed"
+                          },
+                          "code": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "const": "daemon_unavailable"
+                              },
+                              {
+                                "type": "string",
+                                "const": "daemon_timeout"
+                              },
+                              {
+                                "type": "string",
+                                "const": "daemon_unauthorized"
+                              },
+                              {
+                                "type": "string",
+                                "const": "daemon_tls_error"
+                              },
+                              {
+                                "type": "string",
+                                "const": "daemon_invalid_response"
+                              },
+                              {
+                                "type": "string",
+                                "const": "daemon_not_ready"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "CreateDraftRequest": {
         "type": "object",
         "required": [
@@ -493,6 +761,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/readiness": {
+      "get": {
+        "operationId": "getApiSystemReadiness",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Every dependency is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlApiReadiness"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "At least one dependency is unavailable or not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlApiReadiness"
                 }
               }
             }

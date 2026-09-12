@@ -11,7 +11,11 @@ import { ControlApiApp } from "../app";
  * because neither route touches one. Exits nonzero on any failure.
  */
 const app = await ControlApiApp.create();
-const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: app.routes.fetch });
+const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: (request) => app.fetch(request),
+});
 
 try {
     const health = await fetch(`http://127.0.0.1:${server.port}/api/system/health`);
@@ -38,5 +42,4 @@ try {
     console.log(`smoke ok: health and openapi served on port ${server.port}`);
 } finally {
     server.stop(true);
-    await app.close();
 }

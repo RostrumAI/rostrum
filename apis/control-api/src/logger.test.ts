@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getLogger, type LogRecord } from "@logtape/logtape";
-import { configureLogging, formatJsonLine } from "./logger";
+import { configureLogging, formatJsonLine } from "@rostrum/server/logger";
 
 function record(partial: Partial<LogRecord>): LogRecord {
     return {

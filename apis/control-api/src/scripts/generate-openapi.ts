@@ -9,7 +9,7 @@ import { ControlApiApp } from "../app";
  * artifact and conformance tooling can consume it directly.
  */
 const app = await ControlApiApp.create();
-const response = await app.routes.fetch(new Request("http://localhost/openapi.json"));
+const response = await app.openApi();
 if (!response.ok) {
     throw new Error(`openapi.json fetch failed: ${response.status}`);
 }

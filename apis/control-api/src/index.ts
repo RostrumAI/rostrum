@@ -1,38 +1,24 @@
-import { getLogger } from "@logtape/logtape";
-import { ControlApiApp } from "./app";
+import type { ControlApiConfig } from "@rostrum/server/config";
+import { runService } from "@rostrum/server/lifecycle";
 import { loadConfig } from "./env";
-import { configureLogging } from "./logger";
+import { createDependencies, type Dependencies, readiness } from "./services";
 
-const config = loadConfig();
-await configureLogging(config.logLevel);
-const logger = getLogger("control-api");
-const app = await ControlApiApp.create();
-
-const server = Bun.serve({
-    hostname: config.host,
-    port: config.port,
-    fetch: app.routes.fetch,
-    error(error) {
-        logger.error("request failed", { error: String(error) });
-        return new Response("Internal Server Error", { status: 500 });
-    },
+/**
+ * The Control API process. Configuration is resolved and validated before any
+ * resource is acquired, and each request is served from the snapshot it was
+ * admitted with, so a SIGHUP reload never changes dependencies underneath it.
+ */
+await runService<ControlApiConfig, Dependencies>({
+    name: "control-api",
+    loadConfig,
+    createDependencies,
+    readiness,
+    fetch: (request, config, dependencies) =>
+        dependencies.app.fetch(request, {
+            workflows: dependencies.workflows,
+            // Resolved from the request's own snapshot: a token-only reload
+            // swaps the token set without rebuilding dependencies, so binding
+            // this at dependency creation would keep sending the retired token.
+            readiness: (signal) => readiness(config, dependencies, signal),
+        }),
 });
-
-logger.info("listening", {
-    host: config.host,
-    port: server.port,
-    url: `http://${config.host}:${server.port}`,
-});
-
-let shuttingDown = false;
-async function shutdown(signal: string) {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    logger.info("shutdown started", { signal });
-    server.stop(true);
-    await app.close();
-    process.exit(0);
-}
-
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));

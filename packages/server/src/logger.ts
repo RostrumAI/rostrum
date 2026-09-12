@@ -20,7 +20,7 @@ export function consoleSink(record: LogRecord): void {
 }
 
 /**
- * Configures LogTape for the process: the `control-api` logger writes JSON
+ * Configures LogTape for the process: the service loggers writes JSON
  * lines through `sink`, filtered at `level`. Call once at startup before the
  * first log call; tests can inject a sink.
  */
@@ -32,6 +32,7 @@ export async function configureLogging(
         sinks: { app: sink },
         loggers: [
             { category: "control-api", sinks: ["app"], lowestLevel: level },
+            { category: "daemon", sinks: ["app"], lowestLevel: level },
             // LogTape reports its own diagnostics on this category; surface only
             // failures so the info-level setup notice stays out of the output.
             { category: ["logtape", "meta"], sinks: ["app"], lowestLevel: "error" },

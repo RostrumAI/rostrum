@@ -21,6 +21,7 @@
         "@humanwhocodes/momoa": "^3.3.12",
         "@logtape/logtape": "^2.3.2",
         "@rostrum/database": "workspace:*",
+        "@rostrum/server": "workspace:*",
         "@rostrum/workflow": "workspace:*",
         "hono": "^4.13.3",
         "hono-openapi": "^1.3.1",
@@ -28,6 +29,18 @@
         "postgres": "^3.4.9",
         "typebox": "^1.3.12",
         "uuid": "^11.1.0",
+      },
+    },
+    "apis/daemon": {
+      "name": "@rostrum/daemon",
+      "version": "0.1.0",
+      "dependencies": {
+        "@logtape/logtape": "^2.3.2",
+        "@rostrum/database": "workspace:*",
+        "@rostrum/server": "workspace:*",
+        "hono": "^4.13.3",
+        "hono-openapi": "^1.3.1",
+        "typebox": "^1.3.12",
       },
     },
     "packages/database": {
@@ -41,6 +54,15 @@
       },
       "devDependencies": {
         "embedded-postgres": "^18.4.0-beta.17",
+      },
+    },
+    "packages/server": {
+      "name": "@rostrum/server",
+      "version": "0.1.0",
+      "dependencies": {
+        "@logtape/logtape": "^2.3.2",
+        "hono": "^4.13.3",
+        "typebox": "^1.3.12",
       },
     },
     "packages/workflow": {
@@ -105,7 +127,11 @@
 
     "@rostrum/control-api": ["@rostrum/control-api@workspace:apis/control-api"],
 
+    "@rostrum/daemon": ["@rostrum/daemon@workspace:apis/daemon"],
+
     "@rostrum/database": ["@rostrum/database@workspace:packages/database"],
+
+    "@rostrum/server": ["@rostrum/server@workspace:packages/server"],
 
     "@rostrum/workflow": ["@rostrum/workflow@workspace:packages/workflow"],
 
