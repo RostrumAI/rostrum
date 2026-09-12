@@ -179,7 +179,25 @@ export async function adjudicateReply(
             detail: reason,
         };
     }
-    await setReviewThreadResolved(thread.id, true);
+    // Resolving the thread is how a withdrawal becomes visible and how it clears
+    // the repository's conversation-resolution merge gate. It is attempted after
+    // the verdict has been recorded, and a refusal is reported rather than
+    // thrown: for the review events, GitHub can hand the job a read-only token
+    // regardless of the permissions the workflow declares, and a failure here
+    // must not discard a withdrawal that has already been decided and recorded.
+    // Suppression does not depend on it — the verdict marker carries the outcome.
+    try {
+        await setReviewThreadResolved(thread.id, true);
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn(
+            `Could not resolve thread ${thread.id}; the verdict still stands and the finding stays suppressed. ${detail}`,
+        );
+        return {
+            action: "withdrawn",
+            detail: `${verdict}: ${reason} (thread left open: ${detail.slice(0, 200)})`,
+        };
+    }
     return { action: "withdrawn", detail: `${verdict}: ${reason}` };
 }
 
