@@ -1,15 +1,27 @@
+/** @fileoverview Control API liveness and generated-contract smoke check. */
+
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ControlApiApp } from "../app";
 
 /**
- * Boots the real server on an ephemeral port and checks the two routes
- * every deployment depends on: the health check and the OpenAPI document.
- * It also verifies that the served document equals the checked-in
- * openapi.json, so the contract artifact cannot drift from the served
- * one. CI runs this as its boot stage; no database connection is needed
- * because neither route touches one. Exits nonzero on any failure.
+ * Boots the real server on an ephemeral port and checks the two routes every
+ * deployment depends on: the health check and the OpenAPI document. It also
+ * verifies that the served document equals the checked-in openapi.json, so
+ * the contract artifact cannot drift from the served one.
+ *
+ * The script provisions its own local configuration because the shared
+ * configuration contract requires a database target and a daemon token
+ * source. No connection is opened: health and the contract touch neither
+ * dependency. CI runs this as its boot stage, and any mismatch exits nonzero.
  */
+process.env.NODE_ENV = "test";
+process.env.DATABASE_URL = "postgres://rostrum:rostrum@127.0.0.1:5432/rostrum";
+process.env.DATABASE_TLS = "false";
+process.env.ALLOW_INSECURE_LOCAL = "true";
+process.env.DAEMON_URL = "http://127.0.0.1:3001";
+process.env.DAEMON_TOKEN = "ab".repeat(32);
+
 const app = await ControlApiApp.create();
 const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: app.routes.fetch });
 
@@ -38,5 +50,5 @@ try {
     console.log(`smoke ok: health and openapi served on port ${server.port}`);
 } finally {
     server.stop(true);
-    await app.close();
+    await app.close(1_000);
 }

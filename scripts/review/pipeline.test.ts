@@ -1,3 +1,5 @@
+/** @fileoverview Automated review pipeline behavior tests. */
+
 /**
  * Behavioural tests for the automated review pipeline.
  *
@@ -425,6 +427,36 @@ new file mode 100644
 +test("thing", () => {});
 `;
         expect(findUncoveredSourceFiles(contextFor(withTest))).toHaveLength(0);
+    });
+
+    test("exempts executable scripts and test support modules", () => {
+        const patches = [
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "apps/control-api/src/scripts/thing.ts",
+            ),
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "packages/server/src/testing/thing.ts",
+            ),
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "packages/server/src/thing.fixture.ts",
+            ),
+        ];
+        for (const patch of patches) {
+            expect(findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+        }
+    });
+    test("accepts a service-wide executable boundary suite", () => {
+        const withBoundary = `${ADDED_FILE_PATCH}diff --git a/apps/control-api/src/boundary.test.ts b/apps/control-api/src/boundary.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/control-api/src/boundary.test.ts
+@@ -0,0 +1,1 @@
++test("executable boundary", () => {});
+`;
+        expect(findUncoveredSourceFiles(contextFor(withBoundary))).toHaveLength(0);
     });
 });
 

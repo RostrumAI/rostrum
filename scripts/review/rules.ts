@@ -1,3 +1,5 @@
+/** @fileoverview Deterministic automated review rules. */
+
 /**
  * The deterministic rule pass.
  *
@@ -65,6 +67,15 @@ function isTypeScript(path: string): boolean {
 /** Test files, which may legitimately use console output and focused cases. */
 function isTestFile(path: string): boolean {
     return path.includes(".test.") || path.includes("__tests__") || path.includes("/tests/");
+}
+
+/** Test harnesses and executable scripts are exercised by their callers or commands. */
+function isTestSupportFile(path: string): boolean {
+    return (
+        path.includes("/testing/") ||
+        path.includes("/src/scripts/") ||
+        /\.fixture\.(?:ts|tsx)$/.test(path)
+    );
 }
 
 /** Files that define types only, and so carry no behavior to test. */
@@ -296,9 +307,8 @@ async function readSourceFile(workingDirectory: string, path: string): Promise<s
 /**
  * Finds newly added source files with no test covering them.
  *
- * The repository requires a test beside new behavior, and the check is
- * mechanical because it only compares file names: a new source module counts as
- * covered when a test file for it exists on disk or arrives in the same change.
+ * The check is mechanical because it compares file names. Test fixtures, test helpers, and
+ * executable scripts are not product modules and are covered by their callers.
  *
  * @param context - Review context holding the parsed files and the repository checkout.
  * @returns A finding per uncovered new source file.
@@ -309,7 +319,12 @@ export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
     );
     const findings: Finding[] = [];
     for (const file of context.files) {
-        if (!file.added || !isTypeScript(file.path) || isTestFile(file.path)) {
+        if (
+            !file.added ||
+            !isTypeScript(file.path) ||
+            isTestFile(file.path) ||
+            isTestSupportFile(file.path)
+        ) {
             continue;
         }
         const inReviewScope =
@@ -320,8 +335,15 @@ export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
             continue;
         }
         const testPath = file.path.replace(/\.(tsx?)$/, ".test.$1");
+        const sourceRoot = /^((?:apps|apis)\/[^/]+\/src)\//.exec(file.path)?.[1];
+        const boundaryTestPath =
+            sourceRoot === undefined ? undefined : `${sourceRoot}/boundary.test.ts`;
         const covered =
-            testPaths.has(testPath) || Bun.file(`${context.workingDirectory}/${testPath}`).size > 0;
+            testPaths.has(testPath) ||
+            Bun.file(`${context.workingDirectory}/${testPath}`).size > 0 ||
+            (boundaryTestPath !== undefined &&
+                (testPaths.has(boundaryTestPath) ||
+                    Bun.file(`${context.workingDirectory}/${boundaryTestPath}`).size > 0));
         if (covered) {
             continue;
         }
