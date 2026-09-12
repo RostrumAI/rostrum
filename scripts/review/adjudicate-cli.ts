@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 import { adjudicateReply, adjudicateReview, adjudicateUnansweredThreads } from "./adjudicate.ts";
+import { API_KEY_ENV } from "./reviewer.ts";
 
 /** Entry point. Exits non-zero only when the run itself failed. */
 async function main(): Promise<number> {
@@ -37,6 +38,13 @@ async function main(): Promise<number> {
     if (!Number.isInteger(pullRequest)) {
         throw new Error("--pull-request must be an integer.");
     }
+    // Without the key, the runtime falls back to whatever credential a previous
+    // interactive login stored, and the failure surfaces as an authentication
+    // error naming a key nobody recognises. Say what is actually wrong instead.
+    if (process.env[API_KEY_ENV] === undefined || process.env[API_KEY_ENV]?.trim() === "") {
+        throw new Error(`${API_KEY_ENV} is not set; the adjudicator cannot run without it.`);
+    }
+
     const cwd = join(import.meta.dir, "..", "..");
     const reviewRoot = values["repo-root"] ?? cwd;
 

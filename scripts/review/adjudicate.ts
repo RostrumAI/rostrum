@@ -254,9 +254,11 @@ export async function adjudicateUnansweredThreads(
     const ref: PullRequestRef = { owner, repo, number: options.pullRequest };
     const threads = await fetchReviewThreads(ref);
     const outcomes: AdjudicationOutcome[] = [];
+    const skipped: string[] = [];
     for (const thread of threads) {
         const pending = lastMaintainerComment(thread);
         if (pending === null) {
+            skipped.push(`${thread.path}:${thread.line ?? "?"} — ${skipReason(thread)}`);
             continue;
         }
         outcomes.push(
@@ -274,9 +276,41 @@ export async function adjudicateUnansweredThreads(
         );
     }
     if (outcomes.length === 0) {
-        return [{ action: "ignored", detail: "every thread already ends with the reviewer" }];
+        // Saying why each thread was passed over is what makes an empty sweep
+        // diagnosable; "nothing to do" on its own cannot be told apart from a
+        // sweep that looked at the wrong thing.
+        return [
+            {
+                action: "ignored",
+                detail:
+                    threads.length === 0
+                        ? "no reviewer threads on this pull request"
+                        : `no thread awaits an answer: ${skipped.join("; ")}`,
+            },
+        ];
     }
     return outcomes;
+}
+
+/**
+ * Explains why a thread needs no answer.
+ *
+ * @param thread - Thread that was passed over.
+ * @returns A short reason naming the condition it failed.
+ */
+function skipReason(thread: ReviewThread): string {
+    if (thread.isResolved) {
+        return "thread is resolved";
+    }
+    const hasFinding = thread.comments.some((comment) => comment.body.includes(COMMENT_MARKER));
+    if (!hasFinding) {
+        return "no reviewer finding on this thread";
+    }
+    const last = thread.comments[thread.comments.length - 1];
+    if (last === undefined) {
+        return "thread has no comments";
+    }
+    return `last word is ${last.author} [${last.authorAssociation}]`;
 }
 
 /**
