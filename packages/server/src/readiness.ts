@@ -37,7 +37,9 @@ export async function checkReadiness(
     let settled = false;
 
     const stop = (final: Readiness): void => {
-        if (settled) return;
+        if (settled) {
+            return;
+        }
         settled = true;
         clearTimeout(timer);
         signal?.removeEventListener("abort", onDeadline);
@@ -57,7 +59,9 @@ export async function checkReadiness(
 
     const timer = setTimeout(onDeadline, timeoutMs);
     signal?.addEventListener("abort", onDeadline, { once: true });
-    if (signal?.aborted) onDeadline();
+    if (signal?.aborted) {
+        onDeadline();
+    }
 
     const entries = Object.entries(probes);
     let outstanding = entries.length;
@@ -67,20 +71,28 @@ export async function checkReadiness(
     }
 
     for (const [name, probe] of entries) {
-        if (settled) break;
+        if (settled) {
+            break;
+        }
         void probe.check(controller.signal).then(
             (check) => {
-                if (settled) return;
+                if (settled) {
+                    return;
+                }
                 checks[name] = check;
                 outstanding -= 1;
                 if (check.status === "failed") {
                     stop({ status: "not_ready", checks: { ...checks } });
                     return;
                 }
-                if (outstanding === 0) stop({ status: "ready", checks: { ...checks } });
+                if (outstanding === 0) {
+                    stop({ status: "ready", checks: { ...checks } });
+                }
             },
             () => {
-                if (settled) return;
+                if (settled) {
+                    return;
+                }
                 checks[name] = { status: "failed", code: probe.failureCode };
                 stop({ status: "not_ready", checks: { ...checks } });
             },

@@ -130,8 +130,12 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             fetch: async (request: Request) => {
                 // Authentication precedes the draining gate and everything else.
                 const rejection = options.authenticate?.(request, liveConfig);
-                if (rejection !== undefined) return rejection;
-                if (draining) return drainingResponse();
+                if (rejection !== undefined) {
+                    return rejection;
+                }
+                if (draining) {
+                    return drainingResponse();
+                }
                 const controller = new AbortController();
                 outstanding.set(request, controller);
                 try {
@@ -199,7 +203,9 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
 
         // Shutdown takes priority: never reopen a draining service.
         if (draining) {
-            if (retired !== undefined) await retire(nextDependencies, candidate.shutdownTimeoutMs);
+            if (retired !== undefined) {
+                await retire(nextDependencies, candidate.shutdownTimeoutMs);
+            }
             logger.warn("reload rejected", { reason: "service is draining" });
             return;
         }
@@ -229,14 +235,18 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                     logger.fatal("listener restoration failed");
                     process.exit(1);
                 }
-                if (!sameAddress) await previousServer.stop(true);
+                if (!sameAddress) {
+                    await previousServer.stop(true);
+                }
                 if (retired !== undefined) {
                     await retire(nextDependencies, candidate.shutdownTimeoutMs);
                     retired = undefined;
                 }
                 return;
             }
-            if (!sameAddress) await previousServer.stop(true);
+            if (!sameAddress) {
+                await previousServer.stop(true);
+            }
         }
 
         liveConfig = candidate;
@@ -248,12 +258,16 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             listener: listenerChanged,
             dependencies: retired !== undefined,
         });
-        if (retired !== undefined) await retire(retired, candidate.shutdownTimeoutMs);
+        if (retired !== undefined) {
+            await retire(retired, candidate.shutdownTimeoutMs);
+        }
     };
 
     const requestReload = (): void => {
         // Serialize and coalesce: a reload already in flight absorbs the signal.
-        if (reloadInFlight !== undefined) return;
+        if (reloadInFlight !== undefined) {
+            return;
+        }
         reloadInFlight = applyReload().finally(() => {
             reloadInFlight = undefined;
         });
@@ -291,7 +305,9 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
 
     const shutdown = (signal: string): void => {
         // Repeated signals must not close resources twice or extend the deadline.
-        if (shutdownInFlight !== undefined) return;
+        if (shutdownInFlight !== undefined) {
+            return;
+        }
         draining = true;
         shutdownInFlight = drain(signal);
     };

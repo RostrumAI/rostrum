@@ -10,7 +10,9 @@ export function isToken(value: string): boolean {
 /** Parses oldest-to-newest tokens without exposing secret content in errors. */
 export function parseTokens(text: string, source: "file" | "environment"): readonly string[] {
     const entries = source === "file" ? text.split(/\r?\n/) : text.split(",");
-    if (source === "file" && entries.at(-1)?.trim() === "") entries.pop();
+    if (source === "file" && entries.at(-1)?.trim() === "") {
+        entries.pop();
+    }
     const tokens: string[] = [];
     const seen = new Set<string>();
     for (const entry of entries) {
@@ -20,11 +22,15 @@ export function parseTokens(text: string, source: "file" | "environment"): reado
                 "tokens",
                 "must contain hexadecimal tokens of at least 32 bytes without empty entries",
             );
-        if (seen.has(token)) throw new ConfigurationError("tokens", "contains duplicate tokens");
+        if (seen.has(token)) {
+            throw new ConfigurationError("tokens", "contains duplicate tokens");
+        }
         seen.add(token);
         tokens.push(token);
     }
-    if (tokens.length === 0) throw new ConfigurationError("tokens", "requires at least one token");
+    if (tokens.length === 0) {
+        throw new ConfigurationError("tokens", "requires at least one token");
+    }
     return Object.freeze(tokens);
 }
 
@@ -40,9 +46,13 @@ export function loadTokens(
             "cannot select both DAEMON_TOKEN and DAEMON_TOKEN_FILE",
         );
     }
-    if (env.DAEMON_TOKEN !== undefined) return parseTokens(env.DAEMON_TOKEN, "environment");
+    if (env.DAEMON_TOKEN !== undefined) {
+        return parseTokens(env.DAEMON_TOKEN, "environment");
+    }
     const selected = env.DAEMON_TOKEN_FILE ?? filePath;
-    if (!selected) throw new ConfigurationError("daemonTokenFile", "or DAEMON_TOKEN is required");
+    if (!selected) {
+        throw new ConfigurationError("daemonTokenFile", "or DAEMON_TOKEN is required");
+    }
     let text: string;
     try {
         text = readFileSync(resolve(cwd, selected), "utf8");

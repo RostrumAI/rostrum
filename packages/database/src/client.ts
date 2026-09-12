@@ -240,6 +240,13 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
         } catch (error) {
             const code =
                 error && typeof error === "object" && "code" in error ? error.code : undefined;
+            // SQLSTATE classification. `57014` is query_canceled, which is what
+            // the server-side statement_timeout raises; `CONNECT_TIMEOUT` is the
+            // driver's own connect deadline. The schema codes below mean the
+            // database answered but the expected objects are not readable:
+            // `42P01` undefined_table, `42703` undefined_column,
+            // `42501` insufficient_privilege, `3F000` invalid_schema_name.
+            // Anything else is a transport or server availability failure.
             return {
                 status: "failed",
                 code:

@@ -10,8 +10,12 @@ export class ConfigurationError extends Error {
 
 /** Classifies raw IP literals, never DNS names or URL-normalized IPv4 aliases. */
 export function isLiteralLoopback(host: string): boolean {
-    if (isIP(host) === 4) return host.split(".")[0] === "127";
-    if (isIP(host) !== 6 || host.includes("%")) return false;
+    if (isIP(host) === 4) {
+        return host.split(".")[0] === "127";
+    }
+    if (isIP(host) !== 6 || host.includes("%")) {
+        return false;
+    }
     // Canonicalization is safe only after the raw input has passed the IP parser.
     return new URL(`http://[${host}]/`).hostname === "[::1]";
 }
@@ -25,22 +29,34 @@ export function validateDaemonUrl(value: string, allowInsecureLocal: boolean): s
         );
     };
     // Reject control/space stripping, backslash rewriting, path normalization, and empty ?/#.
-    if (/[\s\\]/u.test(value)) fail();
+    if (/[\s\\]/u.test(value)) {
+        fail();
+    }
     const parts = /^(https?):\/\/([^/?#]+)(\/?)$/i.exec(value);
-    if (!parts) return fail();
+    if (!parts) {
+        return fail();
+    }
     const authority = parts[2]!;
-    if (authority.includes("@") || authority.includes("%")) fail();
+    if (authority.includes("@") || authority.includes("%")) {
+        fail();
+    }
     const literal = authority.startsWith("[")
         ? /^\[([^\]]+)\](?::[0-9]+)?$/.exec(authority)?.[1]
         : /^([^:]+)(?::[0-9]+)?$/.exec(authority)?.[1];
-    if (!literal) return fail();
+    if (!literal) {
+        return fail();
+    }
     let url: URL;
     try {
         url = new URL(value);
     } catch {
         return fail();
     }
-    if (allowInsecureLocal && !isLiteralLoopback(literal)) fail();
-    if (url.protocol !== "https:" && !(allowInsecureLocal && url.protocol === "http:")) fail();
+    if (allowInsecureLocal && !isLiteralLoopback(literal)) {
+        fail();
+    }
+    if (url.protocol !== "https:" && !(allowInsecureLocal && url.protocol === "http:")) {
+        fail();
+    }
     return url.origin;
 }
