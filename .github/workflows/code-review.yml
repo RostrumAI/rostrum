@@ -13,12 +13,12 @@ on:
   # A reply on a review thread is adjudicated: the reviewer re-reads the code and
   # either withdraws its finding or stands behind it.
   #
-  # The trigger is the review submission, not `pull_request_review_comment`, because
-  # that event never reaches Actions in this repository: replies and new inline
-  # comments alike produced no run at all, including with a minimal workflow whose
-  # only trigger was that event. Every inline comment does create a review, and
-  # `submitted` fires for it, so that is the channel used here. The job ignores
-  # reviews the reviewer submitted itself and reviews that carry no comment.
+  # Kept because it is the correct trigger wherever the platform delivers it, but
+  # do not rely on it here: neither `pull_request_review` nor
+  # `pull_request_review_comment` has ever produced a run in this repository, test
+  # and probe alike, and both report a lifetime count of zero. `/adjudicate` below
+  # is what actually works. If this event starts firing, replies answer themselves
+  # and the command becomes a fallback.
   pull_request_review:
     types: [submitted]
   # A manual run reviews a pull request on demand. It exists because this workflow
@@ -109,10 +109,15 @@ jobs:
   answer:
     name: Answer replies
     runs-on: ubuntu-latest
-    # Inline replies cannot be relied on: neither `pull_request_review` nor
-    # `pull_request_review_comment` has ever delivered a run in this repository,
-    # verified with a minimal workflow whose only trigger was the latter. The
-    # command below is issued as an ordinary timeline comment, which does fire.
+    # This is the working path for replies. Inline replies produce no run here, so
+    # a maintainer replies in the pull request timeline with `/adjudicate` and the
+    # job sweeps every thread whose last word was theirs. Authority to disposition
+    # a finding is decided in the code by repository permission, not by this gate,
+    # because the payload's author association disagrees with the API's.
+    #
+    # The gate admits anyone, so a drive-by commenter can start a run; the sweep
+    # rejects their comments for lacking write access. Tightening it means gating
+    # on the payload association, which is the field that could not be trusted.
     if: >-
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
