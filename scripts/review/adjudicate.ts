@@ -232,6 +232,95 @@ export async function adjudicateReview(
 }
 
 /**
+ * Adjudicates every thread where a maintainer has spoken last.
+ *
+ * This is the on-demand path, used where the platform does not deliver review
+ * events: rather than reacting to a comment as it arrives, the pipeline is asked
+ * to look for threads it owes an answer on. The test is the same either way — the
+ * most recent word in the thread is a maintainer's, not the reviewer's.
+ *
+ * Threads the reviewer answered already end with its own comment, so a second
+ * run finds nothing and the operation is safe to repeat.
+ *
+ * @param options - Pull request number and the checkout to read.
+ * @param cwd - Repository root the tooling runs from.
+ * @returns One outcome per thread that needed an answer.
+ */
+export async function adjudicateUnansweredThreads(
+    options: { pullRequest: number; reviewRoot: string },
+    cwd: string,
+): Promise<AdjudicationOutcome[]> {
+    const { owner, repo } = await resolveRepository(cwd);
+    const ref: PullRequestRef = { owner, repo, number: options.pullRequest };
+    const threads = await fetchReviewThreads(ref);
+    const outcomes: AdjudicationOutcome[] = [];
+    for (const thread of threads) {
+        const pending = lastMaintainerComment(thread);
+        if (pending === null) {
+            continue;
+        }
+        outcomes.push(
+            await adjudicateReply(
+                {
+                    commentId: pending.id,
+                    commentBody: pending.body,
+                    commentAssociation: pending.authorAssociation,
+                    commentAuthor: pending.author,
+                    pullRequest: options.pullRequest,
+                    reviewRoot: options.reviewRoot,
+                },
+                cwd,
+            ),
+        );
+    }
+    if (outcomes.length === 0) {
+        return [{ action: "ignored", detail: "every thread already ends with the reviewer" }];
+    }
+    return outcomes;
+}
+
+/**
+ * Finds the maintainer comment a thread is waiting on an answer for.
+ *
+ * @param thread - Review thread to inspect.
+ * @returns The comment to answer, or null when the reviewer spoke last.
+ */
+function lastMaintainerComment(thread: ReviewThread): {
+    id: number;
+    body: string;
+    author: string;
+    authorAssociation: string;
+} | null {
+    const findingIndex = thread.comments.findIndex((comment) =>
+        comment.body.includes(COMMENT_MARKER),
+    );
+    if (findingIndex === -1 || thread.isResolved) {
+        return null;
+    }
+    const after = thread.comments.slice(findingIndex + 1);
+    const lastReviewer = after.reduce(
+        (latest, comment, index) => (comment.body.includes(COMMENT_MARKER) ? index : latest),
+        -1,
+    );
+    const unanswered = after.slice(lastReviewer + 1).filter((comment) => {
+        return (
+            !comment.body.includes(COMMENT_MARKER) &&
+            MAINTAINER_ASSOCIATIONS.includes(comment.authorAssociation)
+        );
+    });
+    const candidate = unanswered[0];
+    if (candidate === undefined) {
+        return null;
+    }
+    return {
+        id: candidate.id,
+        body: candidate.body,
+        author: candidate.author,
+        authorAssociation: candidate.authorAssociation,
+    };
+}
+
+/**
  * Finds the thread a comment belongs to.
  *
  * @param threads - Threads read from the pull request.
