@@ -65,6 +65,9 @@ export interface RunServiceOptions<C extends RuntimeConfig, D extends ServiceDep
     authenticate?(request: Request, config: C): Response | undefined;
 }
 
+/** The bound HTTP listener the runtime serves requests from. */
+type BoundServer = Bun.Server<undefined>;
+
 /** Database-settings identity: only these changes rebuild dependencies. */
 const dependencyIdentity = (config: RuntimeConfig): string =>
     JSON.stringify([
@@ -120,7 +123,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
     let reloadInFlight: Promise<void> | undefined;
     let shutdownInFlight: Promise<void> | undefined;
 
-    const buildServer = (config: C) =>
+    const buildServer = (config: C): BoundServer =>
         Bun.serve({
             hostname: config.host,
             port: config.port,
@@ -215,38 +218,57 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             const previousServer = server;
             const sameAddress =
                 candidate.host === liveConfig.host && candidate.port === liveConfig.port;
-            try {
-                if (sameAddress) {
-                    // A same-address bind cannot coexist with the live listener:
-                    // stop admission, drain under the old deadline, then rebind.
-                    await Promise.race([
-                        previousServer.stop(false),
-                        Bun.sleep(liveConfig.shutdownTimeoutMs).then(() =>
-                            previousServer.stop(true),
-                        ),
-                    ]);
+            if (sameAddress) {
+                // A same-address bind cannot coexist with the live listener:
+                // stop admission, drain under the old deadline, then rebind.
+                await Promise.race([
+                    previousServer.stop(false),
+                    Bun.sleep(liveConfig.shutdownTimeoutMs).then(() => previousServer.stop(true)),
+                ]);
+                // Shutdown may have started during that drain. Reopening a
+                // listener here would accept past the drain deadline and swap
+                // the live snapshot underneath it.
+                if (draining) {
+                    if (retired !== undefined) {
+                        await retire(nextDependencies, candidate.shutdownTimeoutMs);
+                    }
+                    logger.warn("reload rejected", { reason: "service is draining" });
+                    return;
                 }
-                server = buildServer(candidate);
+            }
+            let rebound: BoundServer;
+            try {
+                rebound = buildServer(candidate);
             } catch {
                 logger.error("listener replacement failed");
+                if (!sameAddress) {
+                    // A different-address candidate binds alongside the live
+                    // listener, so that listener is still serving and keeping it
+                    // is the documented restoration. Rebinding here would fail
+                    // with the address already in use and kill a healthy process.
+                    if (retired !== undefined) {
+                        await retire(nextDependencies, candidate.shutdownTimeoutMs);
+                    }
+                    return;
+                }
+                // The previous listener was released for the same address, so it
+                // must be re-created; failing that, exit rather than claim a
+                // working listener.
                 try {
                     server = buildServer(liveConfig);
                 } catch {
                     logger.fatal("listener restoration failed");
                     process.exit(1);
                 }
-                if (!sameAddress) {
-                    await previousServer.stop(true);
-                }
                 if (retired !== undefined) {
                     await retire(nextDependencies, candidate.shutdownTimeoutMs);
-                    retired = undefined;
                 }
                 return;
             }
             if (!sameAddress) {
                 await previousServer.stop(true);
             }
+            server = rebound;
         }
 
         liveConfig = candidate;

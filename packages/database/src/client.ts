@@ -270,7 +270,10 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
             if (signal?.aborted || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
                 return Promise.resolve({ status: "failed", code: "database_timeout" });
             }
-            if (!flight) {
+            // A flight whose controller is already aborted is settling and would
+            // hand this caller its own failure (a fabricated timeout) instead of
+            // using the caller's own deadline. Treat it as no live flight.
+            if (flight === undefined || flight.controller.signal.aborted) {
                 const controller = new AbortController();
                 const current: Flight = {
                     controller,

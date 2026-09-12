@@ -41,6 +41,38 @@ describe("SIGHUP configuration reload", () => {
         expect(await fixture.exited()).toBe(0);
     });
 
+    test("keeps the original listener when a different address cannot bind", async () => {
+        const fixture = await spawnFixture({
+            marker: "before",
+            holdMs: 0,
+            shutdownTimeoutMs: 6_000,
+        });
+        const occupant = Bun.serve({
+            hostname: "127.0.0.1",
+            port: 0,
+            fetch: () => new Response("occupied"),
+        });
+        try {
+            const origin = `http://127.0.0.1:${fixture.port}`;
+            fixture.writeConfig({
+                marker: "after",
+                holdMs: 0,
+                shutdownTimeoutMs: 6_000,
+                port: occupant.port,
+            });
+            fixture.signal("SIGHUP");
+            await fixture.waitFor((line) => line.includes("listener replacement failed"));
+
+            // A rejected listener replacement must leave the healthy process
+            // serving on its original address rather than exiting.
+            expect(await marker(origin)).toEqual({ marker: "before", dependency: 1 });
+        } finally {
+            occupant.stop(true);
+            fixture.signal("SIGTERM");
+        }
+        expect(await fixture.exited()).toBe(0);
+    });
+
     test("retains the previous configuration entirely when a candidate is invalid", async () => {
         const fixture = await spawnFixture({
             marker: "before",
