@@ -8,7 +8,7 @@ on test coverage or module placement.
 
 ## Activate when
 
-The diff changes any `.ts` file. Skip generated artifacts: `apps/control-api/openapi.json`,
+The diff changes any `.ts` file. Skip generated artifacts: `apis/control-api/openapi.json`,
 `packages/api-client/src/generated.ts`, and lockfiles are not reviewed.
 
 ## What to check

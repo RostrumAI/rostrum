@@ -13,7 +13,7 @@
         "typescript": "^7.0.2",
       },
     },
-    "apps/control-api": {
+    "apis/control-api": {
       "name": "@rostrum/control-api",
       "version": "0.1.0",
       "dependencies": {
@@ -52,6 +52,16 @@
       },
     },
   },
+  "trustedDependencies": [
+    "@embedded-postgres/darwin-x64",
+    "@embedded-postgres/darwin-arm64",
+    "@embedded-postgres/linux-x64",
+    "@embedded-postgres/linux-arm",
+    "@embedded-postgres/linux-ia32",
+    "@embedded-postgres/linux-ppc64",
+    "@embedded-postgres/linux-arm64",
+    "@embedded-postgres/windows-x64",
+  ],
   "packages": {
     "@biomejs/biome": ["@biomejs/biome@2.5.7", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.5.7", "@biomejs/cli-darwin-x64": "2.5.7", "@biomejs/cli-linux-arm64": "2.5.7", "@biomejs/cli-linux-arm64-musl": "2.5.7", "@biomejs/cli-linux-x64": "2.5.7", "@biomejs/cli-linux-x64-musl": "2.5.7", "@biomejs/cli-win32-arm64": "2.5.7", "@biomejs/cli-win32-x64": "2.5.7" }, "bin": { "biome": "bin/biome" } }, "sha512-zr8K/DcY5tYsQOQwqMJ0AWElo6QgmgNI7idXgXLhevVszlt8RGVpesEJPqx3ThazLaOwjJ5Y8fz3BtH5fGZNsw=="],
 
@@ -93,7 +103,7 @@
 
     "@logtape/logtape": ["@logtape/logtape@2.3.2", "", {}, "sha512-SfxHfSdDlTp6tLpYP5uezNitSCTQUB3FZ1MXDbgDBN9t9kvF+XL0rOGTIa/pJcDMy1o9FELaZ25E/Ypmsf5fNQ=="],
 
-    "@rostrum/control-api": ["@rostrum/control-api@workspace:apps/control-api"],
+    "@rostrum/control-api": ["@rostrum/control-api@workspace:apis/control-api"],
 
     "@rostrum/database": ["@rostrum/database@workspace:packages/database"],
 

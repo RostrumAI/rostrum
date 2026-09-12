@@ -31,7 +31,7 @@ try {
     );
     if (JSON.stringify(served) !== JSON.stringify(checkedIn)) {
         throw new Error(
-            "the served OpenAPI document differs from apps/control-api/openapi.json; run `bun run generate-openapi`",
+            "the served OpenAPI document differs from apis/control-api/openapi.json; run `bun run generate-openapi`",
         );
     }
 
