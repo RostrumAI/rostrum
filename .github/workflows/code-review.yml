@@ -24,9 +24,10 @@ on:
         required: true
         type: string
 
-concurrency:
-  group: code-review-${{ github.event.inputs.pull_request || github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+# Concurrency is declared per job rather than once for the workflow. A single
+# group keyed on the pull request made every job share a lane, so replying to
+# several findings at once had all but one run cancelled and those replies were
+# never adjudicated. Each kind of work now gets the lane its semantics want.
 
 permissions:
   contents: read
@@ -37,6 +38,11 @@ jobs:
   adjudicate:
     name: Answer a reply
     runs-on: ubuntu-latest
+    concurrency:
+      # One lane per reply. Two replies are independent work, and a reply that
+      # was already being read must not be cancelled by a later one.
+      group: code-review-answer-${{ github.event.comment.id }}
+      cancel-in-progress: false
     if: >-
       github.event_name == 'pull_request_review_comment' &&
       github.event.comment.user.type != 'Bot' &&
@@ -110,6 +116,11 @@ jobs:
   answer:
     name: Answer replies
     runs-on: ubuntu-latest
+    concurrency:
+      # A sweep covers every pending thread, so a second sweep supersedes the
+      # first rather than racing it into duplicate replies.
+      group: code-review-sweep-${{ github.event.issue.number }}
+      cancel-in-progress: true
     # This is the working path for replies. Inline replies produce no run here, so
     # a maintainer replies in the pull request timeline with `/adjudicate` and the
     # job sweeps every thread whose last word was theirs. Authority to disposition
@@ -184,6 +195,10 @@ jobs:
   review:
     name: Review pull request
     runs-on: ubuntu-latest
+    concurrency:
+      # A newer revision supersedes an in-flight review of an older one.
+      group: code-review-review-${{ github.event.inputs.pull_request || github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request_target' ||
