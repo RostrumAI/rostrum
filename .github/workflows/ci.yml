@@ -23,7 +23,13 @@ jobs:
           --health-timeout 3s
           --health-retries 15
     env:
-      DATABASE_URL: postgres://rostrum:rostrum@localhost:5432/rostrum
+      # The service container listens without TLS on a literal loopback address.
+      # The database layer defaults to verified TLS, so a plaintext loopback
+      # target and the local exception must both be declared explicitly.
+      DATABASE_URL: postgres://rostrum:rostrum@127.0.0.1:5432/rostrum
+      DATABASE_TLS_MODE: disable
+      ALLOW_INSECURE_LOCAL: "true"
+      NODE_ENV: test
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
