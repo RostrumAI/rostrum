@@ -22,6 +22,7 @@ import {
     fetchPullRequest,
     fetchReviewComments,
     fetchReviewThreads,
+    hasWriteAccess,
     type ReviewThread,
     replyToReviewComment,
     resolveRepository,
@@ -36,9 +37,6 @@ import {
 } from "./reviewer.ts";
 import type { PullRequestRef } from "./types.ts";
 import { parseVerdict, renderVerdictMarker, type Verdict } from "./verdicts.ts";
-
-/** Repository associations allowed to disposition a finding. */
-const MAINTAINER_ASSOCIATIONS: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 /**
  * Default reviewer replies allowed in one thread before it is left to a human.
@@ -89,15 +87,14 @@ export async function adjudicateReply(
         // The reviewer's own comment: replying to it would loop.
         return { action: "skipped", detail: "comment was written by the reviewer" };
     }
-    if (!MAINTAINER_ASSOCIATIONS.includes(options.commentAssociation)) {
-        return {
-            action: "ignored",
-            detail: `author association ${options.commentAssociation} cannot disposition a finding`,
-        };
-    }
-
     const { owner, repo } = await resolveRepository(cwd);
     const ref: PullRequestRef = { owner, repo, number: options.pullRequest };
+    if (!(await hasWriteAccess(ref, options.commentAuthor))) {
+        return {
+            action: "ignored",
+            detail: `${options.commentAuthor} does not have write access to this repository`,
+        };
+    }
     const threads = await fetchReviewThreads(ref);
     const thread = findThreadWithComment(threads, options.commentId);
     if (thread === null) {
@@ -204,11 +201,7 @@ export async function adjudicateReview(
     const { owner, repo } = await resolveRepository(cwd);
     const ref: PullRequestRef = { owner, repo, number: options.pullRequest };
     const comments = await fetchReviewComments(ref, options.reviewId);
-    const candidates = comments.filter(
-        (comment) =>
-            !comment.body.includes(COMMENT_MARKER) &&
-            MAINTAINER_ASSOCIATIONS.includes(comment.authorAssociation),
-    );
+    const candidates = comments.filter((comment) => !comment.body.includes(COMMENT_MARKER));
     if (candidates.length === 0) {
         return [{ action: "ignored", detail: "review carries no comment worth adjudicating" }];
     }
@@ -336,11 +329,11 @@ function lastMaintainerComment(thread: ReviewThread): {
         (latest, comment, index) => (comment.body.includes(COMMENT_MARKER) ? index : latest),
         -1,
     );
+    // Permission is checked when the comment is acted on, not here, so that a
+    // person's ability to disposition a finding is decided by what they can do
+    // on the repository rather than by how the comment was labelled.
     const unanswered = after.slice(lastReviewer + 1).filter((comment) => {
-        return (
-            !comment.body.includes(COMMENT_MARKER) &&
-            MAINTAINER_ASSOCIATIONS.includes(comment.authorAssociation)
-        );
+        return !comment.body.includes(COMMENT_MARKER);
     });
     const candidate = unanswered[0];
     if (candidate === undefined) {

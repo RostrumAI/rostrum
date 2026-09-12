@@ -8,7 +8,7 @@
  * pull request: patches and comments are data throughout.
  */
 
-import { runProcessOrThrow } from "./process.ts";
+import { runProcess, runProcessOrThrow } from "./process.ts";
 import type { PullRequestRef } from "./types.ts";
 
 /** Hidden marker identifying a review comment posted by this pipeline. */
@@ -273,6 +273,48 @@ export async function replyToReviewComment(
     );
     const parsed = JSON.parse(output) as { html_url?: string };
     return parsed.html_url ?? "";
+}
+
+/** Repository permissions that let someone disposition a finding. */
+const WRITE_PERMISSIONS: readonly string[] = ["admin", "write", "maintain"];
+
+/** Permission lookups made during this process, keyed by login. */
+const writeAccessCache = new Map<string, boolean>();
+
+/**
+ * Reports whether a user may disposition a finding on this repository.
+ *
+ * `authorAssociation` is not usable for this. The same comment reported
+ * `CONTRIBUTOR` to the workflow's token and `MEMBER` to the author's own, so a
+ * guard keyed on it rejects the repository owner in CI and admits nobody. The
+ * permission endpoint is the authority: it answers what the person can actually
+ * do, not how the comment was labelled.
+ *
+ * A lookup that fails is treated as no access, so a permission error can never
+ * be the reason a finding is withdrawn.
+ *
+ * @param ref - Repository identity.
+ * @param login - User to check.
+ * @returns True when the user has admin, maintain, or write permission.
+ */
+export async function hasWriteAccess(
+    ref: Pick<PullRequestRef, "owner" | "repo">,
+    login: string,
+): Promise<boolean> {
+    const cached = writeAccessCache.get(login);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const result = await runProcess([
+        "gh",
+        "api",
+        `repos/${ref.owner}/${ref.repo}/collaborators/${login}/permission`,
+        "--jq",
+        ".permission",
+    ]);
+    const permitted = result.exitCode === 0 && WRITE_PERMISSIONS.includes(result.stdout.trim());
+    writeAccessCache.set(login, permitted);
+    return permitted;
 }
 
 /** One comment in a submitted review, as GitHub returns it. */
