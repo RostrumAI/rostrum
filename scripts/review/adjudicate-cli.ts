@@ -14,7 +14,7 @@
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
-import { adjudicateReply, adjudicateReview } from "./adjudicate.ts";
+import { adjudicateReply, adjudicateReview, adjudicateUnansweredThreads } from "./adjudicate.ts";
 
 /** Entry point. Exits non-zero only when the run itself failed. */
 async function main(): Promise<number> {
@@ -23,6 +23,7 @@ async function main(): Promise<number> {
         options: {
             "comment-id": { type: "string" },
             "review-id": { type: "string" },
+            sweep: { type: "boolean", default: false },
             "pull-request": { type: "string" },
             association: { type: "string" },
             author: { type: "string" },
@@ -38,6 +39,14 @@ async function main(): Promise<number> {
     }
     const cwd = join(import.meta.dir, "..", "..");
     const reviewRoot = values["repo-root"] ?? cwd;
+
+    if (values.sweep === true) {
+        const outcomes = await adjudicateUnansweredThreads({ pullRequest, reviewRoot }, cwd);
+        for (const outcome of outcomes) {
+            console.log(`${outcome.action}: ${outcome.detail}`);
+        }
+        return 0;
+    }
 
     // A submitted review is how a reply normally arrives, so that path is the
     // default. `--comment-id` remains for adjudicating a single comment by hand.
