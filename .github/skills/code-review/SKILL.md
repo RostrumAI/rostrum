@@ -79,7 +79,8 @@ A finding is suppressed when the pull request has already dispositioned it:
    by the time anyone reads the resolution.
 2. **A withdrawn verdict.** A person replied to the finding and the adjudication withdrew it: the
    reply was right, the behaviour is an accepted tradeoff, or the code had already changed. The
-   reviewer resolves the thread when it withdraws, so this and the first rule agree by construction.
+   verdict is recorded in the reviewer's own reply, so a withdrawal is read from the thread rather
+   than from its resolution state.
 3. **An open duplicate.** The pipeline has an unresolved comment for this rule within five lines of
    the finding. The same problem at a different place in the same file is still reported.
 
@@ -103,9 +104,9 @@ state of the pipeline.
 
 | Verdict | Meaning | Effect |
 | --- | --- | --- |
-| `refuted` | The reply is right and the finding was wrong | Withdraw and resolve the thread |
-| `intentional` | The behaviour is a deliberate, accepted tradeoff | Withdraw and resolve |
-| `code_changed` | The code no longer does what the finding described | Withdraw and resolve |
+| `refuted` | The reply is right and the finding was wrong | Withdraw |
+| `intentional` | The behaviour is a deliberate, accepted tradeoff | Withdraw |
+| `code_changed` | The code no longer does what the finding described | Withdraw |
 | `stands` | The finding is still correct after re-reading the code | Reply with the reason, leave the thread open |
 | `needs_human` | Genuinely ambiguous, or the argument has run its course | Leave it to a person |
 
@@ -120,6 +121,12 @@ restating itself, and a reviewer that will not stop is one people learn to ignor
 `REVIEW_MAX_ADJUDICATIONS` to change it.
 
 A reply can only disposition its own thread. It cannot edit this corpus.
+
+The reviewer never resolves a thread itself. A withdrawal is recorded in its reply and the thread is
+left open for a person, because resolving from CI needs a write token that review-triggered runs are
+not guaranteed to receive, and suppression reads the verdict rather than the thread's state. Where a
+repository requires conversations to be resolved before merging, that means every reviewer thread
+needs a human to close it, including the ones the reviewer withdrew.
 
 ```bash
 bun run review:adjudicate --comment-id 123 --pull-request 22 \
