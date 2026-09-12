@@ -8,8 +8,29 @@
  * the `lens` attribution and validates the location before anything is posted.
  */
 
-/** How much a finding should hold up a change. */
-export type Severity = "blocking" | "major" | "minor";
+/**
+ * How much a finding should hold up a change.
+ *
+ * The scale says what the finding is, not only how urgent it feels: a defect
+ * that breaks the product or is exploitable is `critical`, an obvious bug or a
+ * weaker security weakness is `high`, a convention broken at file or module
+ * scope is `medium`, a line-level problem is `low`, and a suggestion with no
+ * defect behind it is `informational`.
+ */
+export type Severity = "critical" | "high" | "medium" | "low" | "informational";
+
+/** Severities that hold up a change until they are addressed. */
+const BLOCKING_SEVERITIES: readonly Severity[] = ["critical", "high", "medium"];
+
+/**
+ * Reports whether a severity blocks a change.
+ *
+ * @param severity - Severity to test.
+ * @returns True when the finding must be fixed before the change lands.
+ */
+export function isBlocking(severity: Severity): boolean {
+    return BLOCKING_SEVERITIES.includes(severity);
+}
 
 /** A single review finding, located on the pull request's changed lines. */
 export interface Finding {

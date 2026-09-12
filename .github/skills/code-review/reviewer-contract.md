@@ -47,7 +47,7 @@ fence, no commentary.
       "ruleId": "REPO-CONTRACT-05",
       "path": "apps/control-api/src/features/workflows/publish.ts",
       "line": 69,
-      "severity": "blocking",
+      "severity": "high",
       "confidence": 92,
       "title": "Published and already-published share a status code",
       "body": "Both outcomes answer 200, so a caller cannot tell a new publication from a replayed one. Answer 201 when the publication is created and 200 when it already existed.",
@@ -63,13 +63,44 @@ Field rules:
   for a defect no rule covers, and `SEC` only in the security lens.
 - `path`: repository-relative path, exactly as it appears in the diff.
 - `line`: a line number in the file at the head commit, and a line the diff touches.
-- `severity`: `blocking`, `major`, or `minor`. `blocking` means a real defect or a stated repository
-  invariant is violated. Reserve it; a wrong use of `blocking` costs the report its credibility.
+- `severity`: `critical`, `high`, `medium`, `low`, or `informational`, per the severity scale below.
+  Grade what the changed code actually does, not how serious the rule that covers it sounds.
 - `confidence`: your own 0-100 estimate that this finding is correct and worth fixing.
 - `title`: one line, the problem, not the rule name.
-- `body`: what is wrong, why it matters, and what to do instead. Two or three sentences. Cite the
-  rule by id. Do not restate the diff at length.
+- `body`: what is wrong, why it matters, and what to do instead, written as described under writing a
+  finding below. Two or three sentences. Cite the rule by id. Do not restate the diff at length.
 - `evidence`: the exact changed code the finding rests on, trimmed to one or two lines.
+
+## Severity scale
+
+| Severity | What it is | Effect |
+| --- | --- | --- |
+| `critical` | A defect that breaks documented behavior or is exploitable: data loss, a wrong result the caller acts on, an authorization bypass, a leaked credential. | BLOCKING |
+| `high` | An obvious bug that can affect functionality, or a security weakness that needs a second mistake to exploit. | BLOCKING |
+| `medium` | A repository convention broken at file or module scope: where code lives, how it is wired, what it exposes, or a missing test for new behavior. | BLOCKING |
+| `low` | A problem confined to a line: an unbraced conditional, a missing comment, a name that misleads. | Worth fixing; not blocking |
+| `informational` | A suggestion with no defect behind it. | Not blocking |
+
+The report marks `medium` and above BLOCKING, because those are the findings the author has to answer
+before the change merges. Reserve `critical`: it is a claim that the code is wrong today in a way that
+matters, and spending it on a preference costs the whole report its credibility.
+
+## Writing a finding
+
+Write for a junior engineer who knows the Rostrum product but not the module you are reviewing. They
+should understand the problem from one reading, without opening the diff to decode it.
+
+- State the problem in the first sentence, in plain words.
+- Keep sentences short, one idea each.
+- Name the concrete thing: the function, the field, the status code. "Both outcomes return 200, so the
+  caller cannot tell them apart" beats "the response semantics are ambiguous".
+- Give only the mechanism the reader needs to agree the problem is real. One sentence of background,
+  never a paragraph.
+- Do not describe what the file is for or what the change does. The author wrote it; restating it
+  wastes their reading time.
+- Do not soften the finding or pad it: no "it might be worth considering", no apology, and no summary
+  at the end.
+- Keep the technical claim exact. Simpler words, not a weaker claim.
 
 ## Confidence scale
 
@@ -77,7 +108,7 @@ Field rules:
 | --- | --- |
 | 0-24 | Probably a false positive; verify before including |
 | 25-49 | Possibly real, unproven |
-| 50-74 | Real, but minor or arguably intentional |
+| 50-74 | Real, but of low severity or arguably intentional |
 | 75-89 | Real and worth fixing |
 | 90-100 | Certain, with the code in hand |
 

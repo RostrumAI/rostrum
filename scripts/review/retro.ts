@@ -31,6 +31,7 @@ import {
 } from "./github.ts";
 import { ruleIdFromComment } from "./merge.ts";
 import { runProcessOrThrow } from "./process.ts";
+import { isBlocking, type Severity } from "./types.ts";
 import { parseVerdict, type Verdict } from "./verdicts.ts";
 
 /** Minimum observations before a rule's record is worth acting on. */
@@ -42,8 +43,18 @@ const REFUTED_RATE_FOR_NARROWING = 0.4;
 /** Share of withdrawn-without-refutation outcomes at which severity is lowered. */
 const WITHDRAWN_RATE_FOR_DOWNGRADE = 0.6;
 
-/** Severities the retrospective never proposes to change on its own. */
-const PROTECTED_SEVERITIES = new Set(["blocking"]);
+/** Every severity a rule file may declare, used to validate what the corpus says. */
+const ALL_SEVERITIES: readonly Severity[] = ["critical", "high", "medium", "low", "informational"];
+
+/**
+ * Validates a severity read out of a rule file.
+ *
+ * @param value - Captured severity text, when the pattern matched.
+ * @returns The severity, or null when none was declared or it is unrecognized.
+ */
+function asSeverity(value: string | undefined): Severity | null {
+    return ALL_SEVERITIES.find((severity) => severity === value) ?? null;
+}
 
 /** One finding's outcome, as recorded by the adjudication. */
 export interface FindingOutcome {
@@ -203,7 +214,7 @@ export interface RuleProposal {
  * @param severityByRule - Map built from the corpus by {@link readRuleSeverities}.
  * @returns The declared severity, or null when the rule is not in the corpus.
  */
-export function severityOf(ruleId: string, severityByRule: Map<string, string>): string | null {
+export function severityOf(ruleId: string, severityByRule: Map<string, Severity>): Severity | null {
     return severityByRule.get(ruleId) ?? null;
 }
 
@@ -217,8 +228,8 @@ export function severityOf(ruleId: string, severityByRule: Map<string, string>):
  * @param skillDirectory - Directory holding the rule files.
  * @returns Severity per rule id.
  */
-export async function readRuleSeverities(skillDirectory: string): Promise<Map<string, string>> {
-    const severities = new Map<string, string>();
+export async function readRuleSeverities(skillDirectory: string): Promise<Map<string, Severity>> {
+    const severities = new Map<string, Severity>();
     for (const file of ["repository-conventions.md", "google-typescript.md"]) {
         const text = await Bun.file(`${skillDirectory}/rules/${file}`).text();
         let current: string | null = null;
@@ -227,12 +238,10 @@ export async function readRuleSeverities(skillDirectory: string): Promise<Map<st
             // later metadata line, and one bold run carrying both the id and the
             // severity. Reading both means a new rule file needs no parser change as
             // long as it keeps one of the two shapes.
-            const inline =
-                /^\*\*`?([A-Z][A-Z0-9-]*)`?\s*—[\s\S]*?\*\*\s*—\s*`(blocking|major|minor)`/.exec(
-                    line,
-                );
-            if (inline?.[1] !== undefined && inline[2] !== undefined) {
-                severities.set(inline[1], inline[2]);
+            const inline = /^\*\*`?([A-Z][A-Z0-9-]*)`?\s*—[\s\S]*?\*\*\s*—\s*`([a-z]+)`/.exec(line);
+            const inlineSeverity = asSeverity(inline?.[2]);
+            if (inline?.[1] !== undefined && inlineSeverity !== null) {
+                severities.set(inline[1], inlineSeverity);
                 current = null;
                 continue;
             }
@@ -244,9 +253,9 @@ export async function readRuleSeverities(skillDirectory: string): Promise<Map<st
             if (current === null || !line.includes("**Severity:**")) {
                 continue;
             }
-            const declared = /\*\*Severity:\*\*\s*`?(blocking|major|minor)`?/.exec(line);
-            if (declared?.[1] !== undefined) {
-                severities.set(current, declared[1]);
+            const declared = asSeverity(/\*\*Severity:\*\*\s*`?([a-z]+)`?/.exec(line)?.[1]);
+            if (declared !== null) {
+                severities.set(current, declared);
                 current = null;
             }
         }
@@ -258,10 +267,10 @@ export async function readRuleSeverities(skillDirectory: string): Promise<Map<st
  * Decides which rule changes the evidence supports.
  *
  * A rule with too few observations is left alone: two refutations out of three is
- * not a signal, and acting on it would tune the corpus to noise. A `blocking` rule
- * is proposed for human review rather than for an automatic edit, because a
- * blocking rule that looks noisy is a fact worth a person's attention rather than
- * a diff.
+ * not a signal, and acting on it would tune the corpus to noise. A rule that
+ * blocks — `medium` or above — is proposed for human review rather than for an
+ * automatic edit, because a blocking rule that looks noisy is a fact worth a
+ * person's attention rather than a diff.
  *
  * @param records - Per-rule tallies.
  * @param severityByRule - Severity per rule id, read from the corpus.
@@ -269,7 +278,7 @@ export async function readRuleSeverities(skillDirectory: string): Promise<Map<st
  */
 export function proposeRuleChanges(
     records: RuleRecord[],
-    severityByRule: Map<string, string>,
+    severityByRule: Map<string, Severity>,
 ): RuleProposal[] {
     const proposals: RuleProposal[] = [];
     for (const record of records) {
@@ -281,7 +290,7 @@ export function proposeRuleChanges(
         const withdrawnRate = withdrawnWithoutRefutation / record.fired;
         const evidence = `fired ${record.fired}x: ${record.refuted} refuted, ${record.intentional} intentional, ${record.codeChanged} already fixed, ${record.stands} upheld, ${record.needsHuman} escalated`;
         const severity = severityOf(record.ruleId, severityByRule);
-        const protectedRule = severity !== null && PROTECTED_SEVERITIES.has(severity);
+        const protectedRule = severity !== null && isBlocking(severity);
         if (refutedRate >= REFUTED_RATE_FOR_NARROWING) {
             proposals.push({
                 ruleId: record.ruleId,
