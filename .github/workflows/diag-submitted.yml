@@ -1,0 +1,43 @@
+name: Diagnostic submitted
+
+# Three triggers in one file so a single run answers all of them, with
+# `issue_comment` as the liveness control: it is known to fire, so if it runs
+# while the other two do not, the file is registered and those events are dead.
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  review_submitted:
+    name: Got review submitted
+    if: github.event_name == 'pull_request_review'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          echo "review id=${{ github.event.review.id }}"
+          echo "state=${{ github.event.review.state }}"
+          echo "by=${{ github.event.review.user.login }} type=${{ github.event.review.user.type }}"
+
+  review_comment:
+    name: Got review comment
+    if: github.event_name == 'pull_request_review_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: echo "review comment id=${{ github.event.comment.id }}"
+
+  issue_comment:
+    name: Got timeline comment
+    if: github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: echo "timeline comment ${{ github.event.comment.id }}"
