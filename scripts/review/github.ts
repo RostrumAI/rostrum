@@ -19,7 +19,7 @@ export const SUMMARY_MARKER = "<!-- rostrum-code-review-summary -->";
 
 /** One review thread on a pull request, with the comments it holds. */
 export interface ReviewThread {
-    /** GraphQL node id, needed to resolve the thread. */
+    /** GraphQL node id, which identifies the thread in the GraphQL API. */
     id: string;
     /** True when a maintainer or the pipeline resolved the thread. */
     isResolved: boolean;
@@ -363,31 +363,6 @@ export async function fetchReviewComments(
         author: comment.user?.login ?? "ghost",
         authorAssociation: comment.author_association,
     }));
-}
-
-/**
- * Resolves or reopens a review thread.
- *
- * Resolving is how a withdrawn finding stops being raised: the suppression pass
- * reads the thread's resolution state, so the verdict and the suppression stay
- * consistent without a second channel carrying the same fact.
- *
- * @param threadId - GraphQL node id of the thread.
- * @param resolved - True to resolve, false to reopen.
- */
-export async function setReviewThreadResolved(threadId: string, resolved: boolean): Promise<void> {
-    const mutation = resolved
-        ? `mutation ($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { id isResolved } } }`
-        : `mutation ($threadId: ID!) { unresolveReviewThread(input: { threadId: $threadId }) { thread { id isResolved } } }`;
-    await runProcessOrThrow([
-        "gh",
-        "api",
-        "graphql",
-        "-f",
-        `query=${mutation}`,
-        "-F",
-        `threadId=${threadId}`,
-    ]);
 }
 
 /**

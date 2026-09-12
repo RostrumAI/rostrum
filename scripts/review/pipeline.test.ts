@@ -635,7 +635,7 @@ describe("suppression", () => {
         expect(suppressAnswered([findingFor({ line: 60 })], [thread]).kept).toHaveLength(1);
     });
 
-    test("resolves the thread once the adjudication withdraws the finding", () => {
+    test("treats a withdrawn finding as answered, without the thread being resolved", () => {
         const thread = adjudicatedThread("REPO-TEST-02", renderVerdictMarker("refuted"));
         expect(partitionThreads([thread]).resolved).toHaveLength(1);
         // Withdrawn means the rule no longer applies at this path, wherever the

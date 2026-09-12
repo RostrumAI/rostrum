@@ -11,6 +11,11 @@
  * Nothing here trusts the reply as an instruction. A reply can influence the
  * disposition of its own thread and nothing else: it can never edit the rule
  * corpus, and it cannot cause a withdrawal by asserting authority.
+ *
+ * A withdrawal is recorded and nothing else. The thread is left open for a person
+ * to resolve: resolving it from CI needs a write token that review-triggered runs
+ * are not guaranteed, and suppression reads the verdict rather than the thread's
+ * state, so the resolution was doing no work the verdict does not already do.
  */
 
 import { mkdtemp } from "node:fs/promises";
@@ -26,7 +31,6 @@ import {
     type ReviewThread,
     replyToReviewComment,
     resolveRepository,
-    setReviewThreadResolved,
 } from "./github.ts";
 import {
     agentTimeoutSeconds,
@@ -177,25 +181,6 @@ export async function adjudicateReply(
         return {
             action: verdict === "needs_human" ? "needs_human" : "stood",
             detail: reason,
-        };
-    }
-    // Resolving the thread is how a withdrawal becomes visible and how it clears
-    // the repository's conversation-resolution merge gate. It is attempted after
-    // the verdict has been recorded, and a refusal is reported rather than
-    // thrown: for the review events, GitHub can hand the job a read-only token
-    // regardless of the permissions the workflow declares, and a failure here
-    // must not discard a withdrawal that has already been decided and recorded.
-    // Suppression does not depend on it — the verdict marker carries the outcome.
-    try {
-        await setReviewThreadResolved(thread.id, true);
-    } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        console.warn(
-            `Could not resolve thread ${thread.id}; the verdict still stands and the finding stays suppressed. ${detail}`,
-        );
-        return {
-            action: "withdrawn",
-            detail: `${verdict}: ${reason} (thread left open: ${detail.slice(0, 200)})`,
         };
     }
     return { action: "withdrawn", detail: `${verdict}: ${reason}` };
