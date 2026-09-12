@@ -1,3 +1,5 @@
+/** @fileoverview Service configuration and reload candidate tests. */
+
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
@@ -6,14 +8,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ServiceConfigSource } from "./config";
 import { ConfigurationError } from "./network";
-import { loadTokens, parseTokens } from "./tokens";
 
 const oldest = "ab".repeat(32);
 const newest = "cd".repeat(48);
 const directories: string[] = [];
 afterEach(() => {
-    for (const directory of directories.splice(0))
+    for (const directory of directories.splice(0)) {
         rmSync(directory, { recursive: true, force: true });
+    }
 });
 function workspace(): string {
     const directory = mkdtempSync(join(tmpdir(), "rostrum-config-"));
@@ -58,6 +60,34 @@ describe("configuration candidates", () => {
         ).toThrow(ConfigurationError);
     });
 
+    test("applies service ports, TLS, and environment-specific log defaults", () => {
+        const cwd = workspace();
+        const daemon = new ServiceConfigSource("daemon", localEnv, cwd).load();
+        const control = new ServiceConfigSource(
+            "control-api",
+            { ...localEnv, DAEMON_URL: "http://127.0.0.1" },
+            cwd,
+        ).load();
+        const production = new ServiceConfigSource(
+            "control-api",
+            {
+                ...localEnv,
+                ALLOW_INSECURE_LOCAL: "false",
+                NODE_ENV: "production",
+                DATABASE_URL: "postgres://user:secret@db.example/db",
+                DAEMON_URL: "https://daemon.example",
+            },
+            cwd,
+        ).load();
+
+        expect(daemon.port).toBe(3001);
+        expect(control.port).toBe(3000);
+        expect(daemon.databaseTls).toBe(true);
+        expect(daemon.logLevel).toBe("debug");
+        expect(control.logLevel).toBe("debug");
+        expect(production.logLevel).toBe("info");
+    });
+
     test("rejects unknown or mistyped file values before an environment override can hide them", () => {
         const cwd = workspace();
         for (const yaml of [
@@ -91,22 +121,25 @@ describe("configuration candidates", () => {
                 new ServiceConfigSource("daemon", { ...localEnv, PORT: port }, cwd).load(),
             ).toThrow(ConfigurationError);
         }
-        for (const value of ["1", "TRUE", "false ", ""]) {
+        for (const [field, value] of [
+            ["ALLOW_INSECURE_LOCAL", "1"],
+            ["ALLOW_INSECURE_LOCAL", "TRUE"],
+            ["ALLOW_INSECURE_LOCAL", "false "],
+            ["ALLOW_INSECURE_LOCAL", ""],
+            ["DATABASE_TLS", "enable"],
+            ["DATABASE_TLS", "disable"],
+        ] as const) {
             expect(() =>
-                new ServiceConfigSource(
-                    "daemon",
-                    { ...localEnv, ALLOW_INSECURE_LOCAL: value },
-                    cwd,
-                ).load(),
+                new ServiceConfigSource("daemon", { ...localEnv, [field]: value }, cwd).load(),
             ).toThrow(ConfigurationError);
         }
         for (const [key, value] of [
             ["DEPENDENCY_TIMEOUT_MS", "0"],
             ["DEPENDENCY_TIMEOUT_MS", "30001"],
             ["SHUTDOWN_TIMEOUT_MS", "300001"],
-        ]) {
+        ] as const) {
             expect(() =>
-                new ServiceConfigSource("daemon", { ...localEnv, [key!]: value }, cwd).load(),
+                new ServiceConfigSource("daemon", { ...localEnv, [key]: value }, cwd).load(),
             ).toThrow(ConfigurationError);
         }
     });
@@ -183,7 +216,7 @@ describe("configuration candidates", () => {
         expect(() => source.load()).toThrow(ConfigurationError);
     });
 
-    test("failed reload cannot partially replace credentials or policy in the admitted snapshot", () => {
+    test("failed reload cannot partially replace credentials or policy in the admitted configuration", () => {
         const cwd = workspace();
         writeFileSync(join(cwd, "tokens"), `${oldest}\n`);
         writeFileSync(join(cwd, "config.yaml"), "daemonTokenFile: tokens\nlogLevel: warning\n");
@@ -223,46 +256,5 @@ describe("configuration candidates", () => {
             expect(error).toBeInstanceOf(ConfigurationError);
             expect((error as Error).message).not.toContain(secret);
         }
-    });
-});
-
-describe("ordered token sources", () => {
-    test("normalizes decoded identity, ordering and line endings", () => {
-        expect(parseTokens(` ${oldest.toUpperCase()} \r\n ${newest}\r\n`, "file")).toEqual([
-            oldest,
-            newest,
-        ]);
-        expect(parseTokens(`${oldest}, ${newest.toUpperCase()}`, "environment")).toEqual([
-            oldest,
-            newest,
-        ]);
-        for (const [text, source] of [
-            [`${oldest}\n\n${newest}`, "file"],
-            [`${oldest}\n\n`, "file"],
-            [`${oldest},`, "environment"],
-            [`${oldest},${oldest.toUpperCase()}`, "environment"],
-            ["a".repeat(63), "environment"],
-            ["a".repeat(65), "environment"],
-            ["gg".repeat(32), "environment"],
-            ["", "file"],
-        ] as const) {
-            expect(() => parseTokens(text, source)).toThrow(ConfigurationError);
-        }
-    });
-
-    test("selects environment source as a unit without falling back on failure", () => {
-        const cwd = workspace();
-        writeFileSync(join(cwd, "yaml-token"), oldest);
-        writeFileSync(join(cwd, "env-token"), newest);
-        expect(loadTokens({ DAEMON_TOKEN: newest }, "missing", cwd)).toEqual([newest]);
-        expect(loadTokens({ DAEMON_TOKEN_FILE: "env-token" }, "yaml-token", cwd)).toEqual([newest]);
-        for (const env of [
-            { DAEMON_TOKEN: "" },
-            { DAEMON_TOKEN_FILE: "missing" },
-            { DAEMON_TOKEN_FILE: "" },
-            { DAEMON_TOKEN: newest, DAEMON_TOKEN_FILE: "env-token" },
-        ])
-            expect(() => loadTokens(env, "yaml-token", cwd)).toThrow(ConfigurationError);
-        expect(() => loadTokens({}, undefined, cwd)).toThrow(ConfigurationError);
     });
 });

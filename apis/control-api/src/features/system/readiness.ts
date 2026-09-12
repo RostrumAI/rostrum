@@ -1,7 +1,9 @@
+/** @fileoverview Control API dependency-readiness feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import { ControlApiReadinessSchema } from "@rostrum/server/protocol";
 import type { Context } from "hono";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 
 /**
  * Route binding for the readiness check. Readiness aggregates this service's
@@ -28,9 +30,9 @@ export const schema: FeatureSchemas = { ControlApiReadiness: ControlApiReadiness
  * deadline and answers 503 as soon as either fails.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
-        const readiness = await services.readiness(c.req.raw.signal);
+        const readiness = await getServices(c).readiness(c.req.raw.signal);
         return c.json(readiness, readiness.status === "ready" ? 200 : 503, {
             "cache-control": "no-store",
         });

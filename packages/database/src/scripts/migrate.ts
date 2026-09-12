@@ -1,3 +1,5 @@
+/** @fileoverview Explicit database migration command. */
+
 import { createDatabase, type DatabaseOptions, migrateToLatest } from "../index";
 
 // Migration is an explicit operator command; application startup never calls it.
@@ -7,11 +9,11 @@ if (!url) {
     console.error("DATABASE_URL is not set.");
     process.exit(1);
 }
-const tlsMode = process.env.DATABASE_TLS_MODE ?? "verify-full";
+const tls = process.env.DATABASE_TLS ?? "true";
 const nodeEnv = process.env.NODE_ENV ?? "development";
 const insecure = process.env.ALLOW_INSECURE_LOCAL ?? "false";
 if (
-    (tlsMode !== "verify-full" && tlsMode !== "disable") ||
+    (tls !== "true" && tls !== "false") ||
     (nodeEnv !== "development" && nodeEnv !== "test" && nodeEnv !== "production") ||
     (insecure !== "true" && insecure !== "false")
 ) {
@@ -20,7 +22,7 @@ if (
 }
 const options: DatabaseOptions = {
     url,
-    tlsMode,
+    tls: tls === "true",
     nodeEnv,
     allowInsecureLocal: insecure === "true",
     applicationName: "migrate",

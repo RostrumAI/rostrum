@@ -1,3 +1,5 @@
+/** @fileoverview Daemon contract generation command. */
+
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DaemonApp } from "../app";

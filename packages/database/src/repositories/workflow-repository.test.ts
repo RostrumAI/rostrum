@@ -1,3 +1,5 @@
+/** @fileoverview Workflow repository integration tests. */
+
 import { afterAll, describe, expect, test } from "bun:test";
 import {
     createWorkflowValidator,

@@ -1,3 +1,5 @@
+/** @fileoverview Shared structured service logging. */
+
 import { configure, type LogLevel, type LogRecord } from "@logtape/logtape";
 
 /**

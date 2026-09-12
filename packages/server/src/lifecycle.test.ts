@@ -1,3 +1,5 @@
+/** @fileoverview Service draining and bounded-shutdown tests. */
+
 import { describe, expect, test } from "bun:test";
 import { spawnFixture } from "./testing/service-process";
 

@@ -1,4 +1,5 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+/** @fileoverview Caller-facing HTTP routing and OpenAPI generation. */
+
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
 import {
@@ -15,7 +16,7 @@ import pkg from "../package.json" with { type: "json" };
 import { accessLog } from "./middleware/access-log";
 import { parameterGuard } from "./parameter-guard";
 import { ErrorResponseSchema } from "./schemas";
-import type { Services } from "./services";
+import type { ServiceAccessor, Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
 
 /** Path prefix every feature route mounts under. */
@@ -42,85 +43,47 @@ const CANDIDATE_METHODS = [
     "QUERY",
 ] as const;
 
-/**
- * Control API application.
- *
- * Routes are mounted on a plain Hono app so tests can drive `routes.fetch()`
- * without a socket and the real process serves the same app over HTTP.
- * Route slices under `src/features` bind themselves at construction: the
- * folder layout decides the path, so a slice never edits a central route
- * table.
- *
- * Construction acquires no resources: the app holds no pool and performs no
- * probe, so OpenAPI generation and route tests run offline. Each request
- * supplies the services it borrows, resolved through request-scoped storage
- * so concurrent requests never observe one another's snapshot.
- */
+/** The caller-facing HTTP routes and generated contract. */
 export class ControlApiApp {
     /** The mounted Hono application; serve it with Bun.serve or fetch it directly. */
-    readonly routes = new Hono();
+    readonly routes = new Hono<{ Bindings: Services }>();
 
     private readonly logger = getLogger("control-api");
 
-    /** Request-scoped services; empty outside a served request. */
-    private readonly services = new AsyncLocalStorage<Services>();
+    private readonly loaded: FeatureBundle<ServiceAccessor>;
 
-    /**
-     * The services view handed to feature factories at bind time. Handlers
-     * read it while serving, when request-scoped storage holds the snapshot
-     * the request was admitted with.
-     */
-    private readonly activeServices: Services;
-
-    private readonly loaded: FeatureBundle<Services>;
-
-    /**
-     * Builds the app from the feature slices under `src/features`. Every slice
-     * is validated against the feature contract here, before anything serves
-     * traffic; no dependency is acquired.
-     */
+    /** Loads and binds every feature before the process accepts requests. */
     static async create(): Promise<ControlApiApp> {
-        return new ControlApiApp(await loadFeatures<Services>(join(import.meta.dir, "features")));
+        return new ControlApiApp(
+            await loadFeatures<ServiceAccessor>(join(import.meta.dir, "features")),
+        );
     }
 
-    /**
-     * Serves one request against the services snapshot it was admitted with.
-     * Omitting the snapshot serves routes that borrow nothing (health, the
-     * generated contract) without any resource; a route that does borrow
-     * throws, because no snapshot is live.
-     */
-    fetch(request: Request, services?: Services): Response | Promise<Response> {
-        if (services === undefined) return this.routes.fetch(request);
-        return this.services.run(services, () => this.routes.fetch(request));
+    /** Serves a request with the dependencies selected by the lifecycle. */
+    fetch(request: Request, services: Services): Response | Promise<Response> {
+        return this.routes.fetch(request, services);
     }
 
-    /** The generated OpenAPI document, without serving or acquiring anything. */
-    async openApi(): Promise<Response> {
-        return this.routes.fetch(new Request("http://localhost/openapi.json"));
+    /** Generates the OpenAPI document without starting a listener or database. */
+    openApi(): Promise<Record<string, unknown>> {
+        return generateSpecs(this.routes, {
+            documentation: {
+                openapi: "3.1.0",
+                info: {
+                    title: "Rostrum Control API",
+                    version: pkg.version,
+                    description: "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
+                },
+                tags: [{ name: "system" }],
+                components: {
+                    schemas: { ...SHARED_COMPONENTS, ...this.loaded.components },
+                },
+            },
+        });
     }
 
-    private constructor(loaded: FeatureBundle<Services>) {
+    private constructor(loaded: FeatureBundle<ServiceAccessor>) {
         this.loaded = loaded;
-        // Capture the storage instance in a local: `this` inside an object
-        // literal's getter is the literal, not the app instance.
-        const storage = this.services;
-        this.activeServices = {
-            get workflows() {
-                const active = storage.getStore();
-                if (active === undefined) {
-                    throw new Error("workflow services are only available while serving a request");
-                }
-                return active.workflows;
-            },
-            get readiness() {
-                const active = storage.getStore();
-                if (active === undefined) {
-                    throw new Error("readiness is only available while serving a request");
-                }
-                return active.readiness;
-            },
-        };
-
         // Registered first so it wraps every route, including 404 responses.
         this.routes.use("*", accessLog());
         for (const feature of this.loaded.features) {
@@ -129,32 +92,11 @@ export class ControlApiApp {
                 `${API_PREFIX}${feature.path}`,
                 describeRoute(this.describeFeature(feature)),
                 parameterGuard(feature.parameters),
-                feature.createHandler(this.activeServices),
+                feature.createHandler((context) => context.env),
             );
         }
 
-        this.routes.get("/openapi.json", async (c) => {
-            const doc = await generateSpecs(
-                this.routes,
-                {
-                    documentation: {
-                        openapi: "3.1.0",
-                        info: {
-                            title: "Rostrum Control API",
-                            version: pkg.version,
-                            description:
-                                "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
-                        },
-                        tags: [{ name: "system" }],
-                        components: {
-                            schemas: { ...SHARED_COMPONENTS, ...this.loaded.components },
-                        },
-                    },
-                },
-                c,
-            );
-            return c.json(doc);
-        });
+        this.routes.get("/openapi.json", async (c) => c.json(await this.openApi()));
 
         this.routes.notFound((c) => this.notFound(c));
         this.routes.onError((err, c) => this.serverError(err, c));
@@ -167,7 +109,7 @@ export class ControlApiApp {
      * the feature area folder; each documented response references its module
      * component by name. Used for building OpenAPI JSON output.
      */
-    private describeFeature(feature: LoadedFeature<Services>): DescribeRouteOptions {
+    private describeFeature(feature: LoadedFeature<ServiceAccessor>): DescribeRouteOptions {
         const description: DescribeRouteOptions = {
             tags: [feature.tag],
             responses: this.describeResponses(feature.responses),

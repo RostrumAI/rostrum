@@ -1,7 +1,8 @@
+/** @fileoverview Shared service startup, reload, and shutdown runtime. */
+
 import { getLogger, type LogLevel } from "@logtape/logtape";
 import { configureLogging } from "./logger";
 import { ConfigurationError } from "./network";
-import type { Readiness } from "./protocol";
 
 /** The service a runtime hosts; selects the log category. */
 export type ServiceName = "control-api" | "daemon";
@@ -17,7 +18,7 @@ export interface RuntimeConfig {
     readonly logLevel: LogLevel;
     readonly nodeEnv: "development" | "test" | "production";
     readonly databaseUrl: string;
-    readonly databaseTlsMode: "verify-full" | "disable";
+    readonly databaseTls: boolean;
     readonly allowInsecureLocal: boolean;
     readonly dependencyTimeoutMs: number;
     readonly shutdownTimeoutMs: number;
@@ -26,37 +27,31 @@ export interface RuntimeConfig {
 }
 
 /**
- * Resources a service owns for one configuration snapshot. The runtime
- * closes them during shutdown or after a reload retires a snapshot.
+ * Resources owned by one active configuration. The runtime closes them on
+ * shutdown or after a successful reload.
  */
 export interface ServiceDependencies {
     /** Releases every owned resource within `timeoutMs`; safe to call once. */
     close(options: { timeoutMs: number }): Promise<void>;
 }
 
+/** Inputs the shared runtime needs from one executable service. */
 export interface RunServiceOptions<C extends RuntimeConfig, D extends ServiceDependencies> {
     readonly name: ServiceName;
     /**
-     * Validates and returns a complete configuration candidate from the
-     * sources the process booted with. Called once at boot and again on every
-     * SIGHUP. Throws {@link ConfigurationError} to reject a candidate; the
-     * runtime then retains the live configuration and token set.
+     * Validates a complete candidate from the startup sources. Called at boot
+     * and on SIGHUP; a rejected reload leaves the current configuration active.
      */
     loadConfig(): C;
-    /** Acquires one snapshot's resources; must not mutate shared state. */
+    /** Acquires resources owned by one active configuration. */
     createDependencies(config: C): Promise<D>;
-    /**
-     * Serves one request under one configuration snapshot. `signal` aborts
-     * when the request's governing deadline expires.
-     */
+    /** Serves a request with the configuration and dependencies active at admission. */
     fetch(
         request: Request,
         config: C,
         dependencies: D,
         signal: AbortSignal,
     ): Response | Promise<Response>;
-    /** Aggregates this snapshot's dependency checks within one deadline. */
-    readiness(config: C, dependencies: D, signal: AbortSignal): Promise<Readiness>;
     /**
      * Returns a rejection response for an unauthenticated request, or
      * undefined to proceed. Runs before the draining gate, route matching,
@@ -72,7 +67,7 @@ type BoundServer = Bun.Server<undefined>;
 const dependencyIdentity = (config: RuntimeConfig): string =>
     JSON.stringify([
         config.databaseUrl,
-        config.databaseTlsMode,
+        config.databaseTls,
         config.allowInsecureLocal,
         config.nodeEnv,
         config.dependencyTimeoutMs,
@@ -99,12 +94,8 @@ function internalErrorResponse(): Response {
 }
 
 /**
- * Runs one service process: binds the listener, serves every request from the
- * live configuration snapshot, reloads on SIGHUP, and shuts down on
- * SIGTERM/SIGINT within one bounded deadline.
- *
- * Returns once the listener is bound and signals are registered; signal
- * handlers keep the process alive.
+ * Runs one service process with authenticated admission, reload, and bounded
+ * shutdown.
  */
 export async function runService<C extends RuntimeConfig, D extends ServiceDependencies>(
     options: RunServiceOptions<C, D>,
@@ -117,7 +108,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
     let liveIdentity = dependencyIdentity(liveConfig);
     let liveListenerIdentity = listenerIdentity(liveConfig);
 
-    /** Admitted requests, each with the controller that aborts its work at the deadline. */
+    /** Active requests and their deadline controllers. */
     const outstanding = new Map<Request, AbortController>();
     let draining = false;
     let reloadInFlight: Promise<void> | undefined;
@@ -131,8 +122,10 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 ? {}
                 : { tls: { cert: config.tls.cert, key: config.tls.key } }),
             fetch: async (request: Request) => {
+                const config = liveConfig;
+                const dependencies = liveDependencies;
                 // Authentication precedes the draining gate and everything else.
-                const rejection = options.authenticate?.(request, liveConfig);
+                const rejection = options.authenticate?.(request, config);
                 if (rejection !== undefined) {
                     return rejection;
                 }
@@ -142,12 +135,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 const controller = new AbortController();
                 outstanding.set(request, controller);
                 try {
-                    return await options.fetch(
-                        request,
-                        liveConfig,
-                        liveDependencies,
-                        controller.signal,
-                    );
+                    return await options.fetch(request, config, dependencies, controller.signal);
                 } finally {
                     outstanding.delete(request);
                 }
@@ -225,9 +213,8 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                     previousServer.stop(false),
                     Bun.sleep(liveConfig.shutdownTimeoutMs).then(() => previousServer.stop(true)),
                 ]);
-                // Shutdown may have started during that drain. Reopening a
-                // listener here would accept past the drain deadline and swap
-                // the live snapshot underneath it.
+                // Shutdown may have started while the old listener drained.
+                // Never reopen after shutdown begins.
                 if (draining) {
                     if (retired !== undefined) {
                         await retire(nextDependencies, candidate.shutdownTimeoutMs);
@@ -242,10 +229,8 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             } catch {
                 logger.error("listener replacement failed");
                 if (!sameAddress) {
-                    // A different-address candidate binds alongside the live
-                    // listener, so that listener is still serving and keeping it
-                    // is the documented restoration. Rebinding here would fail
-                    // with the address already in use and kill a healthy process.
+                    // The original listener is still serving; retaining it is
+                    // the restoration for a failed different-address candidate.
                     if (retired !== undefined) {
                         await retire(nextDependencies, candidate.shutdownTimeoutMs);
                     }
@@ -299,18 +284,20 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
         logger.info("shutdown started", { signal });
         const deadlineMs = liveConfig.shutdownTimeoutMs;
         const started = Date.now();
-        // The shutdown deadline, not Bun's idle timer, governs requests that
-        // are still outstanding when drain begins.
-        for (const request of outstanding.keys()) server.timeout(request, 0);
+        // Disable Bun's idle timeout while the shutdown deadline governs requests.
+        for (const request of outstanding.keys()) {
+            server.timeout(request, 0);
+        }
         const completed = await Promise.race([
             server.stop(false).then(() => true),
             Bun.sleep(deadlineMs).then(() => false),
         ]);
         if (!completed) {
             logger.warn("shutdown deadline exceeded", { signal });
-            // Abort outstanding local operations, then force-close connections
-            // rather than awaiting a handler that may never settle.
-            for (const controller of outstanding.values()) controller.abort();
+            // Abort local operations before force-closing connections.
+            for (const controller of outstanding.values()) {
+                controller.abort();
+            }
             const forced = setTimeout(() => {
                 logger.error("forced shutdown", { signal });
                 process.exit(1);

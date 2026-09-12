@@ -1,3 +1,5 @@
+/** @fileoverview Database migration behavior tests. */
+
 import { afterAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { type Kysely, sql } from "kysely";

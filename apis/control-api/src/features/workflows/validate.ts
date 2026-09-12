@@ -1,8 +1,10 @@
+/** @fileoverview Workflow document validation feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import type { Static } from "typebox";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import { workflowErrorResponse } from "../../workflows/errors";
 import { parseWorkflowBody } from "../../workflows/request-body";
 import { ValidateResponseSchema, WorkflowDocumentSchema } from "../../workflows/schemas";
@@ -46,11 +48,11 @@ export const schema: FeatureSchemas = {
  * order, without creating anything.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const body = await parseWorkflowBody(c);
-            const outcome = await services.workflows.validate(body.text);
+            const outcome = await getServices(c).workflows.validate(body.text);
             const responseBody: Static<typeof ValidateResponseSchema> = {
                 findings: [...outcome.findings],
                 validForPublication: outcome.validForPublication,

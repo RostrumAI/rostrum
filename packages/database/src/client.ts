@@ -1,3 +1,5 @@
+/** @fileoverview Service-owned Postgres client and readiness probe. */
+
 import { connect, isIP, type Socket } from "node:net";
 import { checkServerIdentity } from "node:tls";
 import { CamelCasePlugin, Kysely } from "kysely";
@@ -5,15 +7,22 @@ import { PostgresJSDialect } from "kysely-postgres-js";
 import postgres from "postgres";
 import type { Database } from "./schema/database";
 
+/**
+ * Connection policy for one service-owned database handle.
+ *
+ * TLS remains verified when enabled. Disabling it requires the explicit
+ * development/test loopback exception.
+ */
 export interface DatabaseOptions {
     url: string;
-    tlsMode: "verify-full" | "disable";
+    tls: boolean;
     allowInsecureLocal: boolean;
     nodeEnv: "development" | "test" | "production";
     applicationName: string;
     connectTimeoutMs?: number;
 }
 
+/** Stable outcomes returned by a database readiness probe. */
 export type DatabaseCheck =
     | { status: "ok" }
     | {
@@ -21,6 +30,7 @@ export type DatabaseCheck =
           code: "database_unavailable" | "database_timeout" | "database_schema_unavailable";
       };
 
+/** A service-owned query interface, readiness probe, and bounded close operation. */
 export interface DatabaseHandle {
     readonly db: Kysely<Database>;
     probe(options: { signal?: AbortSignal; timeoutMs: number }): Promise<DatabaseCheck>;
@@ -38,58 +48,80 @@ function parseTarget(options: DatabaseOptions): {
     password: string;
     database: string;
 } {
-    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") invalid("TLS verification bypass");
-    // postgres.js gives this particular PG setting precedence through a separate
-    // parser, rather than its ordinary explicit-option/default merge.
-    if (process.env.PGTARGETSESSIONATTRS) invalid("PGTARGETSESSIONATTRS is unsupported");
-    if (options.tlsMode !== "verify-full" && options.tlsMode !== "disable") invalid("tlsMode");
-    if (!["development", "test", "production"].includes(options.nodeEnv)) invalid("nodeEnv");
-    if (typeof options.allowInsecureLocal !== "boolean") invalid("allowInsecureLocal");
-    if (!options.applicationName || !/^[a-zA-Z0-9_-]{1,63}$/.test(options.applicationName))
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+        invalid("TLS verification bypass");
+    }
+    // postgres.js parses this setting outside its normal option merge.
+    if (process.env.PGTARGETSESSIONATTRS) {
+        invalid("PGTARGETSESSIONATTRS is unsupported");
+    }
+    if (typeof options.tls !== "boolean") {
+        invalid("tls");
+    }
+    if (!["development", "test", "production"].includes(options.nodeEnv)) {
+        invalid("nodeEnv");
+    }
+    if (typeof options.allowInsecureLocal !== "boolean") {
+        invalid("allowInsecureLocal");
+    }
+    if (!options.applicationName || !/^[a-zA-Z0-9_-]{1,63}$/.test(options.applicationName)) {
         invalid("applicationName");
+    }
     if (
         options.connectTimeoutMs !== undefined &&
         (!Number.isSafeInteger(options.connectTimeoutMs) || options.connectTimeoutMs <= 0)
-    )
+    ) {
         invalid("connectTimeoutMs");
+    }
     let url: URL;
     try {
         url = new URL(options.url);
     } catch {
         return invalid("url");
     }
-    if (!/^postgres(?:ql)?:\/\//.test(options.url) || url.hash || /[\s\\]/.test(options.url))
+    if (!/^postgres(?:ql)?:\/\//.test(options.url) || url.hash || /[\s\\]/.test(options.url)) {
         invalid("url");
+    }
     const host = url.hostname.replace(/^\[|\]$/g, "");
     if (
         !host ||
         (!isIP(host) && !/^(?=.{1,253}$)[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$/.test(host))
-    )
+    ) {
         invalid("host");
-    if (host.includes(",") || (!isIP(host) && /^[0-9.]+$/.test(host))) invalid("host");
+    }
+    if (host.includes(",") || (!isIP(host) && /^[0-9.]+$/.test(host))) {
+        invalid("host");
+    }
     const port = url.port ? Number(url.port) : 5432;
-    if (!Number.isInteger(port) || port < 1 || port > 65535) invalid("port");
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        invalid("port");
+    }
+    const expectedSslMode = options.tls ? "verify-full" : "disable";
     for (const [key, value] of url.searchParams) {
         if (
             key !== "sslmode" ||
-            value !== options.tlsMode ||
+            value !== expectedSslMode ||
             url.searchParams.getAll(key).length !== 1
-        )
+        ) {
             invalid("URL options");
+        }
     }
     const local =
         (isIP(host) === 4 && host.split(".")[0] === "127") ||
         (isIP(host) === 6 && new URL(`http://[${host}]`).hostname === "[::1]");
-    if (options.allowInsecureLocal && options.nodeEnv === "production")
+    if (options.allowInsecureLocal && options.nodeEnv === "production") {
         invalid("allowInsecureLocal in production");
-    if (options.tlsMode === "disable" && (!options.allowInsecureLocal || !local))
+    }
+    if (!options.tls && (!options.allowInsecureLocal || !local)) {
         invalid("plaintext requires a literal loopback development/test target");
+    }
     try {
         const user = decodeURIComponent(url.username);
         const password = decodeURIComponent(url.password);
         const database = decodeURIComponent(url.pathname.slice(1));
-        if (!user || !database || /[\0/]/.test(database) || /\0/.test(user + password))
+        if (!user || !database || /[\0/]/.test(database) || /\0/.test(user + password)) {
             invalid("credentials/database");
+        }
         return { host, port, user, password, database };
     } catch {
         return invalid("credentials/database");
@@ -131,17 +163,16 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
         // A function pins even the empty password instead of inheriting PGPASSWORD.
         password: () => target.password,
         database: target.database,
-        ssl:
-            options.tlsMode === "disable"
-                ? false
-                : {
-                      rejectUnauthorized: true,
-                      ...(isIP(target.host) ? {} : { servername: target.host }),
-                      checkServerIdentity: (
-                          _name: string,
-                          certificate: Parameters<typeof checkServerIdentity>[1],
-                      ) => checkServerIdentity(target.host, certificate),
-                  },
+        ssl: options.tls
+            ? {
+                  rejectUnauthorized: true,
+                  ...(isIP(target.host) ? {} : { servername: target.host }),
+                  checkServerIdentity: (
+                      _name: string,
+                      certificate: Parameters<typeof checkServerIdentity>[1],
+                  ) => checkServerIdentity(target.host, certificate),
+              }
+            : false,
         sslnegotiation: null,
         max: 10,
         max_pipeline: 100,
@@ -233,7 +264,9 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
                     .then(() => undefined),
                 transportFailure.promise,
             ]);
-            if (raced !== undefined) return raced;
+            if (raced !== undefined) {
+                return raced;
+            }
             return signal.aborted
                 ? { status: "failed", code: "database_timeout" }
                 : { status: "ok" };
@@ -266,7 +299,9 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
     return {
         db,
         probe({ signal, timeoutMs }) {
-            if (closing) return Promise.resolve({ status: "failed", code: "database_unavailable" });
+            if (closing) {
+                return Promise.resolve({ status: "failed", code: "database_unavailable" });
+            }
             if (signal?.aborted || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
                 return Promise.resolve({ status: "failed", code: "database_timeout" });
             }
@@ -282,7 +317,9 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
                 };
                 flight = current;
                 void current.result.finally(() => {
-                    if (flight === current) flight = undefined;
+                    if (flight === current) {
+                        flight = undefined;
+                    }
                 });
             }
             const current = flight;
@@ -290,11 +327,16 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
             const { promise, resolve } = Promise.withResolvers<DatabaseCheck>();
             let settled = false;
             const finish = (result: DatabaseCheck) => {
-                if (settled) return;
+                if (settled) {
+                    return;
+                }
                 settled = true;
                 clearTimeout(timer);
                 signal?.removeEventListener("abort", abort);
-                if (--current.subscribers === 0) current.controller.abort();
+                current.subscribers -= 1;
+                if (current.subscribers === 0) {
+                    current.controller.abort();
+                }
                 resolve(result);
             };
             const abort = () => finish({ status: "failed", code: "database_timeout" });
@@ -304,7 +346,9 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
             return promise;
         },
         close({ timeoutMs }) {
-            if (closing) return closing;
+            if (closing) {
+                return closing;
+            }
             // Initiate bounded pool shutdown before the dialect's unbounded end.
             const ended = pool.end({ timeout: Math.max(0, timeoutMs) / 1_000 });
             flight?.controller.abort();

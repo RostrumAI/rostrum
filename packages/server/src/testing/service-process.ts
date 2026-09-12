@@ -1,3 +1,5 @@
+/** @fileoverview Child-process harness for lifecycle integration tests. */
+
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -71,7 +73,9 @@ export async function spawnFixture(initial: Record<string, unknown>): Promise<Fi
         timeoutMs = 10_000,
     ): Promise<string> => {
         const existing = seen.find(predicate);
-        if (existing !== undefined) return existing;
+        if (existing !== undefined) {
+            return existing;
+        }
         const { promise, resolve, reject } = Promise.withResolvers<string>();
         const timer = setTimeout(() => {
             reject(new Error(`timed out waiting for a fixture line; saw:\n${seen.join("\n")}`));

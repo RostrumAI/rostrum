@@ -1,3 +1,5 @@
+/** @fileoverview Shared structured logging tests. */
+
 import { describe, expect, test } from "bun:test";
 import { getLogger, type LogRecord } from "@logtape/logtape";
 import { configureLogging, formatJsonLine } from "@rostrum/server/logger";

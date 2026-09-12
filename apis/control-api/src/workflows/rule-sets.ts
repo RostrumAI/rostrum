@@ -1,3 +1,5 @@
+/** @fileoverview Workflow format rule-set registry used by the Control API. */
+
 import { V1_RULE_SET, WorkflowFormatRegistry, WorkflowValidator } from "@rostrum/workflow";
 
 /**

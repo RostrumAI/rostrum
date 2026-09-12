@@ -1,3 +1,5 @@
+/** @fileoverview Service configuration reload integration tests. */
+
 import { describe, expect, test } from "bun:test";
 import { spawnFixture } from "./testing/service-process";
 
@@ -6,7 +8,7 @@ interface Marker {
     dependency: number;
 }
 
-/** Reads the serving snapshot's marker and the identity of its owned resources. */
+/** Reads the serving configuration's marker and the identity of its owned resources. */
 async function marker(origin: string): Promise<Marker> {
     const response = await fetch(`${origin}/marker`);
     return (await response.json()) as Marker;

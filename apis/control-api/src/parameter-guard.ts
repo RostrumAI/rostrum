@@ -1,3 +1,5 @@
+/** @fileoverview OpenAPI-aligned path-parameter validation middleware. */
+
 import type { ParameterDefinition } from "@rostrum/server/loader";
 import type { MiddlewareHandler } from "hono";
 import type { TSchema } from "typebox";
@@ -16,11 +18,15 @@ export function parameterGuard(parameters: ParameterDefinition[]): MiddlewareHan
         (parameter): parameter is ParameterDefinition & { schema: TSchema } =>
             parameter.in === "path" && parameter.schema !== undefined,
     );
-    if (guarded.length === 0) return (_c, next) => next();
+    if (guarded.length === 0) {
+        return (_c, next) => next();
+    }
     return async (c, next) => {
         for (const parameter of guarded) {
             const value = c.req.param(parameter.name);
-            if (value !== undefined && Value.Check(parameter.schema, value)) continue;
+            if (value !== undefined && Value.Check(parameter.schema, value)) {
+                continue;
+            }
             const errors = value === undefined ? [] : [...Value.Errors(parameter.schema, value)];
             const detail = errors[0]?.message ?? "the parameter is required";
             return c.json(

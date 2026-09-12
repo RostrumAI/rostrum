@@ -1,7 +1,9 @@
+/** @fileoverview Workflow revision save feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import {
     WorkflowApiError,
     workflowErrorResponse,
@@ -70,12 +72,12 @@ export const schema: FeatureSchemas = {
  * as a new revision with its validation findings snapshot.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
             const { request, documentText } = await readRequestBody(c, SaveRevisionRequestSchema);
-            const result = await services.workflows.saveRevision(
+            const result = await getServices(c).workflows.saveRevision(
                 workflowId,
                 documentText,
                 request.baseRevision,

@@ -1,3 +1,5 @@
+/** @fileoverview Loopback and daemon URL validation tests. */
+
 import { describe, expect, test } from "bun:test";
 import { ConfigurationError, isLiteralLoopback, validateDaemonUrl } from "./network";
 

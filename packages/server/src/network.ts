@@ -1,3 +1,5 @@
+/** @fileoverview Network configuration validation helpers. */
+
 import { isIP } from "node:net";
 
 /** Safe to log: callers supply only a known field and a non-secret validation reason. */

@@ -1,3 +1,5 @@
+/** @fileoverview Private daemon HTTP routing and OpenAPI generation. */
+
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
 import { type FeatureBundle, type LoadedFeature, loadFeatures } from "@rostrum/server/loader";
@@ -12,6 +14,7 @@ export class DaemonApp {
     private readonly routes = new Hono<{ Bindings: Services }>();
     private readonly logger = getLogger("daemon");
 
+    /** Loads and binds every private feature before listening. */
     static async create(): Promise<DaemonApp> {
         return new DaemonApp(
             await loadFeatures<ServiceAccessor>(join(import.meta.dir, "features")),
@@ -38,7 +41,7 @@ export class DaemonApp {
                 feature.method,
                 `/api${feature.path}`,
                 describeRoute(this.describeFeature(feature)),
-                feature.createHandler((context) => context.env as Services),
+                feature.createHandler((context) => context.env),
             );
         }
         this.routes.get("/openapi.json", async (c) => c.json(await this.openApi()));
@@ -76,7 +79,8 @@ export class DaemonApp {
         return this.routes.fetch(request, services);
     }
 
-    openApi() {
+    /** Generates the daemon's private OpenAPI document without service resources. */
+    openApi(): Promise<Record<string, unknown>> {
         return generateSpecs(this.routes, {
             documentation: {
                 openapi: "3.1.0",

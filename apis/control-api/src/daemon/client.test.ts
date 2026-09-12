@@ -1,3 +1,5 @@
+/** @fileoverview Daemon readiness transport and response classification tests. */
+
 import { afterEach, describe, expect, test } from "bun:test";
 import type { ControlApiConfig } from "@rostrum/server/config";
 import { checkDaemonReadiness } from "./client";
@@ -10,7 +12,7 @@ function config(daemonUrl: string, tokens: readonly string[]): ControlApiConfig 
         nodeEnv: "test",
         logLevel: "info",
         databaseUrl: "postgres://rostrum:rostrum@127.0.0.1:5432/rostrum",
-        databaseTlsMode: "disable",
+        databaseTls: false,
         allowInsecureLocal: true,
         tokens,
         dependencyTimeoutMs: 2_000,
@@ -26,14 +28,17 @@ const READY = { status: "ready", checks: { database: { status: "ok" } } };
  * snapshotted while handling, because the server recycles the `Request` object
  * after the handler returns.
  */
-function responder(handler: (request: Request) => Response): {
+function responder(
+    handler: (request: Request) => Response,
+    hostname = "127.0.0.1",
+): {
     origin: string;
     requests: Array<{ authorization: string | null }>;
     stop: () => void;
 } {
     const requests: Array<{ authorization: string | null }> = [];
     const server = Bun.serve({
-        hostname: "127.0.0.1",
+        hostname,
         port: 0,
         fetch: (request) => {
             requests.push({ authorization: request.headers.get("authorization") });
@@ -41,7 +46,7 @@ function responder(handler: (request: Request) => Response): {
         },
     });
     return {
-        origin: `http://127.0.0.1:${server.port}`,
+        origin: `http://${hostname.includes(":") ? `[${hostname}]` : hostname}:${server.port}`,
         requests,
         stop: () => server.stop(true),
     };
@@ -52,7 +57,9 @@ function track(stop: () => void): void {
     stoppables.push(stop);
 }
 afterEach(() => {
-    while (stoppables.length > 0) stoppables.pop()?.();
+    while (stoppables.length > 0) {
+        stoppables.pop()?.();
+    }
 });
 
 describe("daemon readiness client", () => {
@@ -88,6 +95,19 @@ describe("daemon readiness client", () => {
                 else process.env[key] = value;
             }
         }
+    });
+
+    test("connects to an IPv6 daemon origin", async () => {
+        const target = responder(() => Response.json(READY), "::1");
+        track(target.stop);
+
+        const result = await checkDaemonReadiness(
+            config(target.origin, ["a".repeat(64)]),
+            new AbortController().signal,
+        );
+
+        expect(result).toEqual({ status: "ok" });
+        expect(target.requests).toHaveLength(1);
     });
 
     test("sends only the newest token, as a bearer credential", async () => {

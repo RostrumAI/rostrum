@@ -1,3 +1,5 @@
+/** @fileoverview Database transport, readiness, and ownership tests. */
+
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer, type Socket } from "node:net";
@@ -12,7 +14,7 @@ const postgres = await startTestPostgres();
 afterAll(() => postgres.stop());
 const local: DatabaseOptions = {
     url: "postgres://rostrum:rostrum@127.0.0.1:5432/rostrum",
-    tlsMode: "disable",
+    tls: false,
     allowInsecureLocal: true,
     nodeEnv: "test",
     applicationName: "database-boundary-test",
@@ -270,7 +272,9 @@ describe("database readiness and pool ownership", () => {
         server.listen(0, "127.0.0.1", listening.resolve);
         await listening.promise;
         const address = server.address();
-        if (!address || typeof address === "string") throw new Error("Missing test listener");
+        if (!address || typeof address === "string") {
+            throw new Error("Missing test listener");
+        }
         const handle = createDatabase({
             ...local,
             url: `postgres://u:p@127.0.0.1:${address.port}/db`,
@@ -309,7 +313,9 @@ test("verified database TLS uses runtime extra trust and verifies DNS and IP SAN
             result.exited,
             new Response(result.stderr).text(),
         ]);
-        if (code !== 0) throw new Error(`Certificate generation failed: ${stderr}`);
+        if (code !== 0) {
+            throw new Error(`Certificate generation failed: ${stderr}`);
+        }
     };
     let server: Awaited<ReturnType<typeof startTestPostgres>> | undefined;
     try {

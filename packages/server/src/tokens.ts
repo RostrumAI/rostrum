@@ -1,3 +1,5 @@
+/** @fileoverview Daemon token parsing and source selection. */
+
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ConfigurationError } from "./network";

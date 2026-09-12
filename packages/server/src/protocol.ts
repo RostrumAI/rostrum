@@ -1,3 +1,5 @@
+/** @fileoverview Shared health, readiness, and boundary error schemas. */
+
 import { type Static, Type } from "typebox";
 
 export const HealthSchema = Type.Object(

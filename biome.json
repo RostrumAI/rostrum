@@ -11,6 +11,7 @@
             "!*.dump",
             "!bun.lock",
             "!apis/control-api/openapi.json",
+            "!apis/daemon/openapi.json",
             "!packages/api-client/src/generated.ts"
         ]
     },

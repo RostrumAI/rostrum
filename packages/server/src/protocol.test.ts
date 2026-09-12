@@ -1,3 +1,5 @@
+/** @fileoverview Private service protocol schema tests. */
+
 import { describe, expect, test } from "bun:test";
 import { Value } from "typebox/value";
 import { BoundaryErrorSchema, ControlApiReadinessSchema, DaemonReadinessSchema } from "./protocol";

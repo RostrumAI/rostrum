@@ -1,3 +1,5 @@
+/** @fileoverview Disposable Postgres fixture for integration tests. */
+
 import { appendFile, mkdtemp } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -69,17 +71,14 @@ export async function startTestPostgres(
 ): Promise<TestPostgres> {
     const provided = process.env.DATABASE_URL;
     if (provided && !settings.tls) {
-        const tlsMode = process.env.DATABASE_TLS_MODE ?? "verify-full";
+        const tls = process.env.DATABASE_TLS ?? "true";
         const insecure = process.env.ALLOW_INSECURE_LOCAL ?? "false";
-        if (
-            (tlsMode !== "verify-full" && tlsMode !== "disable") ||
-            (insecure !== "true" && insecure !== "false")
-        ) {
+        if ((tls !== "true" && tls !== "false") || (insecure !== "true" && insecure !== "false")) {
             throw new Error("Invalid disposable database transport settings");
         }
         return disposableDatabase({
             url: provided,
-            tlsMode,
+            tls: tls === "true",
             allowInsecureLocal: insecure === "true",
             nodeEnv: "test",
             applicationName: "database-tests",
@@ -111,7 +110,7 @@ export async function startTestPostgres(
         url,
         options: {
             url,
-            tlsMode: settings.tls ? "verify-full" : "disable",
+            tls: settings.tls !== undefined,
             allowInsecureLocal: !settings.tls,
             nodeEnv: "test",
             applicationName: "database-tests",

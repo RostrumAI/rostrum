@@ -32,16 +32,15 @@ plaintext exception explicitly:
 
 ```bash
 export DATABASE_URL=postgres://rostrum:rostrum@127.0.0.1:5432/rostrum
-export DATABASE_TLS_MODE=disable
+export DATABASE_TLS=false
 export ALLOW_INSECURE_LOCAL=true
 export NODE_ENV=development
 bun run db:migrate
 ```
 
 Use the literal `127.0.0.1`: the exception accepts an IP literal and refuses a
-DNS name such as `localhost`. A remote database keeps `DATABASE_TLS_MODE` at
-its default of `verify-full`; `disable` and `ALLOW_INSECURE_LOCAL` are rejected
-in production.
+DNS name such as `localhost`. Remote databases keep `DATABASE_TLS=true`; setting
+it to `false` requires the local exception and is rejected in production.
 
 ## Commands
 
@@ -126,7 +125,7 @@ port: 8080
 | `NODE_ENV` / `nodeEnv` | Both | `development` | One of `development`, `test`, `production`; selects the default log level and gates the local exception |
 | `LOG_LEVEL` / `logLevel` | Both | `debug` in development and test, `info` in production | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
 | `DATABASE_URL` / `databaseUrl` | Both | — (required) | Postgres target. Both services point at the same database, potentially with different credentials |
-| `DATABASE_TLS_MODE` / `databaseTlsMode` | Both | `verify-full` | `verify-full` verifies the certificate chain and hostname. `disable` is allowed only with `ALLOW_INSECURE_LOCAL=true`, a development or test `NODE_ENV`, and a literal loopback target |
+| `DATABASE_TLS` / `databaseTls` | Both | `true` | Verifies the certificate chain and hostname when `true`. `false` is allowed only with `ALLOW_INSECURE_LOCAL=true`, a development or test `NODE_ENV`, and a literal loopback target |
 | `ALLOW_INSECURE_LOCAL` / `allowInsecureLocal` | Both | `false` | Development and test only. Permits a plaintext daemon listener and a loopback `DAEMON_URL`; it never disables token authentication |
 | `DAEMON_URL` / `daemonUrl` | Control API | — (required) | The daemon origin. HTTPS unless the local exception applies. Credentials, query, fragment, and non-root paths are rejected |
 | `DAEMON_TOKEN_FILE` / `daemonTokenFile` | Both | — | One token per line, oldest first, newest last. Reread on SIGHUP |
@@ -242,7 +241,7 @@ connections. Migrations are an explicit operator step and are never run at
 startup:
 
 ```bash
-DATABASE_URL=... DATABASE_TLS_MODE=verify-full bun run db:migrate
+DATABASE_URL=... DATABASE_TLS=true bun run db:migrate
 ```
 
 ### OpenAPI document

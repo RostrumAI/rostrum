@@ -1,3 +1,5 @@
+/** @fileoverview Real daemon child-process test harness. */
+
 import { randomBytes } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,7 +59,7 @@ export class DaemonProcess {
                 nodeEnv: "test",
                 logLevel: "info",
                 databaseUrl: "postgres://daemon_test@127.0.0.1:1/daemon_test",
-                databaseTlsMode: "disable",
+                databaseTls: false,
                 allowInsecureLocal: true,
                 dependencyTimeoutMs: 300,
                 shutdownTimeoutMs: 1500,
@@ -86,7 +88,9 @@ export class DaemonProcess {
         const decoder = new TextDecoder();
         for (;;) {
             const { value, done } = await reader.read();
-            if (done) break;
+            if (done) {
+                break;
+            }
             this.logs += decoder.decode(value, { stream: true });
         }
         this.logs += decoder.decode();

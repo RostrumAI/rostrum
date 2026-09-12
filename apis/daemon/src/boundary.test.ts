@@ -1,3 +1,5 @@
+/** @fileoverview Executable daemon security and lifecycle boundary tests. */
+
 import { describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
@@ -132,7 +134,9 @@ describe("daemon executable boundary", () => {
         trap.listen(0, "127.0.0.1", listening.resolve);
         await listening.promise;
         const address = trap.address();
-        if (!address || typeof address === "string") throw new Error("No trap listener address");
+        if (!address || typeof address === "string") {
+            throw new Error("No trap listener address");
+        }
         try {
             const candidates = [
                 { config: { unknownSecuritySetting: true } },
@@ -145,13 +149,13 @@ describe("daemon executable boundary", () => {
                     },
                 },
                 { config: { host: "0.0.0.0" } },
-                { config: { allowInsecureLocal: false, databaseTlsMode: "verify-full" } },
+                { config: { allowInsecureLocal: false, databaseTls: true } },
                 {
                     config: {
                         behindReverseProxy: true,
                         host: "192.0.2.1",
                         allowInsecureLocal: false,
-                        databaseTlsMode: "verify-full",
+                        databaseTls: true,
                     },
                 },
                 { env: { NODE_TLS_REJECT_UNAUTHORIZED: "0" } },

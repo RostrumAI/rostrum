@@ -1,8 +1,10 @@
+/** @fileoverview Daemon bearer-token authentication. */
+
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { DaemonConfig } from "@rostrum/server/config";
+import { isToken } from "@rostrum/server/tokens";
 
 const acceptedDigests = new WeakMap<readonly string[], readonly Buffer[]>();
-const TOKEN = /^(?:[a-fA-F0-9]{2}){32,}$/;
 
 function digest(token: string): Buffer {
     return createHash("sha256").update(Buffer.from(token, "hex")).digest();
@@ -15,17 +17,21 @@ export function authenticate(
 ): Response | undefined {
     const authorization = request.headers.get("authorization");
     const match = authorization === null ? null : /^Bearer ([a-fA-F0-9]+)$/i.exec(authorization);
-    if (match && TOKEN.test(match[1] ?? "")) {
+    if (match && isToken(match[1] ?? "")) {
         let accepted = acceptedDigests.get(config.tokens);
-        if (!accepted) {
+        if (accepted === undefined) {
             accepted = config.tokens.map(digest);
             acceptedDigests.set(config.tokens, accepted);
         }
         const candidate = digest(match[1]!);
         let authenticated = 0;
         // Do not short circuit: every configured digest gets the same comparison.
-        for (const token of accepted) authenticated |= Number(timingSafeEqual(candidate, token));
-        if (authenticated !== 0) return undefined;
+        for (const token of accepted) {
+            authenticated |= Number(timingSafeEqual(candidate, token));
+        }
+        if (authenticated !== 0) {
+            return undefined;
+        }
     }
     return Response.json(
         { code: "unauthorized", message: "Bearer authentication required", findings: [] },

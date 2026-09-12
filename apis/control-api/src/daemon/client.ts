@@ -1,25 +1,27 @@
+/** @fileoverview Outbound authenticated daemon readiness client for the Control API. */
+
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { ControlApiConfig } from "@rostrum/server/config";
 import { type CheckResult, DaemonReadinessSchema } from "@rostrum/server/protocol";
 import { Value } from "typebox/value";
 
-/** Probe responses are small; anything larger is not a readiness body. */
-const MAX_PROBE_BYTES = 64 * 1024;
+/**
+ * A readiness body is a small JSON document, so an unexpectedly large body is
+ * not a readiness answer; reading it would let a misbehaving or hostile peer
+ * grow this process's memory without bound.
+ */
+const MAX_READINESS_BODY_BYTES = 64 * 1024;
 
 interface ProbeResponse {
     readonly status: number;
-    /** Undefined when the body exceeded the probe limit. */
+    /** Undefined when the body exceeds the readiness response bound. */
     readonly body: string | undefined;
 }
 
 /**
- * Sends one readiness request over `node:http`/`node:https`.
- *
- * These clients never consult `HTTP_PROXY`/`HTTPS_PROXY`, which `fetch` does by
- * default and offers no way to opt out of, so an ambient forward proxy cannot
- * receive the bearer token. TLS uses the runtime's default trust, which includes
- * `NODE_EXTRA_CA_CERTS`, with certificate and hostname verification left on.
+ * Uses direct Node HTTP clients so ambient proxy variables cannot receive the
+ * bearer token. HTTPS retains default certificate and hostname verification.
  */
 function sendProbe(origin: URL, token: string, signal: AbortSignal): Promise<ProbeResponse> {
     const secure = origin.protocol === "https:";
@@ -27,7 +29,7 @@ function sendProbe(origin: URL, token: string, signal: AbortSignal): Promise<Pro
     const request = (secure ? httpsRequest : httpRequest)(
         {
             protocol: origin.protocol,
-            hostname: origin.hostname,
+            hostname: origin.hostname.replace(/^\[|\]$/g, ""),
             port: origin.port === "" ? (secure ? 443 : 80) : Number(origin.port),
             // The origin is validated to have no path, query, or fragment.
             path: "/api/system/readiness",
@@ -40,7 +42,7 @@ function sendProbe(origin: URL, token: string, signal: AbortSignal): Promise<Pro
             let bytes = 0;
             response.on("data", (chunk: Buffer) => {
                 bytes += chunk.byteLength;
-                if (bytes > MAX_PROBE_BYTES) {
+                if (bytes > MAX_READINESS_BODY_BYTES) {
                     response.destroy();
                     resolve({ status: response.statusCode ?? 0, body: undefined });
                     return;
@@ -76,13 +78,7 @@ function classifyTransportFailure(error: unknown, signal: AbortSignal): CheckRes
     return { status: "failed", code: "daemon_unavailable" };
 }
 
-/**
- * Checks the daemon's authenticated readiness.
- *
- * Sends only the newest configured token, never forwards caller headers,
- * never retries or falls back to an older token, refuses redirects by never
- * following them, and bounds the response it will read.
- */
+/** Checks daemon readiness with the newest token and a bounded response body. */
 export async function checkDaemonReadiness(
     config: ControlApiConfig,
     signal: AbortSignal,

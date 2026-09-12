@@ -1,3 +1,5 @@
+/** @fileoverview Concurrent dependency-readiness aggregation. */
+
 import type { CheckResult, Readiness } from "./protocol";
 
 /** The stable failure codes a readiness check may report. */

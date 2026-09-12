@@ -1,5 +1,5 @@
 /**
- * Entry point of the database package.
+ * @fileoverview Entry point of the database package.
  *
  * The package owns the Postgres schema end to end. `src/schema/` declares
  * what can physically exist in Postgres — the Kysely table map the
