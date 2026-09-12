@@ -12,15 +12,8 @@ on:
     types: [created]
   # A reply on a review thread is adjudicated: the reviewer re-reads the code and
   # either withdraws its finding or stands behind it.
-  #
-  # Kept because it is the correct trigger wherever the platform delivers it, but
-  # do not rely on it here: neither `pull_request_review` nor
-  # `pull_request_review_comment` has ever produced a run in this repository, test
-  # and probe alike, and both report a lifetime count of zero. `/adjudicate` below
-  # is what actually works. If this event starts firing, replies answer themselves
-  # and the command becomes a fallback.
-  pull_request_review:
-    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
   # A manual run reviews a pull request on demand. It exists because this workflow
   # takes effect only once merged: a pull request that changes it cannot trigger it,
   # so the first run after merge is dispatched rather than automatic.
@@ -45,13 +38,15 @@ jobs:
     name: Answer a reply
     runs-on: ubuntu-latest
     if: >-
-      github.event_name == 'pull_request_review' &&
-      github.event.review.user.type != 'Bot' 
+      github.event_name == 'pull_request_review_comment' &&
+      github.event.comment.user.type != 'Bot' &&
+      github.event.comment.in_reply_to_id != null
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPOSITORY: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      REVIEW_ID: ${{ github.event.review.id }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
     steps:
       - name: Check out the base branch
         uses: actions/checkout@v4
@@ -78,6 +73,10 @@ jobs:
           ref: ${{ steps.target.outputs.head_sha }}
           path: pr
 
+      - name: Write the comment body to a file
+        if: steps.target.outputs.fork == 'false'
+        run: gh api "repos/${REPOSITORY}/pulls/comments/${COMMENT_ID}" --jq .body > "${RUNNER_TEMP}/comment.md"
+
       - name: Set up Bun
         if: steps.target.outputs.fork == 'false'
         uses: oven-sh/setup-bun@v2
@@ -101,8 +100,10 @@ jobs:
           REVIEW_MODEL: deepseek/deepseek-v4-flash
         run: >-
           bun run review:adjudicate
-          --review-id "${REVIEW_ID}"
+          --comment-id "${COMMENT_ID}"
           --pull-request "${PR_NUMBER}"
+          --author "${COMMENT_AUTHOR}"
+          --body-file "${RUNNER_TEMP}/comment.md"
           --repo-root "${GITHUB_WORKSPACE}/pr"
         timeout-minutes: 20
 
