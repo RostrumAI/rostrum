@@ -13,10 +13,11 @@ deterministic pass already reports; where a subject is also covered by a `GTS-*`
 `GTS-*` id. Never report anything Biome or `tsc` already rejects.
 
 Scope: rules apply to the paths named in each entry, relative to the repository root. `apis/**` is the
-planned home for backend services (E2.1 moves the Control API there); `apps/**` is its current home.
-Treat the two as one surface. A rule applies only where its scope says so: a comment raised once about
-workflows is not a repo-wide law, and a rule whose scope does not cover the changed path is not a
-finding.
+home for backend services, and `apps/**` is for user-facing applications. M2 Epic 1 moved the Control
+API from `apps/` to `apis/`, so citations below that predate that move still name
+`apps/control-api/...`. Treat the two as one surface. A rule applies only where its scope says so: a
+comment raised once about workflows is not a repo-wide law, and a rule whose scope does not cover the
+changed path is not a finding.
 
 Classification: `mechanical` means a deterministic pass can decide the rule from the diff alone
 (syntax, file names, presence of an export or a test). `judgment` means a reviewer must read intent

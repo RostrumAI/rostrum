@@ -10,7 +10,7 @@
             "!packages/workflow/src/fixtures/invalid-parse",
             "!*.dump",
             "!bun.lock",
-            "!apps/control-api/openapi.json",
+            "!apis/control-api/openapi.json",
             "!packages/api-client/src/generated.ts"
         ]
     },

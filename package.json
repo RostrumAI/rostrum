@@ -4,6 +4,7 @@
     "type": "module",
     "workspaces": [
         "apps/*",
+        "apis/*",
         "packages/*"
     ],
     "trustedDependencies": [

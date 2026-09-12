@@ -1,6 +1,6 @@
 # Rostrum
 
-Rostrum is a platform for defining and executing workflows. This repository contains the implementation: shared workflow libraries in `packages/` and runnable applications in `apps/`. Product strategy, planning, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs).
+Rostrum is a platform for defining and executing workflows. This repository contains the implementation: shared libraries in `packages/`, backend services in `apis/`, and user-facing applications in `apps/`. Product strategy, planning, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs).
 
 ## Prerequisites
 
@@ -78,7 +78,7 @@ absent from both fall back to the documented defaults. Bun loads `.env`
 files into the environment automatically.
 
 The YAML file is optional. Set `CONTROL_API_CONFIG` to its path, or place
-`apps/control-api/config.yaml` and leave the variable unset. The file is a
+`apis/control-api/config.yaml` and leave the variable unset. The file is a
 flat mapping keyed like the configuration:
 
 ```yaml
@@ -92,7 +92,7 @@ port: 8080
 | `HOST` / `host` | `127.0.0.1` | Address to bind |
 | `NODE_ENV` / `nodeEnv` | `development` | One of `development`, `test`, `production`; selects the default log level |
 | `LOG_LEVEL` / `logLevel` | `debug` in development and test, `info` in production | One of `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
-| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the database package's migrations and the Control API's workflow database in `apps/control-api/src/workflows` use it |
+| `DATABASE_URL` / `databaseUrl` | `postgres://rostrum:rostrum@localhost:5432/rostrum` | Postgres target; the database package's migrations and the Control API's workflow database in `apis/control-api/src/workflows` use it |
 
 Logging uses [LogTape](https://logtape.org/). Records are one JSON object
 per line on the console with `time`, `level`, `msg`, and any extra fields.
@@ -113,7 +113,7 @@ API version: a future deliberate stabilization may introduce a versioned
 prefix, but until then routes stay unversioned.
 
 Each route is one feature slice under
-`apps/control-api/src/features/`: a slice exports `route`, `schema`, and
+`apis/control-api/src/features/`: a slice exports `route`, `schema`, and
 `handler`, and the folder layout decides the bound path. For example,
 `src/features/system/health.ts` serves `GET /api/system/health`. The
 server startup validates every slice against this contract; a slice that
@@ -135,7 +135,7 @@ contract.
 
 The document at `/openapi.json` is generated code-first from TypeBox schemas
 and is OpenAPI 3.1, the same dialect as the workflow format JSON Schema.
-The checked-in copy at `apps/control-api/openapi.json` is regenerated with:
+The checked-in copy at `apis/control-api/openapi.json` is regenerated with:
 
 ```bash
 bun run --filter @rostrum/control-api generate-openapi
@@ -147,7 +147,8 @@ A test asserts that the served document matches the checked-in copy.
 
 | Path | Contents |
 | --- | --- |
-| `apps/` | Runnable applications; `control-api/` is the Control API process |
+| `apis/` | Backend services; `control-api/` is the Control API process |
+| `apps/` | User-facing applications |
 | `packages/` | Shared libraries; `workflow/` is the shared workflow library and `database/` owns Postgres persistence |
 | `dev-docs/` | Ignored checkout of the independent development-documentation repository |
 | `scripts/` | Repository support scripts |
