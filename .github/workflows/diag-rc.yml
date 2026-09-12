@@ -1,0 +1,29 @@
+name: Diagnostic rc
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  rc:
+    name: RC fired
+    if: github.event_name == 'pull_request_review_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          echo "RC FIRED on PR ${{ github.event.pull_request.number }}"
+          echo "comment=${{ github.event.comment.id }} by=${{ github.event.comment.user.login }}"
+
+  ic:
+    name: IC fired
+    if: github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: echo "IC fired pr=${{ github.event.issue.number }}"
