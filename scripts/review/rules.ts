@@ -15,6 +15,7 @@
  */
 
 import { type LineEntry, visibleLineEntries, visibleLines } from "./diff.ts";
+import { buildImportGraph, modulesImportedOnlyByExemptFiles } from "./import-graph.ts";
 import { blankInlineCode, type LineRegions, scanSourceLines } from "./source-text.ts";
 import type { FileDiff, Finding, ReviewContext } from "./types.ts";
 
@@ -340,6 +341,48 @@ function isScript(path: string): boolean {
     return /(?:^|\/)scripts?\//.test(path);
 }
 
+/** Source roots whose modules the test requirement covers. */
+function isReviewedSource(path: string): boolean {
+    return (
+        path.startsWith("apps/") || path.startsWith("apis/") || /^packages\/[^/]+\/src\//.test(path)
+    );
+}
+
+/**
+ * Files that owe no test themselves, and expect none of the modules they import.
+ *
+ * A test, a fixture or harness, and a script are exercised by whatever runs them
+ * rather than imported as product modules, so what they import is covered by
+ * that same caller instead of by a test of its own.
+ *
+ * @param path - Repository-relative path of the file.
+ * @returns True when the file is excluded from the test requirement.
+ */
+function owesNoTest(path: string): boolean {
+    return (
+        !isTypeScript(path) ||
+        !isReviewedSource(path) ||
+        isTestFile(path) ||
+        isTestSupportFile(path) ||
+        isScript(path)
+    );
+}
+
+/**
+ * Modules whose own behavior the test requirement applies to.
+ *
+ * A declaration-only module — a `.d.ts`, a `types.ts` or `schemas.ts`, or an
+ * `index.ts` entry point — carries no behavior of its own, so it is never the
+ * subject of the requirement. The requirement still reaches through it: an entry
+ * point is how the product loads what it imports.
+ *
+ * @param path - Repository-relative path of the file.
+ * @returns True when a new file at this path needs a test beside it.
+ */
+function isBehaviorModule(path: string): boolean {
+    return !owesNoTest(path) && !isDeclarationOrSchema(path);
+}
+
 /**
  * Reports whether a file exports anything for a test to import.
  *
@@ -375,6 +418,11 @@ async function exportsSomething(workingDirectory: string, file: FileDiff): Promi
  * behavior: nothing imports them as product modules, so there is no unit to
  * test.
  *
+ * A module is also exempt when the only files importing it are ones that owe no
+ * test of their own — scripts, tests, and the modules they import. Helper code
+ * reached only from a script or a suite is exercised by that caller, so a test
+ * beside it would restate the suite that already runs it.
+ *
  * @param context - Review context holding the parsed files and the repository checkout.
  * @returns A finding per uncovered new source file.
  */
@@ -382,24 +430,27 @@ export async function findUncoveredSourceFiles(context: ReviewContext): Promise<
     const testPaths = new Set(
         context.files.filter((file) => isTestFile(file.path)).map((file) => file.path),
     );
-    const findings: Finding[] = [];
+    const candidates: FileDiff[] = [];
     for (const file of context.files) {
-        if (
-            !file.added ||
-            !isTypeScript(file.path) ||
-            isTestFile(file.path) ||
-            isTestSupportFile(file.path)
-        ) {
-            continue;
-        }
-        const inReviewScope =
-            file.path.startsWith("apps/") ||
-            file.path.startsWith("apis/") ||
-            /^packages\/[^/]+\/src\//.test(file.path);
-        if (!inReviewScope || isDeclarationOrSchema(file.path) || isScript(file.path)) {
+        if (!file.added || !isBehaviorModule(file.path)) {
             continue;
         }
         if (!(await exportsSomething(context.workingDirectory, file))) {
+            continue;
+        }
+        candidates.push(file);
+    }
+    if (candidates.length === 0) {
+        return [];
+    }
+    // The requirement follows the chain of importers up to whatever the product
+    // runs, so the answer comes from the checkout rather than from the diff: an
+    // importer the change does not touch still decides the outcome.
+    const graph = await buildImportGraph(context.workingDirectory);
+    const importedOnlyByExemptFiles = modulesImportedOnlyByExemptFiles(graph, owesNoTest);
+    const findings: Finding[] = [];
+    for (const file of candidates) {
+        if (importedOnlyByExemptFiles.has(file.path)) {
             continue;
         }
         const testPath = file.path.replace(/\.(tsx?)$/, ".test.$1");

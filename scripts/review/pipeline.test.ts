@@ -504,6 +504,117 @@ new file mode 100644
 `;
         expect(await findUncoveredSourceFiles(contextFor(withBoundary))).toHaveLength(0);
     });
+
+    /**
+     * Writes a checkout holding every fixture file, and returns the patch that
+     * adds the named paths.
+     *
+     * The added modules are written too: the graph is built from the head
+     * checkout, which holds them, and an import that points at one of them has to
+     * resolve for the exemption to be decided at all.
+     */
+    async function checkoutAdding(
+        files: Record<string, string[]>,
+        added: readonly string[],
+    ): Promise<{ root: string; patch: string }> {
+        const root = await mkdtemp(join(tmpdir(), "rostrum-review-test-"));
+        for (const [path, lines] of Object.entries(files)) {
+            await Bun.write(join(root, path), lines.join("\n"));
+        }
+        const patch = added
+            .map((path) => {
+                const body = files[path] ?? [];
+                return `diff --git a/${path} b/${path}
+new file mode 100644
+--- /dev/null
++++ b/${path}
+@@ -0,0 +1,${body.length} @@
+${body.map((line) => `+${line}`).join("\n")}
+`;
+            })
+            .join("");
+        return { root, patch };
+    }
+
+    test("exempts a module that only scripts and tests import", async () => {
+        // The chain of importers decides. `d` is reached only from a script and a
+        // test, so it owes no test. `c` is reached from that script and from
+        // `server`, which owes a test because nothing imports it, so `c` owes one
+        // too.
+        const { root, patch } = await checkoutAdding(
+            {
+                "apps/demo/src/c.ts": ["export const c = 1;"],
+                "apps/demo/src/d.ts": ["export const d = 2;"],
+                "apps/demo/src/server.ts": [
+                    'import { c } from "./c";',
+                    "",
+                    "export const server = c;",
+                ],
+                "apps/demo/src/b.test.ts": ['import { d } from "./d";', "", 'test("d", () => d);'],
+                "scripts/a.ts": [
+                    'import { c } from "../apps/demo/src/c.ts";',
+                    'import { d } from "../apps/demo/src/d.ts";',
+                    "",
+                    "report(c, d);",
+                ],
+            },
+            ["apps/demo/src/c.ts", "apps/demo/src/d.ts"],
+        );
+        const findings = await findUncoveredSourceFiles(
+            contextFor(patch, { workingDirectory: root }),
+        );
+        expect(findings.map((finding) => finding.path)).toEqual(["apps/demo/src/c.ts"]);
+    });
+
+    test("still requires a test for a module nothing imports", async () => {
+        // An entry point is where the product starts. Nothing importing it is the
+        // reason it needs a test, not a reason to exempt it.
+        const { root, patch } = await checkoutAdding(
+            { "apps/demo/src/entry.ts": ["export const entry = 1;"] },
+            ["apps/demo/src/entry.ts"],
+        );
+        const findings = await findUncoveredSourceFiles(
+            contextFor(patch, { workingDirectory: root }),
+        );
+        expect(findings.map((finding) => finding.path)).toEqual(["apps/demo/src/entry.ts"]);
+    });
+
+    test("exempts a module reached through another exempt module", async () => {
+        // `deep` is imported by `d`, which only a script and a test import, so the
+        // exemption holds one level further from the script.
+        const { root, patch } = await checkoutAdding(
+            {
+                "apps/demo/src/d.ts": [
+                    'import { deep } from "./deep";',
+                    "",
+                    "export const d = deep;",
+                ],
+                "apps/demo/src/deep.ts": ["export const deep = 2;"],
+                "apps/demo/src/b.test.ts": ['import { d } from "./d";', "", 'test("d", () => d);'],
+                "scripts/a.ts": ['import { d } from "../apps/demo/src/d.ts";', "", "report(d);"],
+            },
+            ["apps/demo/src/d.ts", "apps/demo/src/deep.ts"],
+        );
+        expect(
+            await findUncoveredSourceFiles(contextFor(patch, { workingDirectory: root })),
+        ).toHaveLength(0);
+    });
+
+    test("exempts modules that only reach each other and a script", async () => {
+        // `x` and `y` import each other, and only the script reaches the pair from
+        // outside, so both are still reached only from a file that owes no test.
+        const { root, patch } = await checkoutAdding(
+            {
+                "apps/demo/src/x.ts": ['import { y } from "./y";', "", "export const x = y;"],
+                "apps/demo/src/y.ts": ['import { x } from "./x";', "", "export const y = x;"],
+                "scripts/a.ts": ['import { x } from "../apps/demo/src/x.ts";', "", "report(x);"],
+            },
+            ["apps/demo/src/x.ts", "apps/demo/src/y.ts"],
+        );
+        expect(
+            await findUncoveredSourceFiles(contextFor(patch, { workingDirectory: root })),
+        ).toHaveLength(0);
+    });
 });
 
 describe("source scanning", () => {

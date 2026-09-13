@@ -369,7 +369,11 @@ be able to fail when the implementation is wrong.
 A new handler, repository method, route, validation stage, or public function arrives with a test that
 exercises it; a new source file with no test beside it is blocking. A file that cannot be imported owes
 no test: a script under a `scripts/` directory, a one-off fix or throwaway probe, and a module that
-exports nothing all run for their effect rather than exposing behavior a test could call.
+exports nothing all run for their effect rather than exposing behavior a test could call. The chain of
+importers decides the rest: a module reached only from files that owe no test themselves — scripts,
+tests, fixtures, and whatever those import — is exercised by the caller that reaches it, so it owes no
+test either. A module the product also reaches, directly or through another module, still owes one, and
+so does a module nothing imports at all.
 **Applies to:** `apps/**`, `apis/**`, `packages/**`, `**/*.test.ts` · **Check:** mechanical · **Severity:** medium
 **Flag:** A new `handler`, `service`, or route module in the diff with no corresponding test file; a handler with only a happy-path test when it has documented failure outcomes.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/create.ts:64` — "Why does this handler have no tests?"; the same question at `publish.ts:56`, `retrieve-draft.ts:40`, `retrieve-revision.ts:48`, `retrieve-version.ts:59`, `rewind.ts:65`, `save.ts:86`, `validate.ts:46`.
