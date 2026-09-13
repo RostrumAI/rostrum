@@ -43,10 +43,15 @@ jobs:
       # was already being read must not be cancelled by a later one.
       group: code-review-answer-${{ github.event.comment.id }}
       cancel-in-progress: false
+    # The pipeline's own placeholder is a review comment too, and it disposes of
+    # nothing. A run whose comments arrive under a non-bot identity — a local run,
+    # or a personal access token — would otherwise have that placeholder
+    # adjudicated as though a maintainer had written it.
     if: >-
       github.event_name == 'pull_request_review_comment' &&
       github.event.comment.user.type != 'Bot' &&
-      github.event.comment.in_reply_to_id != null
+      github.event.comment.in_reply_to_id != null &&
+      !contains(github.event.comment.body, '<!-- rostrum-adjudicating -->')
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPOSITORY: ${{ github.repository }}
@@ -102,8 +107,8 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          REVIEW_MODEL: deepseek/deepseek-v4-flash
+          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
+          REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
         run: >-
           bun run review:adjudicate
           --comment-id "${COMMENT_ID}"
@@ -183,8 +188,8 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          REVIEW_MODEL: deepseek/deepseek-v4-flash
+          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
+          REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
         run: >-
           bun run review:adjudicate
           --sweep
@@ -257,7 +262,7 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          REVIEW_MODEL: deepseek/deepseek-v4-flash
+          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
+          REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
         run: bun run review --pr "${PR_NUMBER}" --repo-root "${GITHUB_WORKSPACE}/pr" --post
         timeout-minutes: 45

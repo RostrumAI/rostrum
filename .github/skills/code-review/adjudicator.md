@@ -59,9 +59,15 @@ Reply with a single JSON object and nothing else: no prose, no fence, no greetin
 }
 ```
 
-`reason` is what the person will read, so it has to be worth reading: two or three sentences that say
-what you checked and what decided it. Name the file and the line. If you are withdrawing, say what
-you got wrong. If you are standing, say what the reply did not address.
+`reason` is what the person will read. The reply it becomes already announces the decision in its
+heading, so the reason carries the evidence and nothing else:
 
-Do not restate the original finding. Do not apologise at length. Do not add a second finding: this
-thread is about one finding, and a new problem belongs in a new review.
+- Open with what you checked: the file, the line, and the code you read there.
+- Then say what decided it — the code still does X, or the reply is right that Y is handled elsewhere.
+- Two or three sentences. Do not restate the original finding, do not explain what the file or module
+  is for, and do not explain the rule at length: the reader has the finding and the rule in front of
+  them already.
+- Write for a junior engineer who knows Rostrum but not this module. Plain words, short sentences, and
+  the concrete function, field, or status code named. Simpler words, not a weaker claim.
+- Do not apologize at length. Do not add a second finding: this thread is about one finding, and a new
+  problem belongs in a new review.

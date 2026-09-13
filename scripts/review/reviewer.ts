@@ -16,8 +16,47 @@ import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
 /** Environment variable naming the reviewer executable. */
 export const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
 
-/** Environment variable holding the reviewer provider's API key. */
-export const API_KEY_ENV = "DEEPSEEK_API_KEY";
+/**
+ * Environment variable holding the reviewer provider's API key.
+ *
+ * The reviewer runs on CommandCode's GOAT plan gateway, so the key is a
+ * CommandCode account key rather than a provider key for one upstream vendor.
+ */
+export const API_KEY_ENV = "COMMANDCODE_API_KEY";
+
+/** Environment variable naming the agent directory the runtime reads. */
+const AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
+
+/**
+ * The provider block the reviewer's runtime is given.
+ *
+ * The reviewer runs with a private agent directory holding this block and
+ * nothing else, so the model it calls and the key it presents are the ones this
+ * pipeline configured rather than whatever the machine running it happens to
+ * have stored. `apiKey` names an environment variable, which the runtime
+ * resolves at startup; the model entries mirror the gateway's own catalogue, and
+ * the model ids are the ones `REVIEW_MODEL` may select.
+ */
+const PROVIDER_CONFIG = `providers:
+  commandcode:
+    baseUrl: https://api.commandcode.ai/provider/v1
+    api: openai-completions
+    apiKey: ${API_KEY_ENV}
+    models:
+      - id: deepseek/deepseek-v4-flash
+        name: DeepSeek V4 Flash
+        reasoning: true
+        input: [text]
+      - id: deepseek/deepseek-v4.1-flash
+        name: DeepSeek V4.1 Flash
+        reasoning: true
+        input: [text, image]
+        contextWindow: 1000000
+      - id: deepseek/deepseek-v4-pro
+        name: DeepSeek V4 Pro
+        reasoning: true
+        input: [text]
+`;
 
 /** Default thinking effort when a lens has no entry in the per-lens table. */
 const DEFAULT_THINKING = "high";
@@ -31,7 +70,7 @@ const DEFAULT_THINKING = "high";
 const MECHANICAL_FINDINGS_IN_PROMPT = 40;
 
 /** Default model for every lens. */
-export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
+export const DEFAULT_MODEL = "commandcode/deepseek/deepseek-v4.1-flash";
 
 /**
  * Default wall-clock ceiling for one reviewer run, in seconds.
@@ -73,6 +112,8 @@ export interface LensResult {
 export interface AgentInvocation {
     /** Command and arguments, or null when the invocation cannot be built. */
     command: string[] | null;
+    /** Environment variables the child process needs beyond the inherited ones. */
+    env: Record<string, string>;
     /** Why the invocation cannot be built, empty when it can. */
     reason: string;
 }
@@ -84,6 +125,10 @@ export interface AgentInvocation {
  * headless agent with the same tool set and the same key handling. Building the
  * command in one place is what keeps them from drifting apart, and what keeps
  * the key override in a single spot.
+ *
+ * The agent is pointed at a private directory holding only the provider block
+ * this pipeline configures, so a run cannot pick up a credential, a provider
+ * route, or a setting stored on the machine it happens to execute on.
  *
  * @param workingDirectory - Checkout the agent reads.
  * @param model - Model selector to run.
@@ -110,11 +155,16 @@ export async function resolveOmpInvocation(
     if (!available) {
         return {
             command: null,
+            env: {},
             reason: `reviewer runtime "${binary}" is not on PATH; install @oh-my-pi/pi-coding-agent`,
         };
     }
+    const agentDirectory = `${promptDirectory}/agent-${promptName}`;
     const systemPromptPath = `${promptDirectory}/system-${promptName}.md`;
-    await Bun.write(systemPromptPath, systemPrompt);
+    await Promise.all([
+        Bun.write(systemPromptPath, systemPrompt),
+        Bun.write(`${agentDirectory}/models.yml`, PROVIDER_CONFIG),
+    ]);
     const command = [
         binary,
         "-p",
@@ -143,7 +193,7 @@ export async function resolveOmpInvocation(
     if (apiKey !== undefined && apiKey.length > 0) {
         command.splice(1, 0, "--api-key", apiKey);
     }
-    return { command, reason: "" };
+    return { command, env: { [AGENT_DIR_ENV]: agentDirectory }, reason: "" };
 }
 
 /**
@@ -153,18 +203,22 @@ export async function resolveOmpInvocation(
  * gets the chance to stop itself and report why, and the kill only catches a run
  * that has stopped responding altogether.
  *
- * @param command - Command produced by {@link resolveOmpInvocation}.
+ * @param invocation - Invocation produced by {@link resolveOmpInvocation}.
  * @param timeoutSeconds - The same ceiling the command was built with.
  * @returns Exit code and captured output; a killed run reports code 124.
  */
 export async function runAgent(
-    command: string[],
+    invocation: AgentInvocation,
     timeoutSeconds: number,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    if (invocation.command === null) {
+        return { exitCode: 1, stdout: "", stderr: invocation.reason };
+    }
     return raceWithTimeout(
-        command,
+        invocation.command,
         timeoutSeconds + AGENT_HARD_KILL_MARGIN_SECONDS,
-        workingDirectoryOf(command),
+        workingDirectoryOf(invocation.command),
+        invocation.env,
     );
 }
 
@@ -239,7 +293,7 @@ export async function runLens(
         return { lens, findings: [], error: invocation.reason };
     }
 
-    const result = await runAgent(invocation.command, options.timeoutSeconds);
+    const result = await runAgent(invocation, options.timeoutSeconds);
     if (result.exitCode !== 0) {
         // A failed run prints progress before the failure, so the cause is at the
         // end of stderr rather than the beginning.
@@ -375,19 +429,21 @@ function describeChange(file: FileDiff): string {
  * @param command - Executable and arguments.
  * @param timeoutSeconds - Seconds to wait before killing the process.
  * @param cwd - Working directory for the child.
+ * @param extraEnv - Variables the child needs beyond the inherited environment.
  * @returns Exit code and captured output; a killed process reports code 124.
  */
 async function raceWithTimeout(
     command: string[],
     timeoutSeconds: number,
     cwd: string,
+    extraEnv: Record<string, string> = {},
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     const child = Bun.spawn(command, {
         cwd,
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",
-        env: { ...process.env },
+        env: { ...process.env, ...extraEnv },
     });
     const stdoutPromise = new Response(child.stdout).text();
     const stderrPromise = new Response(child.stderr).text();
@@ -506,16 +562,26 @@ export function normalizeFindings(payload: unknown, lens: Lens, context: ReviewC
 }
 
 /**
- * Maps a reported severity onto the three the pipeline understands.
+ * Maps a reported severity onto the five the pipeline understands.
+ *
+ * A reviewer that names a level outside the scale is treated as reporting a
+ * problem it could not grade, which is a `medium`: reported, but not something
+ * the pipeline will rank above a real defect.
  *
  * @param value - Severity as returned by the reviewer.
- * @returns A valid severity, defaulting to `major`.
+ * @returns A valid severity, defaulting to `medium`.
  */
 function normalizeSeverity(value: unknown): Finding["severity"] {
-    if (value === "blocking" || value === "major" || value === "minor") {
+    if (
+        value === "critical" ||
+        value === "high" ||
+        value === "medium" ||
+        value === "low" ||
+        value === "informational"
+    ) {
         return value;
     }
-    return "major";
+    return "medium";
 }
 
 /**

@@ -23,13 +23,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { numericOption } from "./config.ts";
 import {
+    ADJUDICATING_MARKER,
     COMMENT_MARKER,
+    createReviewReply,
+    editReviewComment,
     fetchPullRequest,
     fetchReviewComments,
     fetchReviewThreads,
     hasWriteAccess,
+    type ReviewComment,
     type ReviewThread,
-    replyToReviewComment,
     resolveRepository,
 } from "./github.ts";
 import {
@@ -40,7 +43,12 @@ import {
     runAgent,
 } from "./reviewer.ts";
 import type { PullRequestRef } from "./types.ts";
-import { parseVerdict, renderVerdictMarker, type Verdict } from "./verdicts.ts";
+import {
+    parseVerdict,
+    renderDecisionTitle,
+    renderVerdictMarker,
+    type Verdict,
+} from "./verdicts.ts";
 
 /**
  * Default reviewer replies allowed in one thread before it is left to a human.
@@ -72,7 +80,8 @@ export interface AdjudicationOutcome {
 /**
  * Adjudicates the thread containing a newly created review comment.
  *
- * @param options - Comment id, thread id, comment body, and the actor's association.
+ * @param options - Comment id, thread id, comment body, the actor's association, and any placeholder
+ *   a previous run already posted for this reply.
  * @param cwd - Repository root the tooling runs from.
  * @returns What the pipeline did.
  */
@@ -84,10 +93,14 @@ export async function adjudicateReply(
         commentAuthor: string;
         pullRequest: number;
         reviewRoot: string;
+        placeholderCommentId?: number;
     },
     cwd: string,
 ): Promise<AdjudicationOutcome> {
-    if (options.commentBody.includes(COMMENT_MARKER)) {
+    if (
+        options.commentBody.includes(COMMENT_MARKER) ||
+        options.commentBody.includes(ADJUDICATING_MARKER)
+    ) {
         // The reviewer's own comment: replying to it would loop.
         return { action: "skipped", detail: "comment was written by the reviewer" };
     }
@@ -127,6 +140,13 @@ export async function adjudicateReply(
         return { action: "ignored", detail: "thread carries no reviewer finding" };
     }
 
+    // The placeholder goes up before the reviewer reads anything, so a maintainer
+    // sees that an answer is coming instead of silence. The run then edits that
+    // comment into the decision, which keeps one disposition attempt to one reply
+    // and lets a run that died mid-adjudication be retried into the same comment.
+    const placeholderId =
+        options.placeholderCommentId ??
+        (await createReviewReply(ref, findingComment.id, renderAdjudicatingReply()));
     const metadata = await fetchPullRequest(ref);
     const scratch = await mkdtemp(join(tmpdir(), "rostrum-adjudicate-"));
     const invocation = await resolveOmpInvocation(
@@ -146,11 +166,17 @@ export async function adjudicateReply(
         agentTimeoutSeconds(),
     );
     if (invocation.command === null) {
+        await editReviewComment(ref, placeholderId, renderAdjudicationFailure(invocation.reason));
         return { action: "skipped", detail: invocation.reason };
     }
 
-    const result = await runAgent(invocation.command, agentTimeoutSeconds());
+    const result = await runAgent(invocation, agentTimeoutSeconds());
     if (result.exitCode !== 0) {
+        await editReviewComment(
+            ref,
+            placeholderId,
+            renderAdjudicationFailure(`the reviewer exited with code ${result.exitCode}`),
+        );
         return { action: "skipped", detail: `adjudicator failed: ${result.stderr.slice(-300)}` };
     }
 
@@ -158,11 +184,7 @@ export async function adjudicateReply(
         // First reply past the budget: say so, and leave the decision to a person.
         // Without this the reviewer simply stops answering, which reads as having
         // ignored the last reply rather than as having handed it over.
-        await replyToReviewComment(
-            ref,
-            findingComment.id,
-            renderBudgetExhaustedReply(maxAdjudications),
-        );
+        await editReviewComment(ref, placeholderId, renderBudgetExhaustedReply(maxAdjudications));
         return {
             action: "needs_human",
             detail: `reached ${maxAdjudications} reviewer replies; handed to a person`,
@@ -172,11 +194,16 @@ export async function adjudicateReply(
     const payload = extractJsonObject(result.stdout);
     const verdict = readVerdict(payload);
     if (verdict === null) {
+        await editReviewComment(
+            ref,
+            placeholderId,
+            renderAdjudicationFailure("the reviewer produced no usable verdict"),
+        );
         return { action: "skipped", detail: `no usable verdict in: ${result.stdout.slice(-300)}` };
     }
     const reason = readReason(payload);
 
-    await replyToReviewComment(ref, findingComment.id, renderAdjudicationReply(verdict, reason));
+    await editReviewComment(ref, placeholderId, renderAdjudicationReply(verdict, reason));
     if (NON_WITHDRAWING.includes(verdict)) {
         return {
             action: verdict === "needs_human" ? "needs_human" : "stood",
@@ -252,7 +279,7 @@ export async function adjudicateUnansweredThreads(
     const outcomes: AdjudicationOutcome[] = [];
     const skipped: string[] = [];
     for (const thread of threads) {
-        const pending = lastMaintainerComment(thread);
+        const pending = pendingDisposition(thread);
         if (pending === null) {
             skipped.push(`${thread.path}:${thread.line ?? "?"} — ${skipReason(thread)}`);
             continue;
@@ -260,12 +287,13 @@ export async function adjudicateUnansweredThreads(
         outcomes.push(
             await adjudicateReply(
                 {
-                    commentId: pending.id,
-                    commentBody: pending.body,
-                    commentAssociation: pending.authorAssociation,
-                    commentAuthor: pending.author,
+                    commentId: pending.reply.id,
+                    commentBody: pending.reply.body,
+                    commentAssociation: pending.reply.authorAssociation,
+                    commentAuthor: pending.reply.author,
                     pullRequest: options.pullRequest,
                     reviewRoot: options.reviewRoot,
+                    placeholderCommentId: pending.placeholderId ?? undefined,
                 },
                 cwd,
             ),
@@ -310,17 +338,74 @@ function skipReason(thread: ReviewThread): string {
 }
 
 /**
+ * A maintainer's reply the reviewer owes an answer, with any placeholder already posted for it.
+ */
+export interface PendingDisposition {
+    /** The comment to answer. */
+    reply: {
+        id: number;
+        body: string;
+        author: string;
+        authorAssociation: string;
+    };
+    /**
+     * Placeholder a previous run posted for this reply and never replaced.
+     *
+     * A run that was killed between posting the placeholder and answering it
+     * leaves the thread looking answered, so the retry edits that comment rather
+     * than posting a second one beside it.
+     */
+    placeholderId: number | null;
+}
+
+/**
+ * Reports whether a comment was written by the reviewer rather than by a person.
+ *
+ * The reviewer writes three kinds of comment into a thread: the finding, the
+ * reply carrying a verdict, and the placeholder posted before it decides. All
+ * three leave the next move with a person.
+ *
+ * @param body - Comment body.
+ * @returns True when the reviewer wrote the comment.
+ */
+function isReviewerComment(body: string): boolean {
+    return (
+        body.includes(COMMENT_MARKER) ||
+        body.includes(ADJUDICATING_MARKER) ||
+        parseVerdict(body) !== null
+    );
+}
+
+/**
+ * Finds the last comment in a thread the reviewer wrote.
+ *
+ * @param comments - Comments to search, oldest first.
+ * @returns The index of that comment, or -1 when the reviewer wrote none.
+ */
+function lastReviewerIndex(comments: ReviewComment[]): number {
+    let found = -1;
+    for (const [index, comment] of comments.entries()) {
+        if (isReviewerComment(comment.body)) {
+            found = index;
+        }
+    }
+    return found;
+}
+
+/**
  * Finds the maintainer comment a thread is waiting on an answer for.
  *
+ * The last word decides it: a thread whose most recent comment is the
+ * reviewer's — a finding, a verdict, or a placeholder — is not waiting on
+ * itself. Permission is checked when the comment is acted on, not here, so a
+ * person's ability to disposition a finding is decided by what they can do on
+ * the repository rather than by how the comment was labelled.
+ *
  * @param thread - Review thread to inspect.
- * @returns The comment to answer, or null when the reviewer spoke last.
+ * @returns The reply to answer and any placeholder left from an earlier attempt,
+ *   or null when the reviewer spoke last.
  */
-function lastMaintainerComment(thread: ReviewThread): {
-    id: number;
-    body: string;
-    author: string;
-    authorAssociation: string;
-} | null {
+export function pendingDisposition(thread: ReviewThread): PendingDisposition | null {
     const findingIndex = thread.comments.findIndex((comment) =>
         comment.body.includes(COMMENT_MARKER),
     );
@@ -328,25 +413,23 @@ function lastMaintainerComment(thread: ReviewThread): {
         return null;
     }
     const after = thread.comments.slice(findingIndex + 1);
-    const lastReviewer = after.reduce(
-        (latest, comment, index) => (comment.body.includes(COMMENT_MARKER) ? index : latest),
-        -1,
-    );
-    // Permission is checked when the comment is acted on, not here, so that a
-    // person's ability to disposition a finding is decided by what they can do
-    // on the repository rather than by how the comment was labelled.
-    const unanswered = after.slice(lastReviewer + 1).filter((comment) => {
-        return !comment.body.includes(COMMENT_MARKER);
-    });
-    const candidate = unanswered[0];
+    const lastReviewer = lastReviewerIndex(after);
+    const tail = lastReviewer === -1 ? undefined : after[lastReviewer];
+    const placeholderId = tail?.body.includes(ADJUDICATING_MARKER) ? tail.id : null;
+    const settled =
+        placeholderId === null ? lastReviewer : lastReviewerIndex(after.slice(0, lastReviewer));
+    const candidate = after.slice(settled + 1).find((comment) => !isReviewerComment(comment.body));
     if (candidate === undefined) {
         return null;
     }
     return {
-        id: candidate.id,
-        body: candidate.body,
-        author: candidate.author,
-        authorAssociation: candidate.authorAssociation,
+        reply: {
+            id: candidate.id,
+            body: candidate.body,
+            author: candidate.author,
+            authorAssociation: candidate.authorAssociation,
+        },
+        placeholderId,
     };
 }
 
@@ -423,6 +506,39 @@ function readReason(payload: unknown): string {
 }
 
 /**
+ * Renders the placeholder posted while a finding is being adjudicated.
+ *
+ * It is replaced by the decision once the reviewer answers, so it stays as short
+ * as possible: a marker that says a run owns this comment, and a sentence for the
+ * maintainer who is watching the thread.
+ *
+ * @returns Comment body carrying the adjudicating marker.
+ */
+export function renderAdjudicatingReply(): string {
+    return [ADJUDICATING_MARKER, "", "Adjudicating..."].join("\n");
+}
+
+/**
+ * Renders the reply shown when the adjudication could not be completed.
+ *
+ * The verdict is stated as not adjudicated rather than left pending, so the
+ * thread reads as unfinished instead of as decided. It keeps the adjudicating
+ * marker, so a later sweep can retry the same reply into this same comment.
+ *
+ * @param detail - Why the adjudication could not finish.
+ * @returns Comment body carrying the adjudicating marker.
+ */
+export function renderAdjudicationFailure(detail: string): string {
+    return [
+        ADJUDICATING_MARKER,
+        "",
+        "## DECISION: NOT ADJUDICATED",
+        "",
+        `The reviewer could not decide this one: ${detail}. Nothing about the finding has changed, so it is still open and still needs an answer.`,
+    ].join("\n");
+}
+
+/**
  * Renders the reply that ends the reviewer's side of a thread.
  *
  * It records a `needs_human` verdict, so the thread is left open and the finding
@@ -430,24 +546,36 @@ function readReason(payload: unknown): string {
  * withdrawing it.
  *
  * @param budget - Number of replies the reviewer was allowed.
- * @returns Comment body including the verdict marker.
+ * @returns Comment body including the verdict marker and the decision heading.
  */
 export function renderBudgetExhaustedReply(budget: number): string {
     return [
         renderVerdictMarker("needs_human"),
+        "",
+        `## ${renderDecisionTitle("needs_human")}`,
+        "",
         `I have answered ${budget} times on this finding and have nothing further to add without repeating myself. Leaving this to a person to decide.`,
-    ].join("\n\n");
+    ].join("\n");
 }
 
 /**
  * Renders the reviewer's reply to a disposition attempt.
  *
+ * The decision is stated in a heading above the reasoning, so what happened is
+ * readable before the paragraph that explains it.
+ *
  * @param verdict - Verdict reached.
  * @param reason - Explanation to carry.
- * @returns Comment body including the verdict marker.
+ * @returns Comment body including the verdict marker and the decision heading.
  */
 function renderAdjudicationReply(verdict: Verdict, reason: string): string {
-    return [renderVerdictMarker(verdict), reason].join("\n\n");
+    return [
+        renderVerdictMarker(verdict),
+        "",
+        `## ${renderDecisionTitle(verdict)}`,
+        "",
+        reason,
+    ].join("\n");
 }
 
 /**

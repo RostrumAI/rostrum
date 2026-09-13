@@ -12,7 +12,19 @@
 import { COMMENT_MARKER, type DraftComment, SUMMARY_MARKER } from "./github.ts";
 import { countBySeverity } from "./merge.ts";
 import type { LensResult } from "./reviewer.ts";
-import type { Finding, ReviewContext } from "./types.ts";
+import { type Finding, isBlocking, type ReviewContext, type Severity } from "./types.ts";
+
+/** Severity names as they are written in a comment. */
+const SEVERITY_LABELS: Record<Severity, string> = {
+    critical: "Critical",
+    high: "High",
+    medium: "Medium",
+    low: "Low",
+    informational: "Informational",
+};
+
+/** Severities in the order the report lists them. */
+const SEVERITY_ORDER: readonly Severity[] = ["critical", "high", "medium", "low", "informational"];
 
 /**
  * Renders a finding as a review comment.
@@ -23,7 +35,9 @@ import type { Finding, ReviewContext } from "./types.ts";
 export function renderComment(finding: Finding): string {
     const lines = [
         COMMENT_MARKER,
-        `**\`${finding.ruleId}\` · ${finding.severity}** — ${finding.title}`,
+        `**\`${finding.ruleId}\` · ${SEVERITY_LABELS[finding.severity]}${
+            isBlocking(finding.severity) ? " · BLOCKING" : ""
+        }** — ${finding.title}`,
         "",
         finding.body,
     ];
@@ -91,7 +105,7 @@ export function renderSummary(
         lines.push("", "| Severity | Rule | Location | Finding |", "| --- | --- | --- | --- |");
         for (const finding of findings) {
             lines.push(
-                `| ${finding.severity} | \`${finding.ruleId}\` | \`${finding.path}:${finding.line}\` | ${escapeCell(
+                `| ${SEVERITY_LABELS[finding.severity]}${isBlocking(finding.severity) ? " (BLOCKING)" : ""} | \`${finding.ruleId}\` | \`${finding.path}:${finding.line}\` | ${escapeCell(
                     finding.title,
                 )} |`,
             );
@@ -126,8 +140,9 @@ export function renderSummary(
 
     lines.push(
         "",
-        "<sub>Advisory review; it does not block merging. Push a new commit to re-review, or comment ",
-        "`/rescan` to re-run against the same commit. Resolved threads are never reopened.</sub>",
+        "<sub>Findings marked BLOCKING are the ones to fix before this merges; the rest are worth ",
+        "doing but do not hold it up. Push a new commit to re-review, or comment `/rescan` to re-run ",
+        "against the same commit. Resolved threads are never reopened.</sub>",
     );
     return lines.join("\n");
 }
@@ -135,17 +150,43 @@ export function renderSummary(
 /**
  * States the finding counts in one phrase.
  *
+ * Blocking findings are counted first because they are the ones the author has
+ * to act on; the per-severity breakdown follows so the phrase still says what
+ * kind of work each one is.
+ *
  * @param counts - Counts keyed by severity.
- * @returns A phrase such as `2 blocking, 1 major`.
+ * @returns A phrase such as `2 blocking (1 critical, 1 medium), 1 non-blocking (1 low)`.
  */
-function summarizeCounts(counts: { blocking: number; major: number; minor: number }): string {
-    const parts: string[] = [];
-    for (const [severity, count] of Object.entries(counts)) {
-        if (count > 0) {
-            parts.push(`${count} ${severity}`);
-        }
+function summarizeCounts(counts: Record<Severity, number>): string {
+    const blocking = counts.critical + counts.high + counts.medium;
+    const nonBlocking = counts.low + counts.informational;
+    if (blocking === 0 && nonBlocking === 0) {
+        return "No findings.";
     }
-    return parts.length === 0 ? "No findings." : `${parts.join(", ")}.`;
+    const parts: string[] = [];
+    if (blocking > 0) {
+        parts.push(`${blocking} blocking (${breakdown(counts, "blocking")})`);
+    }
+    if (nonBlocking > 0) {
+        parts.push(`${nonBlocking} non-blocking (${breakdown(counts, "non-blocking")})`);
+    }
+    return `${parts.join(", ")}.`;
+}
+
+/**
+ * Lists the non-zero severities within one half of the scale.
+ *
+ * @param counts - Counts keyed by severity.
+ * @param half - Which half of the scale to describe.
+ * @returns Severity names with their counts, such as `1 critical, 1 medium`.
+ */
+function breakdown(counts: Record<Severity, number>, half: "blocking" | "non-blocking"): string {
+    return SEVERITY_ORDER.filter((severity) =>
+        half === "blocking" ? isBlocking(severity) : !isBlocking(severity),
+    )
+        .filter((severity) => counts[severity] > 0)
+        .map((severity) => `${counts[severity]} ${SEVERITY_LABELS[severity].toLowerCase()}`)
+        .join(", ");
 }
 
 /**

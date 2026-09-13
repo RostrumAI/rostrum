@@ -12,15 +12,22 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { countReviewerReplies, renderBudgetExhaustedReply } from "./adjudicate.ts";
-import type { ReviewThread } from "./github.ts";
+import {
+    countReviewerReplies,
+    pendingDisposition,
+    renderAdjudicatingReply,
+    renderAdjudicationFailure,
+    renderBudgetExhaustedReply,
+} from "./adjudicate.ts";
+import { ADJUDICATING_MARKER, type ReviewThread } from "./github.ts";
 import {
     aggregateByRule,
     type FindingOutcome,
     proposeRuleChanges,
     type RuleRecord,
 } from "./retro.ts";
-import { isWithdrawn, parseVerdict, renderVerdictMarker } from "./verdicts.ts";
+import type { Severity } from "./types.ts";
+import { isWithdrawn, parseVerdict, renderDecisionTitle, renderVerdictMarker } from "./verdicts.ts";
 
 /** Builds an outcome for a rule with the given verdicts. */
 function outcomesFor(ruleId: string, verdicts: FindingOutcome["verdict"][]): FindingOutcome[] {
@@ -80,28 +87,28 @@ describe("verdict markers", () => {
     });
 });
 
-describe("reply budget", () => {
-    /** Builds a thread from a list of comment bodies. */
-    function threadOf(bodies: string[]): ReviewThread {
-        return {
-            id: "t1",
-            isResolved: false,
-            isOutdated: false,
-            path: "apps/control-api/src/thing.ts",
-            line: 2,
-            comments: bodies.map((body, index) => ({
-                id: index + 1,
-                author: index === 0 ? "github-actions[bot]" : "someone",
-                authorAssociation: "MEMBER",
-                body,
-                line: null,
-            })),
-        };
-    }
+/** Builds a thread from a list of comment bodies. */
+function threadOf(bodies: string[]): ReviewThread {
+    return {
+        id: "t1",
+        isResolved: false,
+        isOutdated: false,
+        path: "apps/control-api/src/thing.ts",
+        line: 2,
+        comments: bodies.map((body, index) => ({
+            id: index + 1,
+            author: index === 0 ? "github-actions[bot]" : "someone",
+            authorAssociation: "MEMBER",
+            body,
+            line: null,
+        })),
+    };
+}
 
+describe("reply budget", () => {
     test("counts reviewer verdicts, not the human replies they answer", () => {
         const thread = threadOf([
-            "<!-- rostrum-code-review -->\n**`REPO-A-01` · major** — thing",
+            "<!-- rostrum-code-review -->\n**`REPO-A-01` · Low** — thing",
             "I disagree with this.",
             renderVerdictMarker("stands"),
             "I still disagree.",
@@ -120,6 +127,62 @@ describe("reply budget", () => {
         const verdict = parseVerdict(renderBudgetExhaustedReply(3));
         expect(verdict).toBe("needs_human");
         expect(verdict !== null && isWithdrawn(verdict)).toBe(false);
+    });
+
+    test("the closing reply states the decision as a heading", () => {
+        expect(renderBudgetExhaustedReply(3)).toContain("## DECISION: NEEDS HUMAN");
+    });
+});
+
+describe("decision headings", () => {
+    test("names each verdict so the outcome reads before the reasoning", () => {
+        expect(renderDecisionTitle("stands")).toBe("DECISION: ISSUE STANDS");
+        expect(renderDecisionTitle("needs_human")).toBe("DECISION: NEEDS HUMAN");
+        expect(renderDecisionTitle("refuted")).toContain("RESOLVED");
+        expect(renderDecisionTitle("intentional")).toContain("RESOLVED");
+        expect(renderDecisionTitle("code_changed")).toContain("RESOLVED");
+    });
+});
+
+describe("adjudication placeholder", () => {
+    test("is a reviewer comment that records no verdict", () => {
+        expect(renderAdjudicatingReply()).toContain(ADJUDICATING_MARKER);
+        // Suppression reads a verdict as a disposition of the finding. The
+        // placeholder has decided nothing, so it must not parse as one, or a
+        // rescan would treat a finding as answered the moment a reply arrived.
+        expect(parseVerdict(renderAdjudicatingReply())).toBeNull();
+        expect(parseVerdict(renderAdjudicationFailure("the reviewer timed out"))).toBeNull();
+    });
+
+    test("a placeholder left by a run that died is retried into that same comment", () => {
+        const thread = threadOf([
+            "<!-- rostrum-code-review -->\n**`REPO-A-01` · Low** — thing",
+            "I disagree with this.",
+            renderAdjudicatingReply(),
+        ]);
+        const pending = pendingDisposition(thread);
+        expect(pending?.reply.body).toBe("I disagree with this.");
+        expect(pending?.placeholderId).toBe(thread.comments[2]?.id);
+    });
+
+    test("a reply already answered is not answered again", () => {
+        const thread = threadOf([
+            "<!-- rostrum-code-review -->\n**`REPO-A-01` · Low** — thing",
+            "I disagree with this.",
+            `${renderVerdictMarker("stands")}\n\n## DECISION: ISSUE STANDS\n\nRe-read the file.`,
+        ]);
+        expect(pendingDisposition(thread)).toBeNull();
+    });
+
+    test("a fresh reply about a thread the reviewer already answered is pending", () => {
+        const thread = threadOf([
+            "<!-- rostrum-code-review -->\n**`REPO-A-01` · Low** — thing",
+            "I disagree with this.",
+            renderVerdictMarker("stands"),
+            "I still disagree, and here is why.",
+        ]);
+        expect(pendingDisposition(thread)?.reply.body).toBe("I still disagree, and here is why.");
+        expect(pendingDisposition(thread)?.placeholderId).toBeNull();
     });
 });
 
@@ -160,9 +223,9 @@ describe("outcome aggregation", () => {
 });
 
 describe("rule proposals", () => {
-    const severities = new Map([
-        ["REPO-A-01", "major"],
-        ["REPO-B-01", "blocking"],
+    const severities = new Map<string, Severity>([
+        ["REPO-A-01", "low"],
+        ["REPO-B-01", "high"],
     ]);
 
     test("proposes nothing from too few observations", () => {

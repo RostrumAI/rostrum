@@ -24,7 +24,13 @@ const PER_RULE_PATH_CAP = 5;
 const RULE_ID_PATTERN = /\*\*`([A-Z][A-Z0-9-]*)`/;
 
 /** Severity ranking used when ordering the report. */
-const SEVERITY_ORDER: Record<Severity, number> = { blocking: 0, major: 1, minor: 2 };
+const SEVERITY_ORDER: Record<Severity, number> = {
+    critical: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+    informational: 4,
+};
 
 /** A finding already posted and answered, keyed by the rule and path it cited. */
 interface AnsweredFinding {
@@ -301,7 +307,13 @@ export function sortFindings(findings: Finding[]): Finding[] {
  * @returns Counts keyed by severity.
  */
 export function countBySeverity(findings: Finding[]): Record<Severity, number> {
-    const counts: Record<Severity, number> = { blocking: 0, major: 0, minor: 0 };
+    const counts: Record<Severity, number> = {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        informational: 0,
+    };
     for (const finding of findings) {
         counts[finding.severity] += 1;
     }

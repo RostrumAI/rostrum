@@ -55,7 +55,7 @@ import {
     findUnjustifiedDependencyChange,
     runRuleChecks,
 } from "./rules.ts";
-import type { Finding, PullRequestRef, ReviewContext } from "./types.ts";
+import { type Finding, isBlocking, type PullRequestRef, type ReviewContext } from "./types.ts";
 
 /** Minimum confidence a model finding needs before it is posted. */
 const DEFAULT_CONFIDENCE_FLOOR = 80;
@@ -174,7 +174,7 @@ async function main(): Promise<number> {
 
     const deterministic = [
         ...(await runRuleChecks(context)),
-        ...findUncoveredSourceFiles(context),
+        ...(await findUncoveredSourceFiles(context)),
         ...findUnjustifiedDependencyChange(context),
     ];
     context.ruleFindings = deterministic;
@@ -347,11 +347,11 @@ function anchorFindings(findings: Finding[], context: ReviewContext): Finding[] 
  * @returns Review body text.
  */
 function reviewBody(findings: Finding[]): string {
-    const blocking = findings.filter((finding) => finding.severity === "blocking").length;
+    const blocking = findings.filter((finding) => isBlocking(finding.severity)).length;
     return [
         `Automated review: ${findings.length} finding${findings.length === 1 ? "" : "s"}${
             blocking > 0 ? `, ${blocking} blocking` : ""
-        }. See the summary comment for the full list. Findings are advisory; this review does not block merging.`,
+        }. See the summary comment for the full list. Findings marked BLOCKING must be fixed or dispositioned before merging; the rest do not hold up the change.`,
     ].join("\n");
 }
 
