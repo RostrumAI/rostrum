@@ -1,7 +1,9 @@
+/** @fileoverview Control API process-liveness feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { Type } from "typebox";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 
 /**
  * Response body of the health check: a liveness token only, so the route
@@ -29,6 +31,6 @@ export const schema: FeatureSchemas = { Health: HealthSchema };
  * integration harness confirm the process is up and serving requests.
  */
 export const createHandler =
-    (_services: Services): FeatureHandler =>
+    (_getServices: ServiceAccessor): FeatureHandler =>
     (c: Context) =>
         c.json({ status: "ok" as const });

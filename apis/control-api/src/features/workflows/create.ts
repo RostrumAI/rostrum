@@ -1,7 +1,9 @@
+/** @fileoverview Workflow draft-creation feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import { workflowErrorResponse } from "../../workflows/errors";
 import { readRequestBody } from "../../workflows/request-body";
 import { revisionResponse, WorkflowRevisionSchema } from "../../workflows/schemas";
@@ -48,11 +50,11 @@ export const schema: FeatureSchemas = {
  * first revision with its validation findings snapshot.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const { request, documentText } = await readRequestBody(c, CreateDraftRequestSchema);
-            const created = await services.workflows.createDraft(
+            const created = await getServices(c).workflows.createDraft(
                 documentText,
                 request.name ?? null,
             );

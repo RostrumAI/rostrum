@@ -1,8 +1,10 @@
+/** @fileoverview Immutable workflow publication retrieval feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import type { Static } from "typebox";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import { WorkflowApiError, workflowErrorResponse, workflowNotFound } from "../../workflows/errors";
 import {
     PublicationNumberSchema,
@@ -54,13 +56,13 @@ export const schema: FeatureSchemas = {
  * the documented parameter schema, which answers 400 before the handler.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
             const raw = c.req.param("publicationNumber") ?? "";
             const publicationNumber = Number.parseInt(raw, 10);
-            const publication = await services.workflows.getPublication(
+            const publication = await getServices(c).workflows.getPublication(
                 workflowId,
                 publicationNumber,
             );

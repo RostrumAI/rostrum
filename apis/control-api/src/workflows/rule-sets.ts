@@ -1,3 +1,5 @@
+/** @fileoverview Workflow format rule-set registry used by the Control API. */
+
 import { V1_RULE_SET, WorkflowFormatRegistry, WorkflowValidator } from "@rostrum/workflow";
 
 /**
@@ -7,7 +9,7 @@ import { V1_RULE_SET, WorkflowFormatRegistry, WorkflowValidator } from "@rostrum
  * rule selection: when a second format version ships, the workflow
  * store's verification (`getPublication`) must select its rule set
  * from the stored `workflow_format_version` through this registry, instead of
- * the single default preparer `createWorkflowDatabase` constructs. No
+ * the single default preparer `WorkflowService.create` constructs. No
  * storage change is needed while v1 is the only supported version.
  */
 export const RULE_SET_REGISTRY = new WorkflowFormatRegistry([V1_RULE_SET]);

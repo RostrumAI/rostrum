@@ -1,7 +1,9 @@
+/** @fileoverview Current workflow draft retrieval feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import { WorkflowApiError, workflowErrorResponse, workflowNotFound } from "../../workflows/errors";
 import {
     revisionResponse,
@@ -42,11 +44,11 @@ export const schema: FeatureSchemas = {
  * a client reads.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
-            const revision = await services.workflows.getCurrentRevision(workflowId);
+            const revision = await getServices(c).workflows.getCurrentRevision(workflowId);
             if (!revision) {
                 throw new WorkflowApiError(
                     workflowNotFound(`Workflow ${workflowId} does not exist`),

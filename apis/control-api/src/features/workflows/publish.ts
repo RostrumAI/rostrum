@@ -1,8 +1,10 @@
+/** @fileoverview Workflow publication feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import type { Static } from "typebox";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import {
     WorkflowApiError,
     workflowErrorResponse,
@@ -60,11 +62,11 @@ export const schema: FeatureSchemas = {
  * stores the canonical text with its digest under the next publication number.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
-            const result = await services.workflows.publish(workflowId);
+            const result = await getServices(c).workflows.publish(workflowId);
             switch (result.outcome) {
                 case "published":
                 case "already-published": {

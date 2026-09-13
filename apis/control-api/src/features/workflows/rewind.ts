@@ -1,7 +1,9 @@
+/** @fileoverview Workflow draft rewind feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import {
     WorkflowApiError,
     workflowErrorResponse,
@@ -68,12 +70,15 @@ export const schema: FeatureSchemas = {
  * revision is a no-op that still answers with that revision.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
             const request = await readValidatedBody(c, RewindRequestSchema);
-            const result = await services.workflows.rewind(workflowId, request.targetRevisionId);
+            const result = await getServices(c).workflows.rewind(
+                workflowId,
+                request.targetRevisionId,
+            );
             switch (result.outcome) {
                 case "rewound":
                 case "no-op":
