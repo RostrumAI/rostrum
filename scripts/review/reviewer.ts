@@ -513,6 +513,25 @@ export function extractJsonObject(text: string): unknown {
 }
 
 /**
+ * Keeps only replacements that GitHub can apply to the exact added line under review.
+ *
+ * @param value - Optional replacement returned by the reviewer.
+ * @param file - Diff containing the cited line.
+ * @param line - Line the finding cites.
+ * @returns Normalized replacement text, or undefined when it cannot be posted safely.
+ */
+function normalizeSuggestion(value: unknown, file: FileDiff, line: number): string | undefined {
+    if (typeof value !== "string" || !visibleLines(file, "added").includes(line)) {
+        return undefined;
+    }
+    const normalized = value.replaceAll("\r\n", "\n").replaceAll("\r", "\n").replace(/\n+$/u, "");
+    if (normalized.includes("```")) {
+        return undefined;
+    }
+    return normalized.trim().length === 0 ? "" : normalized;
+}
+
+/**
  * Validates a lens payload into findings, dropping anything malformed.
  *
  * A reviewer that invents a path or a line is dropped rather than posted, so a
@@ -555,6 +574,7 @@ export function normalizeFindings(payload: unknown, lens: Lens, context: ReviewC
             title: typeof record.title === "string" ? record.title : "Finding",
             body: typeof record.body === "string" ? record.body : "",
             evidence: typeof record.evidence === "string" ? record.evidence : "",
+            suggestion: normalizeSuggestion(record.suggestion, file, line),
             lens: lens.id,
         });
     }

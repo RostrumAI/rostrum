@@ -20,8 +20,10 @@
     "scripts": {
         "check": "bun run --filter \"*\" typecheck && tsc --noEmit -p tsconfig.scripts.json",
         "test": "bun test",
+        "prepare": "husky",
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
+        "lint:staged": "git-format-staged --formatter 'biome check --write --files-ignore-unknown=true --no-errors-on-unmatched --stdin-file-path=\"{}\"' '*' && git-format-staged --no-write --formatter 'biome format --files-ignore-unknown=true --no-errors-on-unmatched --stdin-file-path=\"{}\"' '*'",
         "format": "biome format --write .",
         "review": "bun run scripts/review/index.ts",
         "review:adjudicate": "bun run scripts/review/adjudicate-cli.ts",
@@ -34,6 +36,8 @@
     "devDependencies": {
         "@biomejs/biome": "^2.5.7",
         "@types/bun": "^1.4.0",
+        "git-format-staged": "^4.0.2",
+        "husky": "^9.1.7",
         "typescript": "^7.0.2"
     },
     "dependencies": {

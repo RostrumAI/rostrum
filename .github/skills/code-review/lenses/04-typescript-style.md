@@ -19,11 +19,16 @@ matter most in this repository, because the review history shows them recurring:
 1. **Readability over cleverness.** No single-line `if` statement. No chain of ternaries where a
    `switch` or an early return reads better. No spread shorthand nested three deep. If a reader has
    to reconstruct the shape of an expression to know what it produces, it is wrong.
-2. **Comments explain purpose.** A comment states why the code exists, what business rule it
-   satisfies, or what an opaque constant means. A comment that restates the next line is a finding.
-   Obscure identifiers, magic numbers, and protocol constants carry a short explanatory comment.
-3. **TSDoc.** Every exported declaration, every class, and every non-obvious function carries TSDoc.
-   Private helpers carry it too. TSDoc states the purpose, not the mechanics.
+2. **Comments explain purpose and sequence.** A comment states why the code exists, what business
+   rule it satisfies, or what an opaque constant means. A standalone comment that only restates the
+   next line is a finding; a short transition may name its step when it helps a reader follow a
+   coherent walkthrough. Obscure identifiers, magic numbers, and protocol constants carry a short
+   explanatory comment.
+3. **TSDoc.** Every exported declaration, every class, every non-obvious function, every private
+   helper, and every named member of an interface or object type literal carries TSDoc. Member TSDoc
+   is normally one plain-language sentence explaining what the key is for. Function TSDoc stays
+   concise and caller-facing; put a difficult execution sequence beside the relevant statements as
+   short, nearly conversational inline comments.
 4. **Types over assertions.** No `any`. No non-null assertion where a guard reads better. No `as`
    cast that silences a mismatch a decoder or a schema should have caught. No re-typing a value that
    a library already types correctly.

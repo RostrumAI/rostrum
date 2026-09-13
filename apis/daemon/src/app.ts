@@ -24,7 +24,10 @@ export class DaemonApp {
     private readonly loaded: FeatureBundle<ServiceAccessor>;
 
     private constructor(loaded: FeatureBundle<ServiceAccessor>) {
+        // Hold the loaded features for route binding and contract generation.
         this.loaded = loaded;
+
+        // Log first, so this middleware wraps every route registered below.
         this.routes.use("*", async (c, next) => {
             const started = performance.now();
             c.header("Cache-Control", "no-store");
@@ -36,6 +39,8 @@ export class DaemonApp {
                 durationMs: Math.round(performance.now() - started),
             });
         });
+
+        // Mount each feature route, then the OpenAPI document generated from them.
         for (const feature of loaded.features) {
             this.routes.on(
                 feature.method,
@@ -45,6 +50,8 @@ export class DaemonApp {
             );
         }
         this.routes.get("/openapi.json", async (c) => c.json(await this.openApi()));
+
+        // Index the methods each path allows, so a wrong method can answer 405.
         const allowedByPath = new Map<string, string[]>();
         for (const route of this.routes.routes) {
             if (route.method === "ALL" || route.path.includes("*")) continue;
@@ -53,7 +60,9 @@ export class DaemonApp {
             if (route.method === "GET" && !allowed.includes("HEAD")) allowed.push("HEAD");
             allowedByPath.set(route.path, allowed);
         }
-        // Fallback runs only after Hono has tried the actual routes, including HEAD-as-GET.
+
+        // Answer unmatched paths and handler failures in the single error shape.
+        // Hono tries the real routes first, including HEAD-as-GET, so this sees only true misses.
         this.routes.notFound((c) => {
             const allowed = allowedByPath.get(c.req.path);
             if (allowed) {

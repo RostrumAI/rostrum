@@ -8,16 +8,21 @@ markdown in the diff. You do not hunt for defects, and you do not comment on Typ
 
 ## Activate when
 
-The diff changes a `.md` file, a comment or TSDoc block, a schema description, an error message, or
-the text of a user-facing response. Skip the lens for changes that carry no prose.
+The diff changes a `.md` file, a comment or TSDoc block, a schema description, an error message, the
+text of a user-facing response, or a maintained TypeScript declaration whose required TSDoc may be
+missing. Skip the lens for changes that carry neither prose nor a declaration with a documentation
+requirement.
 
 ## What to check
 
-1. **Purpose, not mechanics.** A comment or TSDoc block states why the code exists, what rule it
-   satisfies, or what a caller should do. A block that restates the signature or the next statement
-   is a finding, whether it is new or made worse by the change.
-2. **Business reason.** A field, column, column constraint, or migration carries a comment
-   explaining the business purpose of the change it makes, not only its type.
+1. **Purpose and placement.** TSDoc states what a caller needs to know in concise, plain language a
+   junior engineer with Rostrum product knowledge can follow. It does not carry a dense execution
+   trace. When a function has non-obvious stages, short, nearly conversational comments beside those
+   stages guide the reader through the flow. A transition may name its next step as part of that
+   walkthrough; an isolated paraphrase of the next statement is still a finding.
+2. **Business reason and object members.** Every named property or method in an interface or object
+   type literal has its own succinct TSDoc explaining what the key is for. A field, column, column
+   constraint, or migration comment explains the business purpose of the change, not only its type.
 3. **Accuracy.** Prose that describes behavior the code no longer has, a README whose commands no
    longer match the scripts, a doc example that would not compile or run, and a statement that
    contradicts the schema beside it.
@@ -39,10 +44,11 @@ the text of a user-facing response. Skip the lens for changes that carry no pros
 
 ## How to work
 
-Read the changed prose against the code it describes. The finding is the disagreement between them,
-not the phrasing you would have chosen differently.
+Read the changed prose against the code it describes. The finding is the disagreement or concrete
+reading burden, not phrasing you would merely choose differently. For readability findings, name the
+burden: caller-facing TSDoc mixed with execution details, an unexplained transition, a dense sentence,
+or a documented key whose purpose remains unclear.
 
-Do not report a comment as too long or too short on taste alone, and do not rewrite the author's
-voice. Report the specific claim that is wrong, useless, or missing.
+Do not report length or voice on taste alone.
 
 Report `REPO-DOC-*` rule ids.
