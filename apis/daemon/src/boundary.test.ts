@@ -41,7 +41,8 @@ describe("daemon authentication", () => {
             );
             expect(result).toBeUndefined();
         }
-        const invalid = [
+        // Malformed credentials: refused by the shape check before any digest comparison.
+        const malformed = [
             undefined,
             "",
             "Basic x",
@@ -50,9 +51,10 @@ describe("daemon authentication", () => {
             `Bearer ${tokens[0]} x`,
             "Bearer zz",
             `Bearer ${randomBytes(31).toString("hex")}`,
-            `Bearer ${randomBytes(32).toString("hex")}`,
         ];
-        for (const value of invalid) {
+        // Well formed and correctly sized, but not one of the configured tokens.
+        const unknown = [`Bearer ${randomBytes(32).toString("hex")}`];
+        for (const value of [...malformed, ...unknown]) {
             const headers = value === undefined ? undefined : { authorization: value };
             const result = authenticate(new Request("http://localhost/", { headers }), { tokens });
             expect(result?.status).toBe(401);
