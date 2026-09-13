@@ -2,24 +2,22 @@
 
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
-import { createDatabase } from "@rostrum/database";
 import {
     type FeatureBundle,
     type FeatureRoute,
     type LoadedFeature,
     loadFeatures,
     type RequestBodyDefinition,
+    type ResponseDefinition,
 } from "@rostrum/server/loader";
 import { type Context, Hono } from "hono";
 import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
-import { databaseOptions, loadConfig } from "./env";
 import { accessLog } from "./middleware/access-log";
 import { parameterGuard } from "./parameter-guard";
 import { ErrorResponseSchema } from "./schemas";
-import type { Services } from "./services";
+import type { ServiceAccessor, Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
-import { WorkflowService } from "./workflows/service";
 
 /** Path prefix every feature route mounts under. */
 const API_PREFIX = "/api";
@@ -45,42 +43,47 @@ const CANDIDATE_METHODS = [
     "QUERY",
 ] as const;
 
-/**
- * Control API application.
- *
- * Routes are mounted on a plain Hono app so tests can drive `routes.fetch()`
- * without a socket and the real process serves the same app over HTTP.
- * Route slices under `src/features` bind themselves at construction: the
- * folder layout decides the path, so a slice never edits a central route
- * table.
- */
+/** The caller-facing HTTP routes and generated contract. */
 export class ControlApiApp {
     /** The mounted Hono application; serve it with Bun.serve or fetch it directly. */
-    readonly routes = new Hono();
+    readonly routes = new Hono<{ Bindings: Services }>();
 
     private readonly logger = getLogger("control-api");
 
-    /**
-     * Creates the app with its services built once and every feature
-     * slice under `src/features` loaded, validated, and bound. Prefer
-     * this over the constructor: a slice that misses the feature contract
-     * fails here, before anything serves traffic.
-     */
+    private readonly loaded: FeatureBundle<ServiceAccessor>;
+
+    /** Loads and binds every feature before the process accepts requests. */
     static async create(): Promise<ControlApiApp> {
-        const config = loadConfig();
-        const database = createDatabase(databaseOptions(config));
-        return new ControlApiApp(await loadFeatures<Services>(join(import.meta.dir, "features")), {
-            workflows: WorkflowService.create(database),
+        return new ControlApiApp(
+            await loadFeatures<ServiceAccessor>(join(import.meta.dir, "features")),
+        );
+    }
+
+    /** Serves a request with the dependencies selected by the lifecycle. */
+    fetch(request: Request, services: Services): Response | Promise<Response> {
+        return this.routes.fetch(request, services);
+    }
+
+    /** Generates the OpenAPI document without starting a listener or database. */
+    openApi(): Promise<Record<string, unknown>> {
+        return generateSpecs(this.routes, {
+            documentation: {
+                openapi: "3.1.0",
+                info: {
+                    title: "Rostrum Control API",
+                    version: pkg.version,
+                    description: "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
+                },
+                tags: [{ name: "system" }],
+                components: {
+                    schemas: { ...SHARED_COMPONENTS, ...this.loaded.components },
+                },
+            },
         });
     }
 
-    private readonly loaded: FeatureBundle<Services>;
-    private readonly services: Services;
-
-    private constructor(loaded: FeatureBundle<Services>, services: Services) {
+    private constructor(loaded: FeatureBundle<ServiceAccessor>) {
         this.loaded = loaded;
-        this.services = services;
-
         // Registered first so it wraps every route, including 404 responses.
         this.routes.use("*", accessLog());
         for (const feature of this.loaded.features) {
@@ -89,32 +92,11 @@ export class ControlApiApp {
                 `${API_PREFIX}${feature.path}`,
                 describeRoute(this.describeFeature(feature)),
                 parameterGuard(feature.parameters),
-                feature.createHandler(this.services),
+                feature.createHandler((context) => context.env),
             );
         }
 
-        this.routes.get("/openapi.json", async (c) => {
-            const doc = await generateSpecs(
-                this.routes,
-                {
-                    documentation: {
-                        openapi: "3.1.0",
-                        info: {
-                            title: "Rostrum Control API",
-                            version: pkg.version,
-                            description:
-                                "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
-                        },
-                        tags: [{ name: "system" }],
-                        components: {
-                            schemas: { ...SHARED_COMPONENTS, ...this.loaded.components },
-                        },
-                    },
-                },
-                c,
-            );
-            return c.json(doc);
-        });
+        this.routes.get("/openapi.json", async (c) => c.json(await this.openApi()));
 
         this.routes.notFound((c) => this.notFound(c));
         this.routes.onError((err, c) => this.serverError(err, c));
@@ -127,7 +109,7 @@ export class ControlApiApp {
      * the feature area folder; each documented response references its module
      * component by name. Used for building OpenAPI JSON output.
      */
-    private describeFeature(feature: LoadedFeature<Services>): DescribeRouteOptions {
+    private describeFeature(feature: LoadedFeature<ServiceAccessor>): DescribeRouteOptions {
         const description: DescribeRouteOptions = {
             tags: [feature.tag],
             responses: this.describeResponses(feature.responses),
@@ -158,7 +140,8 @@ export class ControlApiApp {
         responses: FeatureRoute["responses"],
     ): NonNullable<DescribeRouteOptions["responses"]> {
         const described: NonNullable<DescribeRouteOptions["responses"]> = {};
-        for (const [status, response] of Object.entries(responses ?? {})) {
+        const declared: Record<string, ResponseDefinition> = responses ?? {};
+        for (const [status, response] of Object.entries(declared)) {
             if (response.schemaName === undefined) {
                 described[status] = { description: response.description };
             } else {
@@ -198,11 +181,6 @@ export class ControlApiApp {
                 },
             },
         };
-    }
-
-    /** Closes the services the app built: the workflow database pool. */
-    async close(timeoutMs: number): Promise<void> {
-        await this.services.workflows.close({ timeoutMs });
     }
 
     /**
@@ -246,10 +224,10 @@ export class ControlApiApp {
     /**
      * Registers 405 handlers for every registered route path and every candidate
      * method the path does not allow. The allowed-method table is derived from
-     * `routes`, which Hono flattens across `route(...)` mounts (verified in hono
-     * 4.13.3), so future routes get 405 handling without a manual table. HEAD is
-     * paired with GET: Hono dispatches HEAD by mapping it to GET, and the Allow
-     * header should state that.
+     * `routes`, which Hono flattens across `route(...)` mounts, so future routes
+     * get 405 handling without a manual table. HEAD is paired with GET: Hono
+     * dispatches HEAD by mapping it to GET, and the Allow header should state
+     * that.
      *
      * Must run after all routes are registered.
      */
