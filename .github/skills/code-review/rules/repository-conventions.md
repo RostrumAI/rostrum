@@ -287,7 +287,7 @@ execution walkthrough beside those stages as short, nearly conversational inline
 packing it into the TSDoc. Comment meaningful transitions, not every self-evident statement.
 **Applies to:** `apps/**`, `apis/**`, `packages/**`, `scripts/**` · **Check:** judgment · **Severity:** low
 **Flag:** Dense TSDoc that mixes the caller-facing contract with several implementation steps; a multi-step function whose execution story lives only in its TSDoc even though short inline guidance would make the body easier to follow.
-**Evidence:** Maintainer review direction — comments should be easy for a junior software engineer with Rostrum product knowledge to read, with conversational guidance through a difficult function.
+**Evidence:** Maintainer review direction — comments should be easy for a junior software engineer with Rostrum product knowledge to read, with conversational guidance through a difficult function. `AGENTS.md` "Code style" is the governing rule: one comment per step, grouped by idea.
 
 ### REPO-DOC-07 — Document every named member of an object type
 Every explicitly declared property or method in an interface or object type literal has its own
