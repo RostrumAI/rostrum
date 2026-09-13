@@ -26,8 +26,9 @@ async function eventually(
 ): Promise<void> {
     const deadline = performance.now() + timeoutMs;
     while (!(await predicate())) {
-        if (performance.now() > deadline)
+        if (performance.now() > deadline) {
             throw new Error("Database condition did not settle before deadline");
+        }
         await Bun.sleep(10);
     }
 }
@@ -287,7 +288,9 @@ describe("database readiness and pool ownership", () => {
                 );
                 await eventually(() => sockets.size === 1);
                 expect(accepted).toBe(round + 1);
-                for (const controller of controllers) controller.abort();
+                for (const controller of controllers) {
+                    controller.abort();
+                }
                 expect(await Promise.all(probes)).toEqual(
                     controllers.map(() => ({ status: "failed", code: "database_timeout" })),
                 );
@@ -295,7 +298,9 @@ describe("database readiness and pool ownership", () => {
             }
         } finally {
             await handle.close({ timeoutMs: 100 });
-            for (const socket of sockets) socket.destroy();
+            for (const socket of sockets) {
+                socket.destroy();
+            }
             server.close();
         }
     });

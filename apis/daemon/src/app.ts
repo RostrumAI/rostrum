@@ -54,10 +54,16 @@ export class DaemonApp {
         // Index the methods each path allows, so a wrong method can answer 405.
         const allowedByPath = new Map<string, string[]>();
         for (const route of this.routes.routes) {
-            if (route.method === "ALL" || route.path.includes("*")) continue;
+            if (route.method === "ALL" || route.path.includes("*")) {
+                continue;
+            }
             const allowed = allowedByPath.get(route.path) ?? [];
-            if (!allowed.includes(route.method)) allowed.push(route.method);
-            if (route.method === "GET" && !allowed.includes("HEAD")) allowed.push("HEAD");
+            if (!allowed.includes(route.method)) {
+                allowed.push(route.method);
+            }
+            if (route.method === "GET" && !allowed.includes("HEAD")) {
+                allowed.push("HEAD");
+            }
             allowedByPath.set(route.path, allowed);
         }
 

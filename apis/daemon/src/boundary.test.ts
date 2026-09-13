@@ -172,7 +172,9 @@ describe("daemon executable boundary", () => {
                     expect(await daemon.exited(4000)).not.toBe(0);
                     expect(daemon.logs).not.toContain('"msg":"listening"');
                     expect(connections).toBe(0);
-                    for (const token of daemon.tokens) expect(daemon.logs).not.toContain(token);
+                    for (const token of daemon.tokens) {
+                        expect(daemon.logs).not.toContain(token);
+                    }
                 } finally {
                     await daemon.dispose();
                 }
@@ -243,7 +245,9 @@ describe("daemon executable boundary", () => {
             expect(await status(newest)).toBe(200);
             expect(await status(rejected)).toBe(401);
             expect(daemon.child.exitCode).toBeNull();
-            for (const token of [old, newest, rejected]) expect(daemon.logs).not.toContain(token);
+            for (const token of [old, newest, rejected]) {
+                expect(daemon.logs).not.toContain(token);
+            }
         } finally {
             await daemon.dispose();
         }
@@ -279,8 +283,9 @@ describe("daemon executable boundary", () => {
                     { stdout: "ignore", stderr: "pipe" },
                 );
                 const diagnostics = await new Response(generation.stderr).text();
-                if ((await generation.exited) !== 0)
+                if ((await generation.exited) !== 0) {
                     throw new Error(`Certificate generation failed: ${diagnostics}`);
+                }
                 return { tlsCertFile: cert, tlsKeyFile: key };
             },
         });

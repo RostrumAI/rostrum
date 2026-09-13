@@ -56,7 +56,9 @@ export async function spawnFixture(initial: Record<string, unknown>): Promise<Fi
                 if (line.length > 0) {
                     seen.push(line);
                     for (const waiter of [...waiters]) {
-                        if (!waiter.predicate(line)) continue;
+                        if (!waiter.predicate(line)) {
+                            continue;
+                        }
                         waiters.splice(waiters.indexOf(waiter), 1);
                         waiter.resolve(line);
                     }

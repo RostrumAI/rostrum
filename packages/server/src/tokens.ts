@@ -19,11 +19,12 @@ export function parseTokens(text: string, source: "file" | "environment"): reado
     const seen = new Set<string>();
     for (const entry of entries) {
         const token = entry.trim().toLowerCase();
-        if (!isToken(token))
+        if (!isToken(token)) {
             throw new ConfigurationError(
                 "tokens",
                 "must contain hexadecimal tokens of at least 32 bytes without empty entries",
             );
+        }
         if (seen.has(token)) {
             throw new ConfigurationError("tokens", "contains duplicate tokens");
         }
