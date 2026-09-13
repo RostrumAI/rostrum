@@ -33,15 +33,25 @@ function loadConfig(): FixtureConfig {
     if (typeof source.marker !== "string" || source.marker.length === 0) {
         throw new ConfigurationError("marker", "is required");
     }
+    const nodeEnv = source.nodeEnv;
     return {
         host: "127.0.0.1",
         port: typeof source.port === "number" ? source.port : 0,
         logLevel: "info",
-        nodeEnv: "test",
-        databaseUrl: "postgres://fixture@127.0.0.1:1/fixture",
-        databaseTls: false,
-        allowInsecureLocal: true,
-        dependencyTimeoutMs: 2_000,
+        nodeEnv:
+            nodeEnv === "development" || nodeEnv === "test" || nodeEnv === "production"
+                ? nodeEnv
+                : "test",
+        // The runtime rebuilds dependencies only when these identity fields change,
+        // so a test drives replacement by rewriting one of them.
+        databaseUrl:
+            typeof source.databaseUrl === "string"
+                ? source.databaseUrl
+                : "postgres://fixture@127.0.0.1:1/fixture",
+        databaseTls: source.databaseTls === true,
+        allowInsecureLocal: source.allowInsecureLocal !== false,
+        dependencyTimeoutMs:
+            typeof source.dependencyTimeoutMs === "number" ? source.dependencyTimeoutMs : 2_000,
         shutdownTimeoutMs:
             typeof source.shutdownTimeoutMs === "number" ? source.shutdownTimeoutMs : 5_000,
         marker: source.marker,

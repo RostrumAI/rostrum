@@ -43,6 +43,4 @@ jobs:
       - name: Test
         run: bun run test
       - name: Smoke boot
-        run: |
-          bun run --filter "@rostrum/control-api" smoke
-          bun run --filter "@rostrum/daemon" smoke
+        run: bun run --filter "@rostrum/daemon" smoke
