@@ -17,6 +17,7 @@
         "@humanwhocodes/momoa": "^3.3.12",
         "@logtape/logtape": "^2.3.2",
         "@rostrum/database": "workspace:*",
+        "@rostrum/server": "workspace:*",
         "@rostrum/workflow": "workspace:*",
         "hono": "^4.13.3",
         "hono-openapi": "^1.3.1",
