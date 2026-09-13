@@ -12,6 +12,19 @@ The diff adds or modifies source under `apps/`, `apis/`, `packages/`, or `script
 modifies, or deletes a test file. Always check that new behavior is covered, even when the diff
 contains no test file at all.
 
+## What needs no test
+
+The requirement is that runtime behavior is proven, so a file has to be reachable at runtime to owe
+a test. Do not report a missing test for:
+
+- A script: a file under a `scripts/` directory is run by CI or by hand, not imported.
+- A one-off fix: a change that repairs existing data, a migration run once, or a throwaway probe.
+  Neither is part of the product's runtime.
+- A file that exports nothing: nothing can import it, so there is no unit to call.
+- A file whose only exports are types: a type has no runtime behavior to test.
+
+Everything else that runs in production or in the test suite owes a test.
+
 ## What to check
 
 1. **Every new behavior is covered.** A new handler, repository method, route, validation stage, or

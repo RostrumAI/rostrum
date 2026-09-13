@@ -30,6 +30,28 @@ export type Verdict =
 /** Verdicts that end a thread's finding. */
 export const WITHDRAWING_VERDICTS: readonly Verdict[] = ["refuted", "intentional", "code_changed"];
 
+/** How a verdict is announced at the top of the reply that records it. */
+const DECISION_TITLES: Record<Verdict, string> = {
+    refuted: "DECISION: RESOLVED — THE FINDING WAS WRONG",
+    intentional: "DECISION: RESOLVED — ACCEPTED TRADEOFF",
+    code_changed: "DECISION: RESOLVED — THE CODE CHANGED",
+    stands: "DECISION: ISSUE STANDS",
+    needs_human: "DECISION: NEEDS HUMAN",
+};
+
+/**
+ * Names the decision a verdict records.
+ *
+ * The reply states its verdict in a heading rather than in the middle of a
+ * paragraph, so a reader knows what happened without reading the reasoning.
+ *
+ * @param verdict - Verdict to name.
+ * @returns The heading text, without markdown.
+ */
+export function renderDecisionTitle(verdict: Verdict): string {
+    return DECISION_TITLES[verdict];
+}
+
 /** Marker prefix identifying a verdict comment. */
 const VERDICT_PREFIX = "<!-- rostrum-verdict:";
 

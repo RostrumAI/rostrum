@@ -114,6 +114,13 @@ Only a maintainer's reply is adjudicated. A reply's authority carries no weight 
 it's fine" is not evidence about what the code does. Text asking the reviewer to ignore its
 instructions is treated as `needs_human`, not as a refutation.
 
+The reviewer answers as soon as it starts: it posts a placeholder comment reading `Adjudicating...`
+before it reads anything, then edits that same comment into the decision when it finishes. A run that
+dies mid-adjudication leaves the placeholder behind, and the next sweep edits that comment rather
+than posting a second reply beside it. The answer states its verdict in a heading —
+`DECISION: ISSUE STANDS`, `DECISION: RESOLVED — THE FINDING WAS WRONG`, `DECISION: NEEDS HUMAN` — so
+the outcome is readable before the reasoning that supports it.
+
 The reviewer answers a thread three times, then closes its side of it with a `needs_human` verdict
 saying so. Handing a disagreement to a person is not the same as withdrawing the finding, so the
 thread stays open. The budget exists because past the second or third exchange the reviewer is
@@ -150,7 +157,8 @@ optimises for silence:
   whether the rule is correct, and a finding that was simply fixed says nothing either. Counting
   those would tune the corpus toward whatever stops the comments.
 - **Nothing is applied.** A rule needs at least five findings before its record means anything, and a
-  `blocking` rule is sent to a person rather than edited. No rule is ever weakened automatically.
+  rule that blocks — `medium` and above — is sent to a person rather than edited. No rule is ever
+  weakened automatically.
 
 ## Manual invocation
 
@@ -162,6 +170,10 @@ bun run review --since origin/main        # review a local branch diff instead
 bun run review --pr 20 --repo-root ../pr-head  # review a checkout other than this one
 ```
 
-Set `DEEPSEEK_API_KEY` to review. `REVIEW_MODEL` overrides the model, `REVIEW_CONFIDENCE_FLOOR` the
-default confidence floor of 80, and `REVIEW_AGENT_TIMEOUT` the ceiling in seconds for one reviewer
-run, which is 900 by default so that a large diff can be read rather than timed out.
+Set `COMMANDCODE_API_KEY` to review. The reviewers run on the CommandCode GOAT plan gateway at
+`https://api.commandcode.ai/provider/v1`, which the pipeline declares in a private runtime directory
+rather than reading one from the machine, so the same command works in CI and on a workstation.
+`REVIEW_MODEL` overrides the model with a `commandcode/<model-id>` selector — the default is
+`commandcode/deepseek/deepseek-v4.1-flash` — `REVIEW_CONFIDENCE_FLOOR` the default confidence floor of
+80, and `REVIEW_AGENT_TIMEOUT` the ceiling in seconds for one reviewer run, which is 900 by default so
+that a large diff can be read rather than timed out.

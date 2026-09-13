@@ -16,7 +16,7 @@
 
 import { type LineEntry, visibleLineEntries, visibleLines } from "./diff.ts";
 import { blankInlineCode, type LineRegions, scanSourceLines } from "./source-text.ts";
-import type { Finding, ReviewContext } from "./types.ts";
+import type { FileDiff, Finding, ReviewContext } from "./types.ts";
 
 /** One mechanical check over the added lines of a file. */
 interface RuleCheck {
@@ -92,7 +92,7 @@ function isDeclarationOrSchema(path: string): boolean {
 export const RULE_CHECKS: RuleCheck[] = [
     {
         id: "REPO-TS-01",
-        severity: "blocking",
+        severity: "medium",
         title: "The `any` type erases the checking this repository relies on",
         guidance: "Give the value a real type, a generic parameter, or `unknown` plus narrowing.",
         appliesTo: isTypeScript,
@@ -100,7 +100,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "GTS-EXPORTS-01",
-        severity: "blocking",
+        severity: "medium",
         title: "Default exports are not used in this repository",
         guidance: "Use a named export so every import site states the symbol it imports.",
         appliesTo: isTypeScript,
@@ -108,7 +108,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-TS-02",
-        severity: "major",
+        severity: "low",
         title: "A single-line unbraced conditional cannot carry the explanation it needs",
         guidance:
             "Put the body on its own line inside braces, and add a comment when the branch is not obvious.",
@@ -120,7 +120,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-TS-03",
-        severity: "major",
+        severity: "medium",
         title: "Console output bypasses the configured logger",
         guidance:
             "Use the LogTape logger so records carry the level, fields, and destination the service configures.",
@@ -130,7 +130,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-TS-04",
-        severity: "major",
+        severity: "medium",
         title: "A type error is suppressed instead of resolved",
         guidance:
             "Fix the type, or narrow it explicitly. A suppression hides the next real error on the same line.",
@@ -140,7 +140,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-TS-05",
-        severity: "minor",
+        severity: "low",
         title: "Unfinished work is committed as a marker",
         guidance:
             "Resolve the marker or record the work in the task document instead of the source.",
@@ -150,7 +150,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-CONTRACT-01",
-        severity: "major",
+        severity: "medium",
         title: "The identifier scheme is restated in code",
         guidance:
             "Identifiers are server-minted. State the scheme only in the documents that define it.",
@@ -160,7 +160,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-WRITING-01",
-        severity: "minor",
+        severity: "low",
         title: "The term is not the one this repository uses",
         guidance:
             "Use the repository's term for this concept rather than the retired or informal one.",
@@ -170,7 +170,7 @@ export const RULE_CHECKS: RuleCheck[] = [
     },
     {
         id: "REPO-TEST-01",
-        severity: "blocking",
+        severity: "high",
         title: "A focused or skipped test silently disables the rest of the run",
         guidance:
             "Remove `.only` and `.skip` before committing; a green suite must mean every case ran.",
@@ -305,15 +305,58 @@ async function readSourceFile(workingDirectory: string, path: string): Promise<s
 }
 
 /**
+ * Files that are run rather than imported.
+ *
+ * A script under a `scripts/` directory is an entry point: CI runs it, or it was
+ * written once to repair something. It has no imported behavior to test, only an
+ * effect on the machine it runs on.
+ *
+ * @param path - Repository-relative path of the file.
+ * @returns True when the file is a script rather than a module.
+ */
+function isScript(path: string): boolean {
+    return /(?:^|\/)scripts?\//.test(path);
+}
+
+/**
+ * Reports whether a file exports anything for a test to import.
+ *
+ * A module with no exports cannot be imported: like a script, it exists for what
+ * running it does, so the only test available would assert that it did not
+ * throw. The head checkout is the source of truth, because the change's added
+ * lines are not the whole file; when the checkout cannot be read, the added
+ * lines stand in, which is the whole file for a file the change adds.
+ *
+ * @param workingDirectory - Root of the checkout at the head commit.
+ * @param file - Parsed file diff.
+ * @returns True when the file exports a symbol.
+ */
+async function exportsSomething(workingDirectory: string, file: FileDiff): Promise<boolean> {
+    const source = await readSourceFile(workingDirectory, file.path);
+    const text =
+        source ??
+        visibleLineEntries(file)
+            .filter((entry) => entry.added)
+            .map((entry) => entry.text)
+            .join("\n");
+    return /^\s*export\b/m.test(text);
+}
+
+/**
  * Finds newly added source files with no test covering them.
  *
- * The check is mechanical because it compares file names. Test fixtures, test helpers, and
- * executable scripts are not product modules and are covered by their callers.
+ * The repository requires a test beside new behavior, and the check is
+ * mechanical because it only compares file names: a new source module counts as
+ * covered when a test file for it exists on disk or arrives in the same change,
+ * or when its service's executable boundary suite exists beside it. A script, a
+ * file that exports nothing, a test fixture, and a test harness are not new
+ * behavior: nothing imports them as product modules, so there is no unit to
+ * test.
  *
  * @param context - Review context holding the parsed files and the repository checkout.
  * @returns A finding per uncovered new source file.
  */
-export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
+export async function findUncoveredSourceFiles(context: ReviewContext): Promise<Finding[]> {
     const testPaths = new Set(
         context.files.filter((file) => isTestFile(file.path)).map((file) => file.path),
     );
@@ -331,7 +374,10 @@ export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
             file.path.startsWith("apps/") ||
             file.path.startsWith("apis/") ||
             /^packages\/[^/]+\/src\//.test(file.path);
-        if (!inReviewScope || isDeclarationOrSchema(file.path)) {
+        if (!inReviewScope || isDeclarationOrSchema(file.path) || isScript(file.path)) {
+            continue;
+        }
+        if (!(await exportsSomething(context.workingDirectory, file))) {
             continue;
         }
         const testPath = file.path.replace(/\.(tsx?)$/, ".test.$1");
@@ -351,7 +397,7 @@ export function findUncoveredSourceFiles(context: ReviewContext): Finding[] {
             ruleId: "REPO-TEST-03",
             path: file.path,
             line: visibleLines(file, "added")[0] ?? 1,
-            severity: "blocking",
+            severity: "medium",
             confidence: 90,
             title: "New source file arrives without a test",
             body: `No test file covers this module. This repository requires a test for new behavior, and a reviewer will look for \`${testPath}\` beside it.`,
@@ -391,7 +437,7 @@ export function findUnjustifiedDependencyChange(context: ReviewContext): Finding
             ruleId: "REPO-DEPS-01",
             path: manifest.path,
             line: visibleLines(manifest, "added")[0] ?? 1,
-            severity: "minor",
+            severity: "informational",
             confidence: 85,
             title: "Dependency change arrives without code that uses it",
             body: "The change edits a manifest without accompanying source. State in the pull request description why the dependency change stands alone, or include the code that consumes it.",

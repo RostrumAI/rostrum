@@ -88,7 +88,7 @@ function findingFor(overrides: Partial<Finding> = {}): Finding {
         ruleId: "REPO-TEST-02",
         path: "apps/control-api/src/thing.ts",
         line: 2,
-        severity: "major",
+        severity: "medium",
         confidence: 95,
         title: "Finding",
         body: "Body",
@@ -415,8 +415,8 @@ new file mode 100644
         expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("requires a test beside a new source module", () => {
-        const withoutTest = findUncoveredSourceFiles(contextFor(ADDED_FILE_PATCH));
+    test("requires a test beside a new source module", async () => {
+        const withoutTest = await findUncoveredSourceFiles(contextFor(ADDED_FILE_PATCH));
         expect(withoutTest.map((finding) => finding.ruleId)).toEqual(["REPO-TEST-03"]);
 
         const withTest = `${ADDED_FILE_PATCH}diff --git a/apps/control-api/src/thing.test.ts b/apps/control-api/src/thing.test.ts
@@ -426,15 +426,42 @@ new file mode 100644
 @@ -0,0 +1,1 @@
 +test("thing", () => {});
 `;
-        expect(findUncoveredSourceFiles(contextFor(withTest))).toHaveLength(0);
+        expect(await findUncoveredSourceFiles(contextFor(withTest))).toHaveLength(0);
     });
 
-    test("exempts executable scripts and test support modules", () => {
+    test("does not require a test for a module that exports nothing", async () => {
+        // Nothing can import this file, so there is no unit to test: it runs for
+        // its side effects, the way a script does.
+        const patch = `diff --git a/apps/control-api/src/entry.ts b/apps/control-api/src/entry.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/control-api/src/entry.ts
+@@ -0,0 +1,2 @@
++const port = Number(process.env.PORT ?? 3000);
++startServer(port);
+`;
+        expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+    });
+
+    test("does not require a test for a one-off script", async () => {
+        // It exports something, so only the path exempts it: a script in a
+        // `scripts/` directory is run by CI or by hand, not imported by the product.
+        const patch = `diff --git a/packages/database/src/scripts/backfill.ts b/packages/database/src/scripts/backfill.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/database/src/scripts/backfill.ts
+@@ -0,0 +1,3 @@
++export async function backfill(): Promise<void> {
++    await repairRows();
++}
+`;
+        expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+    });
+
+    test("does not require a test for a fixture or a child-process harness", async () => {
+        // A fixture or harness is exercised by the suite that calls it, so a
+        // unit test beside it would only restate that suite.
         const patches = [
-            ADDED_FILE_PATCH.replaceAll(
-                "apps/control-api/src/thing.ts",
-                "apps/control-api/src/scripts/thing.ts",
-            ),
             ADDED_FILE_PATCH.replaceAll(
                 "apps/control-api/src/thing.ts",
                 "packages/server/src/testing/thing.ts",
@@ -445,10 +472,13 @@ new file mode 100644
             ),
         ];
         for (const patch of patches) {
-            expect(findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+            expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
         }
     });
-    test("accepts a service-wide executable boundary suite", () => {
+
+    test("accepts a service-wide executable boundary suite as coverage", async () => {
+        // A service's modules are exercised end to end by its boundary suite,
+        // which spawns the real executable instead of importing one module.
         const withBoundary = `${ADDED_FILE_PATCH}diff --git a/apps/control-api/src/boundary.test.ts b/apps/control-api/src/boundary.test.ts
 new file mode 100644
 --- /dev/null
@@ -456,7 +486,7 @@ new file mode 100644
 @@ -0,0 +1,1 @@
 +test("executable boundary", () => {});
 `;
-        expect(findUncoveredSourceFiles(contextFor(withBoundary))).toHaveLength(0);
+        expect(await findUncoveredSourceFiles(contextFor(withBoundary))).toHaveLength(0);
     });
 });
 
@@ -820,7 +850,7 @@ describe("reviewer output handling", () => {
                         ruleId: "REPO-TEST-02",
                         path: "apps/control-api/src/thing.ts",
                         line: 2,
-                        severity: "major",
+                        severity: "medium",
                         confidence: 90,
                         title: "Real",
                         body: "Body",
@@ -830,7 +860,7 @@ describe("reviewer output handling", () => {
                         ruleId: "REPO-TEST-02",
                         path: "apps/control-api/src/imaginary.ts",
                         line: 2,
-                        severity: "major",
+                        severity: "medium",
                         confidence: 90,
                         title: "Hallucinated",
                         body: "Body",
@@ -843,5 +873,53 @@ describe("reviewer output handling", () => {
         );
         expect(findings.map((finding) => finding.title)).toEqual(["Real"]);
         expect(findings[0]?.lens).toBe("tests");
+    });
+});
+
+describe("severity scale", () => {
+    const lens: Lens = {
+        id: "correctness",
+        label: "Correctness",
+        promptPath: "lenses/01-correctness.md",
+        rulePaths: ["rules/repository-conventions.md"],
+        applies: () => true,
+    };
+
+    test("marks medium and above BLOCKING and leaves the rest unmarked", () => {
+        expect(renderComment(findingFor({ severity: "critical" }))).toContain(
+            "Critical · BLOCKING",
+        );
+        expect(renderComment(findingFor({ severity: "medium" }))).toContain("Medium · BLOCKING");
+        expect(renderComment(findingFor({ severity: "low" }))).toContain("· Low**");
+        expect(renderComment(findingFor({ severity: "low" }))).not.toContain("BLOCKING");
+        expect(renderComment(findingFor({ severity: "informational" }))).not.toContain("BLOCKING");
+    });
+
+    test("keeps a severity from the scale and treats an unknown one as medium", () => {
+        // A model may still name a retired level. Posting it verbatim would leave
+        // the report with a severity the scale does not define, so it is graded
+        // as the convention-level problem it could not be ranked as.
+        const normalize = (severity: string): Finding["severity"] | undefined =>
+            normalizeFindings(
+                {
+                    findings: [
+                        {
+                            ruleId: "BUG",
+                            path: "apps/control-api/src/thing.ts",
+                            line: 2,
+                            severity,
+                            confidence: 90,
+                            title: "Finding",
+                            body: "Body",
+                            evidence: "code",
+                        },
+                    ],
+                },
+                lens,
+                contextFor(ADDED_FILE_PATCH),
+            )[0]?.severity;
+        expect(normalize("critical")).toBe("critical");
+        expect(normalize("informational")).toBe("informational");
+        expect(normalize("blocking")).toBe("medium");
     });
 });

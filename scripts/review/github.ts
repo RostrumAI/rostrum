@@ -17,6 +17,17 @@ export const COMMENT_MARKER = "<!-- rostrum-code-review -->";
 /** Hidden marker identifying the summary comment the pipeline maintains. */
 export const SUMMARY_MARKER = "<!-- rostrum-code-review-summary -->";
 
+/**
+ * Hidden marker identifying the placeholder posted while a finding is adjudicated.
+ *
+ * The reviewer replies with this before it starts reading, so a maintainer sees
+ * the answer is coming rather than nothing at all, and it is edited into the
+ * decision when the reviewer finishes. The workflow's trigger conditions match
+ * this literal too, to keep a run from adjudicating its own placeholder; change
+ * one and the other has to change with it.
+ */
+export const ADJUDICATING_MARKER = "<!-- rostrum-adjudicating -->";
+
 /** One review thread on a pull request, with the comments it holds. */
 export interface ReviewThread {
     /** GraphQL node id, which identifies the thread in the GraphQL API. */
@@ -252,13 +263,14 @@ export async function fetchReviewThreads(ref: PullRequestRef): Promise<ReviewThr
  * @param ref - Pull request identity.
  * @param commentId - Database id of the comment being replied to.
  * @param body - Reply body, including any marker.
- * @returns The created comment's URL.
+ * @returns The created comment's database id, which is what editing it needs.
+ * @throws Error when GitHub does not return the created comment's id.
  */
-export async function replyToReviewComment(
+export async function createReviewReply(
     ref: PullRequestRef,
     commentId: number,
     body: string,
-): Promise<string> {
+): Promise<number> {
     const output = await runProcessOrThrow(
         [
             "gh",
@@ -271,8 +283,41 @@ export async function replyToReviewComment(
         ],
         { stdin: JSON.stringify({ body }) },
     );
-    const parsed = JSON.parse(output) as { html_url?: string };
-    return parsed.html_url ?? "";
+    const parsed = JSON.parse(output) as { id?: number };
+    if (typeof parsed.id !== "number") {
+        throw new Error(`GitHub returned no comment id for the reply: ${output.slice(0, 200)}`);
+    }
+    return parsed.id;
+}
+
+/**
+ * Replaces the body of a review comment the pipeline posted.
+ *
+ * Editing is what makes the placeholder posted before an adjudication become
+ * the answer: the maintainer sees one comment that resolves, rather than a
+ * second notification arriving later.
+ *
+ * @param ref - Pull request identity.
+ * @param commentId - Database id of the comment to edit.
+ * @param body - Replacement body, including any marker.
+ */
+export async function editReviewComment(
+    ref: PullRequestRef,
+    commentId: number,
+    body: string,
+): Promise<void> {
+    await runProcessOrThrow(
+        [
+            "gh",
+            "api",
+            "--method",
+            "PATCH",
+            `repos/${ref.owner}/${ref.repo}/pulls/comments/${commentId}`,
+            "--input",
+            "-",
+        ],
+        { stdin: JSON.stringify({ body }) },
+    );
 }
 
 /** Repository permissions that let someone disposition a finding. */
