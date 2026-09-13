@@ -200,7 +200,9 @@ function validateModule<S>(
     }
 
     if (route.parameters !== undefined) {
-        if (!Array.isArray(route.parameters)) fail("route.parameters must be an array");
+        if (!Array.isArray(route.parameters)) {
+            fail("route.parameters must be an array");
+        }
         route.parameters.forEach((parameter, index) => {
             if (typeof parameter !== "object" || parameter === null || Array.isArray(parameter)) {
                 fail(`route.parameters.${index} must be an object`);
@@ -288,7 +290,9 @@ export async function loadFeatures<S>(featuresDir: string): Promise<FeatureBundl
                 // Feature areas share schemas (every workflow route documents
                 // the same error shape): the identical object contributed
                 // again is the same component, not a conflict.
-                if (components[name] === component) continue;
+                if (components[name] === component) {
+                    continue;
+                }
                 throw new Error(
                     `component name conflict on "${name}": ${owner} and ${file} both export it`,
                 );

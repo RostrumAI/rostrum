@@ -258,15 +258,23 @@ export class ControlApiApp {
         for (const route of this.routes.routes) {
             // Middleware registers as an ALL-method wildcard; it is not an
             // endpoint and must not seed wildcard 405 handlers.
-            if (route.method === "ALL" || route.path.includes("*")) continue;
+            if (route.method === "ALL" || route.path.includes("*")) {
+                continue;
+            }
             const allowed = allowedByPath.get(route.path) ?? [];
-            if (!allowed.includes(route.method)) allowed.push(route.method);
-            if (route.method === "GET" && !allowed.includes("HEAD")) allowed.push("HEAD");
+            if (!allowed.includes(route.method)) {
+                allowed.push(route.method);
+            }
+            if (route.method === "GET" && !allowed.includes("HEAD")) {
+                allowed.push("HEAD");
+            }
             allowedByPath.set(route.path, allowed);
         }
         for (const [path, allowed] of allowedByPath) {
             for (const method of CANDIDATE_METHODS) {
-                if (allowed.includes(method)) continue;
+                if (allowed.includes(method)) {
+                    continue;
+                }
                 this.routes.on(method, path, (c) => this.methodNotAllowed(c, allowed));
             }
         }

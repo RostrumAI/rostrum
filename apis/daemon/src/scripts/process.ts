@@ -99,8 +99,9 @@ export class DaemonProcess {
     async waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
         const deadline = performance.now() + timeoutMs;
         while (!predicate()) {
-            if (performance.now() >= deadline)
+            if (performance.now() >= deadline) {
                 throw new Error(`Timed out waiting for daemon: ${this.logs}`);
+            }
             await Bun.sleep(10);
         }
     }
@@ -118,8 +119,9 @@ export class DaemonProcess {
                     /* An incomplete line is retried after the next chunk. */
                 }
             }
-            if (this.child.exitCode !== null)
+            if (this.child.exitCode !== null) {
                 throw new Error(`Daemon exited before listening: ${this.logs}`);
+            }
             return false;
         });
         return `${this.config.tlsCertFile ? "https" : "http"}://127.0.0.1:${this.port}`;
