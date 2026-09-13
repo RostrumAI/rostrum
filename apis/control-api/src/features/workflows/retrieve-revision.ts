@@ -3,7 +3,7 @@
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";
-import type { Services } from "../../services";
+import type { ServiceAccessor } from "../../services";
 import { WorkflowApiError, workflowErrorResponse, workflowNotFound } from "../../workflows/errors";
 import {
     RevisionIdSchema,
@@ -53,12 +53,12 @@ export const schema: FeatureSchemas = {
  * stored revision unchanged, byte-exact, including rewind-appended copies.
  */
 export const createHandler =
-    (services: Services): FeatureHandler =>
+    (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
             const revisionId = c.req.param("revisionId") ?? "";
-            const revision = await services.workflows.getRevision(workflowId, revisionId);
+            const revision = await getServices(c).workflows.getRevision(workflowId, revisionId);
             if (!revision) {
                 throw new WorkflowApiError(
                     workflowNotFound(
