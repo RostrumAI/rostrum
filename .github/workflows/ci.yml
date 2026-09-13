@@ -23,7 +23,10 @@ jobs:
           --health-timeout 3s
           --health-retries 15
     env:
-      DATABASE_URL: postgres://rostrum:rostrum@localhost:5432/rostrum
+      DATABASE_URL: postgres://rostrum:rostrum@127.0.0.1:5432/rostrum
+      DATABASE_TLS: false
+      ALLOW_INSECURE_LOCAL: true
+      NODE_ENV: test
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -40,4 +43,6 @@ jobs:
       - name: Test
         run: bun run test
       - name: Smoke boot
-        run: bun run --filter "@rostrum/control-api" smoke
+        run: |
+          bun run --filter "@rostrum/control-api" smoke
+          bun run --filter "@rostrum/daemon" smoke

@@ -1,3 +1,5 @@
+/** @fileoverview Automated review pipeline behavior tests. */
+
 /**
  * Behavioural tests for the automated review pipeline.
  *
@@ -454,6 +456,37 @@ new file mode 100644
 +}
 `;
         expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+    });
+
+    test("does not require a test for a fixture or a child-process harness", async () => {
+        // A fixture or harness is exercised by the suite that calls it, so a
+        // unit test beside it would only restate that suite.
+        const patches = [
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "packages/server/src/testing/thing.ts",
+            ),
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "packages/server/src/thing.fixture.ts",
+            ),
+        ];
+        for (const patch of patches) {
+            expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+        }
+    });
+
+    test("accepts a service-wide executable boundary suite as coverage", async () => {
+        // A service's modules are exercised end to end by its boundary suite,
+        // which spawns the real executable instead of importing one module.
+        const withBoundary = `${ADDED_FILE_PATCH}diff --git a/apps/control-api/src/boundary.test.ts b/apps/control-api/src/boundary.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/control-api/src/boundary.test.ts
+@@ -0,0 +1,1 @@
++test("executable boundary", () => {});
+`;
+        expect(await findUncoveredSourceFiles(contextFor(withBoundary))).toHaveLength(0);
     });
 });
 

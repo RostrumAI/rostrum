@@ -1,6 +1,6 @@
+import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { Type } from "typebox";
-import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import type { Services } from "../../services";
 
 /**

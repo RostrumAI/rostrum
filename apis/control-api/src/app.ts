@@ -1,12 +1,21 @@
+/** @fileoverview Caller-facing HTTP routing and OpenAPI generation. */
+
 import { join } from "node:path";
 import { getLogger } from "@logtape/logtape";
+import { createDatabase } from "@rostrum/database";
+import {
+    type FeatureBundle,
+    type FeatureRoute,
+    type LoadedFeature,
+    loadFeatures,
+    type RequestBodyDefinition,
+} from "@rostrum/server/loader";
 import { type Context, Hono } from "hono";
 import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
-import { loadConfig } from "./env";
-import type { FeatureBundle, FeatureRoute, LoadedFeature, RequestBodyDefinition } from "./loader";
-import { loadFeatures, parameterGuard } from "./loader";
+import { databaseOptions, loadConfig } from "./env";
 import { accessLog } from "./middleware/access-log";
+import { parameterGuard } from "./parameter-guard";
 import { ErrorResponseSchema } from "./schemas";
 import type { Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
@@ -42,8 +51,8 @@ const CANDIDATE_METHODS = [
  * Routes are mounted on a plain Hono app so tests can drive `routes.fetch()`
  * without a socket and the real process serves the same app over HTTP.
  * Route slices under `src/features` bind themselves at construction: the
- * folder layout decides the path, so a slice never edits a central
- * route table. Foundation surface: `/api` routes, one
+ * folder layout decides the path, so a slice never edits a central route
+ * table.
  */
 export class ControlApiApp {
     /** The mounted Hono application; serve it with Bun.serve or fetch it directly. */
@@ -58,16 +67,17 @@ export class ControlApiApp {
      * fails here, before anything serves traffic.
      */
     static async create(): Promise<ControlApiApp> {
-        const services: Services = {
-            workflows: WorkflowService.create(loadConfig().databaseUrl),
-        };
-        return new ControlApiApp(await loadFeatures(join(import.meta.dir, "features")), services);
+        const config = loadConfig();
+        const database = createDatabase(databaseOptions(config));
+        return new ControlApiApp(await loadFeatures<Services>(join(import.meta.dir, "features")), {
+            workflows: WorkflowService.create(database),
+        });
     }
 
-    private readonly loaded: FeatureBundle;
+    private readonly loaded: FeatureBundle<Services>;
     private readonly services: Services;
 
-    private constructor(loaded: FeatureBundle, services: Services) {
+    private constructor(loaded: FeatureBundle<Services>, services: Services) {
         this.loaded = loaded;
         this.services = services;
 
@@ -117,7 +127,7 @@ export class ControlApiApp {
      * the feature area folder; each documented response references its module
      * component by name. Used for building OpenAPI JSON output.
      */
-    private describeFeature(feature: LoadedFeature): DescribeRouteOptions {
+    private describeFeature(feature: LoadedFeature<Services>): DescribeRouteOptions {
         const description: DescribeRouteOptions = {
             tags: [feature.tag],
             responses: this.describeResponses(feature.responses),
@@ -191,8 +201,8 @@ export class ControlApiApp {
     }
 
     /** Closes the services the app built: the workflow database pool. */
-    async close(): Promise<void> {
-        await this.services.workflows.close();
+    async close(timeoutMs: number): Promise<void> {
+        await this.services.workflows.close({ timeoutMs });
     }
 
     /**
