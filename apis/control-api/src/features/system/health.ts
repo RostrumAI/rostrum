@@ -1,3 +1,5 @@
+/** @fileoverview Control API liveness feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { Type } from "typebox";

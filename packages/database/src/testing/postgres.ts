@@ -33,6 +33,11 @@ function freePort(): Promise<number> {
     return promise;
 }
 
+/**
+ * Creates a throwaway database on the server named by the supplied options,
+ * creating and dropping only that database and never the application database
+ * named by DATABASE_URL.
+ */
 async function disposableDatabase(options: DatabaseOptions): Promise<TestPostgres> {
     const databaseName = `rostrum_test_${process.pid}_${Math.round(Math.random() * 1e9)}`;
     const admin = createDatabase(options);

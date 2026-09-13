@@ -1,3 +1,5 @@
+/** @fileoverview Revision save feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";

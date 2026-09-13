@@ -28,16 +28,19 @@ export interface FixtureProcess {
  * provide because it installs process-wide handlers and calls `process.exit`.
  */
 export async function spawnFixture(initial: Record<string, unknown>): Promise<FixtureProcess> {
+    // Write the candidate configuration the fixture reads at boot and on reload.
     const directory = mkdtempSync(join(tmpdir(), "rostrum-server-"));
     const configPath = join(directory, "config.json");
     writeFileSync(configPath, JSON.stringify(initial));
 
+    // Spawn the fixture with piped stdio so its lines can be observed.
     const child = Bun.spawn([process.execPath, FIXTURE], {
         env: { ...process.env, FIXTURE_CONFIG: configPath },
         stdout: "pipe",
         stderr: "pipe",
     });
 
+    // Split each stream into complete lines and wake the waiters that match.
     const seen: string[] = [];
     const waiters: Array<{
         predicate: (line: string) => boolean;
@@ -45,16 +48,22 @@ export async function spawnFixture(initial: Record<string, unknown>): Promise<Fi
     }> = [];
 
     const pump = async (stream: ReadableStream<Uint8Array>): Promise<void> => {
+        // Decode incrementally: a chunk can end mid-line.
         const decoder = new TextDecoder();
         let buffer = "";
+
         for await (const chunk of stream) {
             buffer += decoder.decode(chunk, { stream: true });
             let index = buffer.indexOf("\n");
+
+            // Publish each complete line and keep the partial remainder buffered.
             while (index >= 0) {
                 const line = buffer.slice(0, index).trim();
                 buffer = buffer.slice(index + 1);
                 if (line.length > 0) {
                     seen.push(line);
+
+                    // Wake every waiter this line satisfies.
                     for (const waiter of [...waiters]) {
                         if (!waiter.predicate(line)) {
                             continue;
@@ -74,10 +83,13 @@ export async function spawnFixture(initial: Record<string, unknown>): Promise<Fi
         predicate: (line: string) => boolean,
         timeoutMs = 10_000,
     ): Promise<string> => {
+        // A line that already arrived satisfies the predicate immediately.
         const existing = seen.find(predicate);
         if (existing !== undefined) {
             return existing;
         }
+
+        // Otherwise register a waiter the pump will resolve, rejecting if the line never comes.
         const { promise, resolve, reject } = Promise.withResolvers<string>();
         const timer = setTimeout(() => {
             reject(new Error(`timed out waiting for a fixture line; saw:\n${seen.join("\n")}`));
@@ -92,6 +104,7 @@ export async function spawnFixture(initial: Record<string, unknown>): Promise<Fi
         return promise;
     };
 
+    // Read the port the fixture actually bound from its listening line.
     const listening = await waitFor((line) => line.includes('"msg":"listening"'));
     const parsed: unknown = JSON.parse(listening);
     if (
@@ -103,6 +116,7 @@ export async function spawnFixture(initial: Record<string, unknown>): Promise<Fi
         throw new Error(`fixture did not report a numeric port: ${listening}`);
     }
 
+    // Hand back the handle the test drives.
     return {
         port: parsed.port,
         lines: () => [...seen],
