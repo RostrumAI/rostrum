@@ -1,12 +1,12 @@
 ---
 name: repository-conventions
-description: Rostrum conventions mined from the repository's own review history. Use when reviewing a pull request for module placement, feature-slice and dependency-injection wiring, schema and validation placement, HTTP contracts, naming, comments and TSDoc, tests and fixtures, database migrations, library reuse, and dead-code removal. Every rule carries an id, the paths it applies to, a mechanical/judgment classification, a severity, the pattern to flag, and the review comment that motivated it.
+description: Rostrum conventions from the repository's review history and direct maintainer guidance. Use when reviewing a pull request for module placement, feature-slice and dependency-injection wiring, schema and validation placement, HTTP contracts, naming, comments and TSDoc, tests and fixtures, database migrations, library reuse, and dead-code removal. Every rule carries an id, the paths it applies to, a mechanical/judgment classification, a severity, the pattern to flag, and the evidence or direction that established it.
 ---
 
 # Repository conventions
 
-These rules come from review comments on Rostrum pull requests #2 through #15. They describe where
-code lives, how it is wired, what it exposes, and what proves it, not how it is formatted. Rules about
+These rules come from review comments on Rostrum pull requests #2 through #15 and direct maintainer
+guidance. They describe where code lives, how it is wired, what it exposes, and what proves it, not how it is formatted. Rules about
 the Google TypeScript style guide, Biome, and lint live in `google-typescript.md`; do not restate them
 here. The `REPO-TS-*` entries in section 8 are the repository's own syntax checks, which the
 deterministic pass already reports; where a subject is also covered by a `GTS-*` rule, prefer the
@@ -251,10 +251,12 @@ one-line purpose is enough.
 **Evidence:** PR #9 `packages/database/src/repositories/workflow-repository.ts:1` — "Let's get TSDoc on all files here (including private)"; PR #7 `packages/workflow/src/parse/json-source-parser.ts:155` — "All functions should have TSDoc"; PR #5 `apps/control-api/src/features/system/get-health.handler.ts:5` — "TSDoc on all functions".
 
 ### REPO-DOC-02 — Comments state business purpose, not mechanics
-A comment says why the code exists, what rule it satisfies, or what a caller does with it; a comment
-that restates the signature or the next statement is a finding.
+A comment says why the code exists, what rule it satisfies, what a caller does with it, or helps the
+reader follow a non-obvious sequence. A standalone comment that only restates the signature or next
+statement is a finding. A short transition may name the next step when it is part of a coherent
+walkthrough, but it still needs to orient the reader within the larger flow.
 **Applies to:** `apps/**`, `apis/**`, `packages/**`, `**/*.md` · **Check:** judgment · **Severity:** low
-**Flag:** TSDoc like "Gets the workflow"; a helper comment that paraphrases its own body; a route-metadata helper with no note that it feeds the OpenAPI document.
+**Flag:** TSDoc like "Gets the workflow"; an isolated helper comment that paraphrases its own body; a route-metadata helper with no note that it feeds the OpenAPI document.
 **Evidence:** PR #5 `apps/control-api/src/features/system/get-health.handler.ts:3` — "TSDoc on classes should state business purpose vs 'here's what this code obviously does' … this should be stating why we have a health endpoint"; PR #12 `apps/control-api/src/app.ts:121` — "leave a tiny note in the comment here (Used for building OpenAPI JSON output)".
 
 ### REPO-DOC-03 — Comment the parts a reader cannot decode
@@ -277,6 +279,25 @@ avoids filler or restating the editing process; match detail to the document's p
 **Applies to:** `dev-docs/**`, `**/*.md` · **Check:** judgment · **Severity:** low
 **Flag:** An overview that catalogs sample implementations; prose a junior engineer cannot follow; promotional or process narration.
 **Evidence:** PR #3 `docs/decisions/epic-01/e1-s3-draft-publication-lifecycle.md:15` — "the language being used here can be simplified such that it can be easily understood by a junior software engineer without impacting the level of detail"; `AGENTS.md` "Writing style" is the governing rule.
+
+### REPO-DOC-06 — Keep TSDoc concise and put execution guidance beside the code
+A function's TSDoc gives a junior engineer with Rostrum product knowledge a plain-language summary of
+its purpose and observable contract. When the implementation has non-obvious stages, keep the
+execution walkthrough beside those stages as short, nearly conversational inline comments instead of
+packing it into the TSDoc. Comment meaningful transitions, not every self-evident statement.
+**Applies to:** `apps/**`, `apis/**`, `packages/**`, `scripts/**` · **Check:** judgment · **Severity:** low
+**Flag:** Dense TSDoc that mixes the caller-facing contract with several implementation steps; a multi-step function whose execution story lives only in its TSDoc even though short inline guidance would make the body easier to follow.
+**Evidence:** Maintainer review direction — comments should be easy for a junior software engineer with Rostrum product knowledge to read, with conversational guidance through a difficult function.
+
+### REPO-DOC-07 — Document every named member of an object type
+Every explicitly declared property or method in an interface or object type literal has its own
+immediately preceding TSDoc block. One succinct, plain-language sentence saying what the member
+contains, controls, or returns is normally enough; add constraints only when they affect its use. This
+includes named and inline object type literals. Ordinary object values and generated members of
+`Record` or mapped types are outside this rule because they do not declare individual type keys.
+**Applies to:** `apps/**`, `apis/**`, `packages/**`, `scripts/**` · **Check:** judgment · **Severity:** medium
+**Flag:** An interface or object type literal declares a named member with no TSDoc, or its comment merely restates the member's name or TypeScript type.
+**Evidence:** Maintainer review direction — every key of an object type must carry succinct TSDoc explaining in plain terms what the key is for.
 
 ## 8. Code readability and TypeScript hygiene
 
@@ -531,7 +552,7 @@ a file whose purpose changed is renamed to match.
 
 ## Appendix: rule-to-evidence map
 
-| Rule | Evidence (PR / path) |
+| Rule | Evidence source |
 | --- | --- |
 | REPO-ARCH-01 | #9 `packages/database/src/repositories/workflow-repository.ts:1` |
 | REPO-ARCH-02 | #9 `packages/storage/src/database.ts:1` |
@@ -566,6 +587,8 @@ a file whose purpose changed is renamed to match.
 | REPO-DOC-03 | #7 `json-source-parser.ts:281`; #7 `json-source-parser.ts:94`; #7 `conditional-stage.ts:37`; #7 `references-stage.ts:144`; #7 `termination-stage.ts:36`; #7 `graph-stage.ts:18` |
 | REPO-DOC-04 | #12 `apps/control-api/src/workflows/rule-sets.ts:6` |
 | REPO-DOC-05 | #3 `docs/decisions/epic-01/e1-s3-draft-publication-lifecycle.md:15` |
+| REPO-DOC-06 | Maintainer direction: concise TSDoc with conversational inline walkthroughs for difficult functions |
+| REPO-DOC-07 | Maintainer direction: succinct plain-language TSDoc on every object-type key |
 | REPO-TS-01 | #7 `conditional-stage.ts:108`; #9 `workflow-repository.ts:1` reply |
 | REPO-TS-02 | #7 `json-source-parser.ts:137`; #7 `conditional-stage.ts:40` |
 | REPO-TS-03 | #5 `apps/control-api/src/logger.ts:13`; #5 `apps/control-api/src/app.ts:64` |

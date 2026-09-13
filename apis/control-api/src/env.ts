@@ -18,16 +18,17 @@ export function databaseOptions(config: ControlApiConfig): DatabaseOptions {
 }
 
 /**
- * Loads and validates the process configuration. The source retains the
- * startup environment and the selected file, so a later reload rereads the
- * same files with environment values still taking precedence.
+ * Loads and validates process configuration.
  *
- * Database options are validated here, before any pool is opened, so an
- * unsafe transport policy fails the process rather than a later connection.
+ * The startup environment and YAML file location are fixed at boot. Later
+ * calls reparse that file while retaining environment-value precedence.
  */
 export function loadConfig(): ControlApiConfig {
+    // First, select the Control API configuration source exactly once.
     source ??= new ServiceConfigSource("control-api");
+    // Then, load the latest file values beneath the retained startup environment.
     const config = source.load();
+    // Finally, enforce database connection policy before returning the complete config.
     validateDatabaseOptions(databaseOptions(config));
     return config;
 }

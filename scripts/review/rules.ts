@@ -32,6 +32,8 @@ interface RuleCheck {
     appliesTo: (path: string) => boolean;
     /** Matches an added line that violates the rule. */
     matches: (line: string) => boolean;
+    /** Exact replacement for the matched line when that replacement is the complete fix. */
+    suggestion?: (line: string) => string | undefined;
     /**
      * Which region of the line the check reads.
      *
@@ -88,6 +90,26 @@ function isDeclarationOrSchema(path: string): boolean {
     );
 }
 
+/**
+ * Expands a one-line conditional exit into a braced block on the same review range.
+ *
+ * @param line - Added source line matched by REPO-TS-02.
+ * @returns The braced replacement, or undefined when the line is not the supported shape.
+ */
+function braceControlFlow(line: string): string | undefined {
+    const match =
+        /^(\s*)((?:if|else\s+if)\s*\([^)]*\))\s*((?:return|throw|continue|break)\b[^;]*;)\s*$/.exec(
+            line,
+        );
+    const indent = match?.[1];
+    const condition = match?.[2];
+    const statement = match?.[3];
+    if (indent === undefined || condition === undefined || statement === undefined) {
+        return undefined;
+    }
+    return `${indent}${condition} {\n${indent}    ${statement}\n${indent}}`;
+}
+
 /** The mechanical checks, in report order. */
 export const RULE_CHECKS: RuleCheck[] = [
     {
@@ -113,10 +135,8 @@ export const RULE_CHECKS: RuleCheck[] = [
         guidance:
             "Put the body on its own line inside braces, and add a comment when the branch is not obvious.",
         appliesTo: isTypeScript,
-        matches: (line) =>
-            /^\s*(?:if|else\s+if)\s*\([^)]*\)\s*(?:return|throw|continue|break)\b[^;]*;\s*$/.test(
-                line,
-            ),
+        matches: (line) => braceControlFlow(line) !== undefined,
+        suggestion: braceControlFlow,
     },
     {
         id: "REPO-TS-03",
@@ -176,6 +196,7 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Remove `.only` and `.skip` before committing; a green suite must mean every case ran.",
         appliesTo: isTestFile,
         matches: (line) => /\.(?:only|skip)\s*\(/.test(line),
+        suggestion: (line) => line.replace(/\.(?:only|skip)\s*(?=\()/g, ""),
     },
 ];
 
@@ -228,6 +249,7 @@ export async function runRuleChecks(context: ReviewContext): Promise<Finding[]> 
                     title: check.title,
                     body: `${check.guidance}\n\nOffending line: \`${entry.text.trim()}\``,
                     evidence: entry.text.trim(),
+                    suggestion: check.suggestion?.(entry.text),
                     lens: "rules",
                 });
             }

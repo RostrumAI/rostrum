@@ -46,6 +46,8 @@ changed line.
 6. Verify before reporting. For each finding, open the cited line and confirm the claim. Drop any
    finding you cannot confirm against the source, and drop any finding whose rule does not say what
    the reviewer claims it says. Reviewers hallucinate line numbers and imaginary bugs.
+   When the complete fix can replace only the cited line, include the optional replacement from the
+   finding contract. Omit it when any other line or file must change.
 7. Merge the deterministic and model findings, deduplicate by rule and location, apply the
    confidence floor, and drop findings covered by the suppression rules below.
 8. Post one review containing every surviving finding as an inline comment, plus a summary body.

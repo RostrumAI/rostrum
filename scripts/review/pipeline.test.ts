@@ -397,11 +397,27 @@ new file mode 100644
         expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("flags a single-line unbraced conditional", async () => {
-        const ruleIds = (await runRuleChecks(contextFor(ADDED_FILE_PATCH))).map(
-            (finding) => finding.ruleId,
+    test("suggests a braced replacement for a single-line conditional", async () => {
+        const finding = (await runRuleChecks(contextFor(ADDED_FILE_PATCH))).find(
+            (candidate) => candidate.ruleId === "REPO-TS-02",
         );
-        expect(ruleIds).toContain("REPO-TS-02");
+        expect(finding?.suggestion).toBe(
+            ["    if (value > 0) {", "        return value;", "    }"].join("\n"),
+        );
+    });
+
+    test("suggests enabling a focused test on the cited line", async () => {
+        const patch = `diff --git a/packages/workflow/src/thing.test.ts b/packages/workflow/src/thing.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/thing.test.ts
+@@ -0,0 +1 @@
++test.only("thing", () => {});
+`;
+        const finding = (await runRuleChecks(contextFor(patch))).find(
+            (candidate) => candidate.ruleId === "REPO-TEST-01",
+        );
+        expect(finding?.suggestion).toBe('test("thing", () => {});');
     });
 
     test("leaves console output alone in scripts and tests", async () => {
@@ -873,6 +889,54 @@ describe("reviewer output handling", () => {
         );
         expect(findings.map((finding) => finding.title)).toEqual(["Real"]);
         expect(findings[0]?.lens).toBe("tests");
+    });
+
+    test("keeps suggestions only for exact added-line replacements", () => {
+        const context = contextFor(ADDED_FILE_PATCH);
+        const lens: Lens = {
+            id: "correctness",
+            label: "Correctness",
+            promptPath: "lenses/01-correctness.md",
+            rulePaths: ["rules/repository-conventions.md"],
+            applies: () => true,
+        };
+        const findings = normalizeFindings(
+            {
+                findings: [
+                    {
+                        path: "apps/control-api/src/thing.ts",
+                        line: 2,
+                        title: "Local",
+                        suggestion: "if (value > 0) {\r\n    return value;\r\n}\r\n",
+                    },
+                    {
+                        path: "apps/control-api/src/thing.ts",
+                        line: 9,
+                        title: "Re-anchored",
+                        suggestion: "return value;",
+                    },
+                    {
+                        path: "apps/control-api/src/thing.ts",
+                        line: 3,
+                        title: "Fenced",
+                        suggestion: "```suggestion\nreturn value;\n```",
+                    },
+                ],
+            },
+            lens,
+            context,
+        );
+        expect(findings.map((finding) => finding.suggestion)).toEqual([
+            "if (value > 0) {\n    return value;\n}",
+            undefined,
+            undefined,
+        ]);
+    });
+
+    test("renders a local replacement at the bottom of the inline comment", () => {
+        const suggestion = ["if (value > 0) {", "    return value;", "}"].join("\n");
+        const rendered = renderComment(findingFor({ suggestion }));
+        expect(rendered.endsWith(`\n\n\`\`\`suggestion\n${suggestion}\n\`\`\``)).toBe(true);
     });
 });
 

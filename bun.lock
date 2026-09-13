@@ -10,6 +10,8 @@
       "devDependencies": {
         "@biomejs/biome": "^2.5.7",
         "@types/bun": "^1.4.0",
+        "git-format-staged": "^4.0.2",
+        "husky": "^9.1.7",
         "typescript": "^7.0.2",
       },
     },
@@ -40,7 +42,6 @@
         "@rostrum/server": "workspace:*",
         "hono": "^4.13.3",
         "hono-openapi": "^1.3.1",
-        "typebox": "^1.3.12",
       },
     },
     "packages/database": {
@@ -195,9 +196,13 @@
 
     "embedded-postgres": ["embedded-postgres@18.4.0-beta.17", "", { "dependencies": { "async-exit-hook": "^2.0.1", "pg": "^8.7.3" }, "optionalDependencies": { "@embedded-postgres/darwin-arm64": "^18.4.0-beta.17", "@embedded-postgres/darwin-x64": "^18.4.0-beta.17", "@embedded-postgres/linux-arm": "^18.4.0-beta.17", "@embedded-postgres/linux-arm64": "^18.4.0-beta.17", "@embedded-postgres/linux-ia32": "^18.4.0-beta.17", "@embedded-postgres/linux-ppc64": "^18.4.0-beta.17", "@embedded-postgres/linux-x64": "^18.4.0-beta.17", "@embedded-postgres/windows-x64": "^18.4.0-beta.17" } }, "sha512-ORT/A1YiO6ecpRHpyIIBgyCR/8ASqqYZuFw11aX9PkqTX3FUM5+9sNOXY1mGIixxsm2TWSIA5WghJEk7A5ZxVw=="],
 
+    "git-format-staged": ["git-format-staged@4.0.2", "", { "bin": { "git-format-staged": "git-format-staged" } }, "sha512-0fHxU5ZyxeCrTL+8BWugZKxqqS2Ba6OGCdyTeZW7kQJVuLbmxWJ2eNGZTjPxVQ8FGovBZsXZCmPRD2VSOWE82g=="],
+
     "hono": ["hono@4.13.3", "", {}, "sha512-r8AO2mYHoLxSHkgafNeC/BXyb2vWRxD3jem4Ts+ptav8oTG5FIRifAjuJEmZI4bSvvc2ns0GxmIYiZnHqN3mMw=="],
 
     "hono-openapi": ["hono-openapi@1.3.1", "", { "peerDependencies": { "@hono/standard-validator": "^0.2.0", "@standard-community/standard-json": "^0.3.5", "@standard-community/standard-openapi": "^0.2.9", "@types/json-schema": "^7.0.15", "hono": "^4.11.2", "openapi-types": "^12.1.3" }, "optionalPeers": ["@hono/standard-validator", "hono"] }, "sha512-NLVeVkhKZ3drmQNEIPac8HX8Y54uf1hJAgIM/7MfDsaeVVmB+QILWQxx5x3R3NvRHgedcbEbOCGY2uR7WQYyMw=="],
+
+    "husky": ["husky@9.1.7", "", { "bin": { "husky": "bin.js" } }, "sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA=="],
 
     "json-source-map": ["json-source-map@0.6.1", "", {}, "sha512-1QoztHPsMQqhDq0hlXY5ZqcEdUzxQEIxgFkKl4WUp2pgShObl+9ovi4kRh2TfvAfxAoHOJ9vIMEqk3k4iex7tg=="],
 
