@@ -2,7 +2,6 @@
 
 import { type Static, Type } from "typebox";
 
-// Liveness: the simplest response every service shares.
 /** Wire shape of the liveness response. */
 export const HealthSchema = Type.Object(
     { status: Type.Literal("ok") },
@@ -11,7 +10,6 @@ export const HealthSchema = Type.Object(
 /** The liveness response a service returns while it is up. */
 export type Health = Static<typeof HealthSchema>;
 
-// Boundary failures: one body for every service that answers at the edge.
 /** Wire shape of the boundary failure body every service returns. */
 export const BoundaryErrorSchema = Type.Object(
     {
@@ -62,14 +60,12 @@ export type CheckResult =
     | Static<typeof DatabaseFailureSchema>
     | Static<typeof DaemonFailureSchema>;
 
-// The aggregate a readiness caller receives.
 /** Overall readiness with one result per dependency that was checked. */
 export interface Readiness {
     status: "ready" | "not_ready";
     checks: { database?: CheckResult; daemon?: CheckResult };
 }
 
-// The daemon's readiness document: its database is the only dependency.
 /** Wire shape of the daemon's readiness document. */
 export const DaemonReadinessSchema = Type.Union([
     Type.Object(
@@ -93,9 +89,10 @@ export const DaemonReadinessSchema = Type.Union([
 /** The daemon's readiness document. */
 export type DaemonReadiness = Static<typeof DaemonReadinessSchema>;
 
-// The Control API's readiness document: the failing dependency is present, its
-// healthy sibling optional.
-/** Wire shape of the Control API's readiness document. */
+/**
+ * Wire shape of the Control API's readiness document. The failing dependency is
+ * present and its healthy sibling is optional.
+ */
 export const ControlApiReadinessSchema = Type.Union([
     Type.Object(
         {

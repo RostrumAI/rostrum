@@ -48,7 +48,7 @@ export function validateDaemonUrl(value: string, allowInsecureLocal: boolean): s
         fail();
     }
 
-    // The host must be an IP literal, never a name the resolver could remap.
+    // Extract the raw host before URL normalization; only the local exception requires a loopback literal.
     const literal = authority.startsWith("[")
         ? /^\[([^\]]+)\](?::[0-9]+)?$/.exec(authority)?.[1]
         : /^([^:]+)(?::[0-9]+)?$/.exec(authority)?.[1];
