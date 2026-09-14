@@ -5,9 +5,11 @@ import { type ControlApiConfig, ServiceConfigSource } from "@rostrum/server/conf
 
 let source: ServiceConfigSource<"control-api"> | undefined;
 
-/** The configuration this process runs with, and the database policy it was validated against. */
+/** Everything a caller needs to start the Control API: its configuration, and the database policy that configuration was validated against. */
 export interface LoadedControlApiConfig {
+    /** The validated configuration this process runs with. */
     config: ControlApiConfig;
+    /** The database connection policy `config` was validated against; pass it straight to `createDatabase`. */
     databaseOptions: DatabaseOptions;
 }
 

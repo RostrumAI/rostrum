@@ -1,9 +1,9 @@
 /** @fileoverview OpenAPI-aligned path and header parameter validation. */
 
-import type { ParameterDefinition } from "@rostrum/server/loader";
 import type { MiddlewareHandler } from "hono";
 import type { TSchema } from "typebox";
 import { Value } from "typebox/value";
+import type { ParameterDefinition } from "./loader";
 
 /**
  * Guards a route's documented path and header parameters: every value must
@@ -11,8 +11,9 @@ import { Value } from "typebox/value";
  * shape before the handler runs, so handlers never re-check parameter formats
  * by hand.
  *
- * Only the Control API documents parameterized routes today, so the guard stays
- * here rather than in the shared package.
+ * Both services bind their routes through the shared loader, so the guard lives
+ * beside it. The code it answers with is boundary-neutral: a workflow-specific
+ * code would name one service's area rather than the boundary both share.
  */
 export function parameterGuard(parameters: ParameterDefinition[]): MiddlewareHandler {
     // A declared parameter can only be checked when it carries a schema.
@@ -37,12 +38,25 @@ export function parameterGuard(parameters: ParameterDefinition[]): MiddlewareHan
             if (value === undefined && !required) {
                 continue;
             }
-            if (value !== undefined && Value.Check(parameter.schema, value)) {
+
+            // An absent required parameter is named as missing; there is no value to quote.
+            if (value === undefined) {
+                return c.json(
+                    {
+                        code: "invalid_parameter",
+                        message: `the ${parameter.in} parameter ${parameter.name} is required`,
+                        findings: [],
+                    },
+                    400,
+                );
+            }
+
+            if (Value.Check(parameter.schema, value)) {
                 continue;
             }
 
-            const errors = value === undefined ? [] : [...Value.Errors(parameter.schema, value)];
-            const detail = errors[0]?.message ?? "the parameter is required";
+            const errors = [...Value.Errors(parameter.schema, value)];
+            const detail = errors[0]?.message ?? "it does not match the documented schema";
             return c.json(
                 {
                     code: "invalid_parameter",

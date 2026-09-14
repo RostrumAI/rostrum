@@ -1,4 +1,4 @@
-/** @fileoverview Path-parameter validation middleware tests. */
+/** @fileoverview Path and header parameter validation middleware tests. */
 
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
@@ -61,7 +61,13 @@ describe("parameter guard", () => {
             (context) => context.json({ ok: true }),
         );
 
-        expect((await required.request("/items")).status).toBe(400);
+        const missing = await required.request("/items");
+        expect(missing.status).toBe(400);
+        expect(await missing.json()).toEqual({
+            code: "invalid_parameter",
+            message: "the header parameter x-request-id is required",
+            findings: [],
+        });
         expect(
             (await required.request("/items", { headers: { "x-request-id": "nope" } })).status,
         ).toBe(400);

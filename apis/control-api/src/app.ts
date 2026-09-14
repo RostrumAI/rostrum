@@ -10,12 +10,12 @@ import {
     loadFeatures,
     type RequestBodyDefinition,
 } from "@rostrum/server/loader";
+import { parameterGuard } from "@rostrum/server/parameter-guard";
 import { type Context, Hono } from "hono";
 import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
 import { loadConfig } from "./env";
 import { accessLog } from "./middleware/access-log";
-import { parameterGuard } from "./parameter-guard";
 import { ErrorResponseSchema } from "./schemas";
 import type { Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
