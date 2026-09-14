@@ -5,7 +5,7 @@ import { configureLogging } from "@rostrum/server/logger";
 import { ControlApiApp } from "./app";
 import { loadConfig } from "./env";
 
-const config = loadConfig();
+const { config } = loadConfig();
 await configureLogging(config.logLevel);
 const logger = getLogger("control-api");
 const app = await ControlApiApp.create();

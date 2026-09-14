@@ -9,6 +9,7 @@
         "./tokens": "./src/tokens.ts",
         "./logger": "./src/logger.ts",
         "./loader": "./src/loader.ts",
+        "./parameter-guard": "./src/parameter-guard.ts",
         "./protocol": "./src/protocol.ts",
         "./readiness": "./src/readiness.ts",
         "./lifecycle": "./src/lifecycle.ts"

@@ -10,12 +10,12 @@ import {
     loadFeatures,
     type RequestBodyDefinition,
 } from "@rostrum/server/loader";
+import { parameterGuard } from "@rostrum/server/parameter-guard";
 import { type Context, Hono } from "hono";
 import { type DescribeRouteOptions, describeRoute, generateSpecs } from "hono-openapi";
 import pkg from "../package.json" with { type: "json" };
-import { databaseOptions, loadConfig } from "./env";
+import { loadConfig } from "./env";
 import { accessLog } from "./middleware/access-log";
-import { parameterGuard } from "./parameter-guard";
 import { ErrorResponseSchema } from "./schemas";
 import type { Services } from "./services";
 import { FindingSchema } from "./workflows/schemas";
@@ -67,8 +67,8 @@ export class ControlApiApp {
      * fails here, before anything serves traffic.
      */
     static async create(): Promise<ControlApiApp> {
-        const config = loadConfig();
-        const database = createDatabase(databaseOptions(config));
+        const { databaseOptions } = loadConfig();
+        const database = createDatabase(databaseOptions);
         return new ControlApiApp(await loadFeatures<Services>(join(import.meta.dir, "features")), {
             workflows: WorkflowService.create(database),
         });

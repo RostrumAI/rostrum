@@ -240,7 +240,12 @@ export class ServiceConfigSource<S extends Service> {
         }
 
         // Load tokens, then run the checks only this service needs.
-        const tokens = loadTokens(this.env, daemonTokenFile as string | undefined, this.cwd);
+        const tokenFile = typeof daemonTokenFile === "string" ? daemonTokenFile : undefined;
+        const tokens = loadTokens(this.env, tokenFile, this.cwd);
+
+        // `Value.Check(schema, candidate)` above proved every field's presence and
+        // type, but a TypeBox result cannot narrow a Record, so the validated
+        // settings are asserted as the service's config rather than re-decoded.
         if (this.service === "control-api") {
             const config = { ...settings, tokens } as unknown as ControlApiConfig;
             config.daemonUrl = validateDaemonUrl(config.daemonUrl, config.allowInsecureLocal);
