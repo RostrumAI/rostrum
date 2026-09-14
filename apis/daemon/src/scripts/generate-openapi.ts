@@ -7,5 +7,5 @@ import { DaemonApp } from "../app";
 const app = await DaemonApp.create();
 await writeFile(
     join(import.meta.dir, "../../openapi.json"),
-    `${JSON.stringify(await app.openApi(), null, 2)}\n`,
+    `${JSON.stringify(await app.generateOpenApiDocument(), null, 2)}\n`,
 );
