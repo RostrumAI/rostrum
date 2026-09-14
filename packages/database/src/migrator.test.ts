@@ -1,3 +1,5 @@
+/** @fileoverview Database migration behavior tests. */
+
 import { afterAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { type Kysely, sql } from "kysely";
@@ -22,11 +24,12 @@ const EXPECTED_MIGRATIONS = [
 ];
 
 async function withDatabase<T>(run: (db: Kysely<Database>) => Promise<T>): Promise<T> {
-    const db = createDatabase(testPostgres.url);
+    const handle = createDatabase(testPostgres.options);
+    const db = handle.db;
     try {
         return await run(db);
     } finally {
-        await db.destroy();
+        await handle.close({ timeoutMs: 1_000 });
     }
 }
 

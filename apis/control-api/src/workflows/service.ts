@@ -1,10 +1,14 @@
+/** @fileoverview Workflow authoring and publication operations. */
+
 import type {
     CreatedDraft,
+    DatabaseHandle,
     Publication,
     PublishResult,
     SaveRevisionResult,
     StoredRevision,
 } from "@rostrum/database";
+import { WorkflowRepository } from "@rostrum/database";
 import {
     type Finding,
     insertWorkflowId,
@@ -12,15 +16,21 @@ import {
     PublicationPreparer,
     parseWorkflow,
     replaceWorkflowId,
+    V1_RULE_SET,
     type ValidationResult,
     type WorkflowFormatRegistry,
     type WorkflowFormatRuleSet,
     type WorkflowValidator,
 } from "@rostrum/workflow";
 import { v7 as mintUuidV7 } from "uuid";
-import { createWorkflowDatabase, type WorkflowDatabase } from "./database";
 import { WorkflowApiError, workflowIdentityConflict, workflowParseFailure } from "./errors";
 import { RULE_SET_REGISTRY, WORKFLOW_VALIDATOR } from "./rule-sets";
+
+/** Database operations and ownership used by workflow authoring. */
+interface WorkflowDatabase {
+    readonly workflows: WorkflowRepository;
+    close(options: { timeoutMs: number }): Promise<void>;
+}
 
 /** The explicit validation result of POST /workflows/validate. */
 export interface ValidateOutcome {
@@ -67,10 +77,16 @@ export class WorkflowService {
         this.registry = registry;
     }
 
-    /** Creates a service over one Postgres URL. */
-    static create(databaseUrl: string): WorkflowService {
+    /** Creates the workflow service and its database operations. */
+    static create(database: DatabaseHandle): WorkflowService {
         return new WorkflowService(
-            createWorkflowDatabase(databaseUrl),
+            {
+                workflows: new WorkflowRepository(
+                    database.db,
+                    new PublicationPreparer(V1_RULE_SET),
+                ),
+                close: (options) => database.close(options),
+            },
             WORKFLOW_VALIDATOR,
             RULE_SET_REGISTRY,
         );
@@ -223,9 +239,9 @@ export class WorkflowService {
         return this.database.workflows.getPublication(workflowId, publicationNumber);
     }
 
-    /** Closes the underlying connection pool. */
-    async close(): Promise<void> {
-        await this.database.close();
+    /** Closes the database connection pool owned by this service. */
+    close(options: { timeoutMs: number }): Promise<void> {
+        return this.database.close(options);
     }
 
     /**

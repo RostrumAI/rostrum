@@ -1,10 +1,10 @@
+/** @fileoverview Feature-slice discovery and validation. */
+
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { Handler, MiddlewareHandler } from "hono";
+import type { Handler } from "hono";
 import type { TSchema } from "typebox";
-import { Value } from "typebox/value";
-import type { Services } from "./services";
 
 /** HTTP methods a feature route can bind to. */
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -40,6 +40,7 @@ export interface ResponseDefinition {
     schemaName?: string;
 }
 
+/** One documented path or header parameter. */
 export interface ParameterDefinition {
     /** Parameter name: a path token such as `workflowId`, or a header name. */
     name: string;
@@ -75,17 +76,17 @@ export type FeatureHandler = Handler;
  * at bind time, so handlers receive their dependencies instead of
  * reaching module state.
  */
-export type FeatureHandlerFactory = (services: Services) => FeatureHandler;
+export type FeatureHandlerFactory<S> = (services: S) => FeatureHandler;
 
 /** The exports every feature module must provide. */
-export interface FeatureModule {
+export interface FeatureModule<S> {
     route: FeatureRoute;
     schema?: FeatureSchemas;
-    createHandler: FeatureHandlerFactory;
+    createHandler: FeatureHandlerFactory<S>;
 }
 
 /** One validated feature ready to bind. */
-export interface LoadedFeature {
+export interface LoadedFeature<S> {
     /** Module path relative to `src/features`, e.g. `system/health.ts`. */
     file: string;
     /** Route path under the `/api` prefix, e.g. `/system/health`. */
@@ -100,12 +101,14 @@ export interface LoadedFeature {
     /** Documented request body, as declared by the module. */
     requestBody: RequestBodyDefinition | undefined;
     /** The module's handler factory; the app calls it with its services. */
-    createHandler: FeatureHandlerFactory;
+    createHandler: FeatureHandlerFactory<S>;
 }
 
-/** Validated features plus their contributed OpenAPI components. */
-export interface FeatureBundle {
-    features: LoadedFeature[];
+/** Manifest of all routes, handler factories, and the OpenAPI components they created */
+export interface FeatureBundle<S> {
+    /** The feature slices this bundle exposes, in deterministic load order. */
+    features: LoadedFeature<S>[];
+    /** The OpenAPI components contributed by the loaded slices, keyed by component name. */
     components: Record<string, TSchema>;
 }
 
@@ -131,48 +134,17 @@ function listFeatureFiles(dir: string): string[] {
 }
 
 /**
- * Guards a route's path parameters: every value must satisfy the
- * documented parameter schema. A violation answers 400 in the single
- * error shape before the handler runs, so handlers never re-check
- * parameter formats by hand.
- */
-export function parameterGuard(parameters: ParameterDefinition[]): MiddlewareHandler {
-    const guarded = parameters.filter(
-        (parameter): parameter is ParameterDefinition & { schema: TSchema } =>
-            parameter.in === "path" && parameter.schema !== undefined,
-    );
-    if (guarded.length === 0) return (_c, next) => next();
-    return async (c, next) => {
-        for (const parameter of guarded) {
-            const value = c.req.param(parameter.name);
-            if (value !== undefined && Value.Check(parameter.schema, value)) continue;
-            const errors = value === undefined ? [] : [...Value.Errors(parameter.schema, value)];
-            const detail = errors[0]?.message ?? "the parameter is required";
-            return c.json(
-                {
-                    code: "invalid_workflow_input",
-                    message: `'${value}' is not a valid ${parameter.name}: ${detail}`,
-                    findings: [],
-                },
-                400,
-            );
-        }
-        await next();
-    };
-}
-
-/**
  * Checks one imported module against the {@link FeatureModule} shape and
  * returns its validated parts. Throws with the offending file named so a
  * misaligned slice fails startup instead of surfacing at request time.
  */
-function validateModule(
+function validateModule<S>(
     file: string,
     mod: unknown,
 ): {
     route: FeatureRoute;
     schema: FeatureSchemas;
-    createHandler: FeatureHandlerFactory;
+    createHandler: FeatureHandlerFactory<S>;
 } {
     // An explicit variable type is required for TS to narrow via the never return.
     const fail: (reason: string) => never = (reason) => {
@@ -231,7 +203,9 @@ function validateModule(
     }
 
     if (route.parameters !== undefined) {
-        if (!Array.isArray(route.parameters)) fail("route.parameters must be an array");
+        if (!Array.isArray(route.parameters)) {
+            fail("route.parameters must be an array");
+        }
         route.parameters.forEach((parameter, index) => {
             if (typeof parameter !== "object" || parameter === null || Array.isArray(parameter)) {
                 fail(`route.parameters.${index} must be an object`);
@@ -271,7 +245,7 @@ function validateModule(
     return {
         route: route as FeatureRoute,
         schema,
-        createHandler: candidate.createHandler as FeatureHandlerFactory,
+        createHandler: candidate.createHandler as FeatureHandlerFactory<S>,
     };
 }
 
@@ -281,8 +255,8 @@ function validateModule(
  * any missing or malformed export throws and prevents the process from
  * booting. Component names and bound paths must be unique across slices.
  */
-export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> {
-    const features: LoadedFeature[] = [];
+export async function loadFeatures<S>(featuresDir: string): Promise<FeatureBundle<S>> {
+    const features: LoadedFeature<S>[] = [];
     const components: Record<string, TSchema> = {};
     const seenPaths = new Map<string, string>();
     const seenComponents = new Map<string, string>();
@@ -297,7 +271,7 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
             throw new Error(`failed to import feature ${file}: ${(error as Error).message}`);
         }
 
-        const { route, schema, createHandler } = validateModule(file, mod);
+        const { route, schema, createHandler } = validateModule<S>(file, mod);
         const segments = file.split("/");
         const folderPath = segments
             .slice(0, -1)
@@ -319,7 +293,9 @@ export async function loadFeatures(featuresDir: string): Promise<FeatureBundle> 
                 // Feature areas share schemas (every workflow route documents
                 // the same error shape): the identical object contributed
                 // again is the same component, not a conflict.
-                if (components[name] === component) continue;
+                if (components[name] === component) {
+                    continue;
+                }
                 throw new Error(
                     `component name conflict on "${name}": ${owner} and ${file} both export it`,
                 );

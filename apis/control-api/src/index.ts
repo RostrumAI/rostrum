@@ -1,9 +1,11 @@
+/** @fileoverview Control API process entry point. */
+
 import { getLogger } from "@logtape/logtape";
+import { configureLogging } from "@rostrum/server/logger";
 import { ControlApiApp } from "./app";
 import { loadConfig } from "./env";
-import { configureLogging } from "./logger";
 
-const config = loadConfig();
+const { config } = loadConfig();
 await configureLogging(config.logLevel);
 const logger = getLogger("control-api");
 const app = await ControlApiApp.create();
@@ -25,12 +27,16 @@ logger.info("listening", {
 });
 
 let shuttingDown = false;
-async function shutdown(signal: string) {
-    if (shuttingDown) return;
+/** Stops admission, then drains and closes the workflow pool. */
+async function shutdown(signal: string): Promise<void> {
+    if (shuttingDown) {
+        return;
+    }
     shuttingDown = true;
     logger.info("shutdown started", { signal });
-    server.stop(true);
-    await app.close();
+    await server.stop(true);
+    await app.close(config.shutdownTimeoutMs);
+    logger.info("shutdown complete");
     process.exit(0);
 }
 

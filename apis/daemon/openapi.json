@@ -1,0 +1,243 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rostrum Daemon API",
+    "description": "Private authenticated daemon boundary.",
+    "version": "0.1.0"
+  },
+  "tags": [
+    {
+      "name": "system"
+    }
+  ],
+  "security": [
+    {
+      "daemonBearer": []
+    }
+  ],
+  "components": {
+    "schemas": {
+      "BoundaryError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "findings"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "maxItems": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DaemonReadiness": {
+        "anyOf": [
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "checks"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "ready"
+              },
+              "checks": {
+                "type": "object",
+                "required": [
+                  "database"
+                ],
+                "properties": {
+                  "database": {
+                    "type": "object",
+                    "required": [
+                      "status"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "ok"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "checks"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "not_ready"
+              },
+              "checks": {
+                "type": "object",
+                "required": [
+                  "database"
+                ],
+                "properties": {
+                  "database": {
+                    "type": "object",
+                    "required": [
+                      "status",
+                      "code"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "failed"
+                      },
+                      "code": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "database_unavailable"
+                          },
+                          {
+                            "type": "string",
+                            "const": "database_timeout"
+                          },
+                          {
+                            "type": "string",
+                            "const": "database_schema_unavailable"
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "daemonBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/api/system/health": {
+      "get": {
+        "operationId": "getApiSystemHealth",
+        "tags": [
+          "system"
+        ],
+        "security": [
+          {
+            "daemonBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundaryError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/readiness": {
+      "get": {
+        "operationId": "getApiSystemReadiness",
+        "tags": [
+          "system"
+        ],
+        "security": [
+          {
+            "daemonBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dependencies are ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DaemonReadiness"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundaryError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencies are unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DaemonReadiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

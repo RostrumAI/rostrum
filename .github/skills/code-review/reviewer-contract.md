@@ -51,7 +51,8 @@ fence, no commentary.
       "confidence": 92,
       "title": "Published and already-published share a status code",
       "body": "Both outcomes answer 200, so a caller cannot tell a new publication from a replayed one. Answer 201 when the publication is created and 200 when it already existed.",
-      "evidence": "return c.json(body, 200)"
+      "evidence": "return c.json(body, 200)",
+      "suggestion": "return c.json(body, result.outcome === \"published\" ? 201 : 200);"
     }
   ]
 }
@@ -70,6 +71,11 @@ Field rules:
 - `body`: what is wrong, why it matters, and what to do instead, written as described under writing a
   finding below. Two or three sentences. Cite the rule by id. Do not restate the diff at length.
 - `evidence`: the exact changed code the finding rests on, trimmed to one or two lines.
+- `suggestion` (optional): the exact replacement for the cited line, without a Markdown fence. Include
+  it only when replacing that one line is the complete fix. The replacement may expand into several
+  lines, but it must not require an import, declaration, call-site, test, configuration, or any other
+  line to change. Omit the field when the fix crosses that boundary or when you are unsure; never
+  offer a partial fix that leaves the finding unresolved. The poster adds the `suggestion` fence.
 
 ## Severity scale
 

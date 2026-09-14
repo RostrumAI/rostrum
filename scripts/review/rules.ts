@@ -1,3 +1,5 @@
+/** @fileoverview Deterministic automated review rules. */
+
 /**
  * The deterministic rule pass.
  *
@@ -13,6 +15,7 @@
  */
 
 import { type LineEntry, visibleLineEntries, visibleLines } from "./diff.ts";
+import { buildImportGraph, modulesImportedOnlyByExemptFiles } from "./import-graph.ts";
 import { blankInlineCode, type LineRegions, scanSourceLines } from "./source-text.ts";
 import type { FileDiff, Finding, ReviewContext } from "./types.ts";
 
@@ -30,6 +33,8 @@ interface RuleCheck {
     appliesTo: (path: string) => boolean;
     /** Matches an added line that violates the rule. */
     matches: (line: string) => boolean;
+    /** Exact replacement for the matched line when that replacement is the complete fix. */
+    suggestion?: (line: string) => string | undefined;
     /**
      * Which region of the line the check reads.
      *
@@ -67,6 +72,15 @@ function isTestFile(path: string): boolean {
     return path.includes(".test.") || path.includes("__tests__") || path.includes("/tests/");
 }
 
+/** Test harnesses and executable scripts are exercised by their callers or commands. */
+function isTestSupportFile(path: string): boolean {
+    return (
+        path.includes("/testing/") ||
+        path.includes("/src/scripts/") ||
+        /\.fixture\.(?:ts|tsx)$/.test(path)
+    );
+}
+
 /** Files that define types only, and so carry no behavior to test. */
 function isDeclarationOrSchema(path: string): boolean {
     return (
@@ -75,6 +89,26 @@ function isDeclarationOrSchema(path: string): boolean {
         /\.(?:types|schema)\.ts$/.test(path) ||
         /(?:^|\/)index\.ts$/.test(path)
     );
+}
+
+/**
+ * Expands a one-line conditional exit into a braced block on the same review range.
+ *
+ * @param line - Added source line matched by REPO-TS-02.
+ * @returns The braced replacement, or undefined when the line is not the supported shape.
+ */
+function braceControlFlow(line: string): string | undefined {
+    const match =
+        /^(\s*)((?:if|else\s+if)\s*\([^)]*\))\s*((?:return|throw|continue|break)\b[^;]*;)\s*$/.exec(
+            line,
+        );
+    const indent = match?.[1];
+    const condition = match?.[2];
+    const statement = match?.[3];
+    if (indent === undefined || condition === undefined || statement === undefined) {
+        return undefined;
+    }
+    return `${indent}${condition} {\n${indent}    ${statement}\n${indent}}`;
 }
 
 /** The mechanical checks, in report order. */
@@ -102,10 +136,8 @@ export const RULE_CHECKS: RuleCheck[] = [
         guidance:
             "Put the body on its own line inside braces, and add a comment when the branch is not obvious.",
         appliesTo: isTypeScript,
-        matches: (line) =>
-            /^\s*(?:if|else\s+if)\s*\([^)]*\)\s*(?:return|throw|continue|break)\b[^;]*;\s*$/.test(
-                line,
-            ),
+        matches: (line) => braceControlFlow(line) !== undefined,
+        suggestion: braceControlFlow,
     },
     {
         id: "REPO-TS-03",
@@ -165,6 +197,7 @@ export const RULE_CHECKS: RuleCheck[] = [
             "Remove `.only` and `.skip` before committing; a green suite must mean every case ran.",
         appliesTo: isTestFile,
         matches: (line) => /\.(?:only|skip)\s*\(/.test(line),
+        suggestion: (line) => line.replace(/\.(?:only|skip)\s*(?=\()/g, ""),
     },
 ];
 
@@ -217,6 +250,7 @@ export async function runRuleChecks(context: ReviewContext): Promise<Finding[]> 
                     title: check.title,
                     body: `${check.guidance}\n\nOffending line: \`${entry.text.trim()}\``,
                     evidence: entry.text.trim(),
+                    suggestion: check.suggestion?.(entry.text),
                     lens: "rules",
                 });
             }
@@ -307,6 +341,48 @@ function isScript(path: string): boolean {
     return /(?:^|\/)scripts?\//.test(path);
 }
 
+/** Source roots whose modules the test requirement covers. */
+function isReviewedSource(path: string): boolean {
+    return (
+        path.startsWith("apps/") || path.startsWith("apis/") || /^packages\/[^/]+\/src\//.test(path)
+    );
+}
+
+/**
+ * Files that owe no test themselves, and expect none of the modules they import.
+ *
+ * A test, a fixture or harness, and a script are exercised by whatever runs them
+ * rather than imported as product modules, so what they import is covered by
+ * that same caller instead of by a test of its own.
+ *
+ * @param path - Repository-relative path of the file.
+ * @returns True when the file is excluded from the test requirement.
+ */
+function owesNoTest(path: string): boolean {
+    return (
+        !isTypeScript(path) ||
+        !isReviewedSource(path) ||
+        isTestFile(path) ||
+        isTestSupportFile(path) ||
+        isScript(path)
+    );
+}
+
+/**
+ * Modules whose own behavior the test requirement applies to.
+ *
+ * A declaration-only module — a `.d.ts`, a `types.ts` or `schemas.ts`, or an
+ * `index.ts` entry point — carries no behavior of its own, so it is never the
+ * subject of the requirement. The requirement still reaches through it: an entry
+ * point is how the product loads what it imports.
+ *
+ * @param path - Repository-relative path of the file.
+ * @returns True when a new file at this path needs a test beside it.
+ */
+function isBehaviorModule(path: string): boolean {
+    return !owesNoTest(path) && !isDeclarationOrSchema(path);
+}
+
 /**
  * Reports whether a file exports anything for a test to import.
  *
@@ -336,9 +412,16 @@ async function exportsSomething(workingDirectory: string, file: FileDiff): Promi
  *
  * The repository requires a test beside new behavior, and the check is
  * mechanical because it only compares file names: a new source module counts as
- * covered when a test file for it exists on disk or arrives in the same change.
- * A script, or a file that exports nothing, is not new behavior: nothing can
- * import it, so there is no unit to test.
+ * covered when a test file for it exists on disk or arrives in the same change,
+ * or when its service's executable boundary suite exists beside it. A script, a
+ * file that exports nothing, a test fixture, and a test harness are not new
+ * behavior: nothing imports them as product modules, so there is no unit to
+ * test.
+ *
+ * A module is also exempt when the only files importing it are ones that owe no
+ * test of their own — scripts, tests, and the modules they import. Helper code
+ * reached only from a script or a suite is exercised by that caller, so a test
+ * beside it would restate the suite that already runs it.
  *
  * @param context - Review context holding the parsed files and the repository checkout.
  * @returns A finding per uncovered new source file.
@@ -347,24 +430,39 @@ export async function findUncoveredSourceFiles(context: ReviewContext): Promise<
     const testPaths = new Set(
         context.files.filter((file) => isTestFile(file.path)).map((file) => file.path),
     );
-    const findings: Finding[] = [];
+    const candidates: FileDiff[] = [];
     for (const file of context.files) {
-        if (!file.added || !isTypeScript(file.path) || isTestFile(file.path)) {
-            continue;
-        }
-        const inReviewScope =
-            file.path.startsWith("apps/") ||
-            file.path.startsWith("apis/") ||
-            /^packages\/[^/]+\/src\//.test(file.path);
-        if (!inReviewScope || isDeclarationOrSchema(file.path) || isScript(file.path)) {
+        if (!file.added || !isBehaviorModule(file.path)) {
             continue;
         }
         if (!(await exportsSomething(context.workingDirectory, file))) {
             continue;
         }
+        candidates.push(file);
+    }
+    if (candidates.length === 0) {
+        return [];
+    }
+    // The requirement follows the chain of importers up to whatever the product
+    // runs, so the answer comes from the checkout rather than from the diff: an
+    // importer the change does not touch still decides the outcome.
+    const graph = await buildImportGraph(context.workingDirectory);
+    const importedOnlyByExemptFiles = modulesImportedOnlyByExemptFiles(graph, owesNoTest);
+    const findings: Finding[] = [];
+    for (const file of candidates) {
+        if (importedOnlyByExemptFiles.has(file.path)) {
+            continue;
+        }
         const testPath = file.path.replace(/\.(tsx?)$/, ".test.$1");
+        const sourceRoot = /^((?:apps|apis)\/[^/]+\/src)\//.exec(file.path)?.[1];
+        const boundaryTestPath =
+            sourceRoot === undefined ? undefined : `${sourceRoot}/boundary.test.ts`;
         const covered =
-            testPaths.has(testPath) || Bun.file(`${context.workingDirectory}/${testPath}`).size > 0;
+            testPaths.has(testPath) ||
+            Bun.file(`${context.workingDirectory}/${testPath}`).size > 0 ||
+            (boundaryTestPath !== undefined &&
+                (testPaths.has(boundaryTestPath) ||
+                    Bun.file(`${context.workingDirectory}/${boundaryTestPath}`).size > 0));
         if (covered) {
             continue;
         }

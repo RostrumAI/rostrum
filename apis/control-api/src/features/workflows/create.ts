@@ -1,5 +1,7 @@
+/** @fileoverview Workflow creation feature slice. */
+
+import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
-import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "../../loader";
 import { ErrorResponseSchema } from "../../schemas";
 import type { Services } from "../../services";
 import { workflowErrorResponse } from "../../workflows/errors";

@@ -1,3 +1,5 @@
+/** @fileoverview Automated review pipeline behavior tests. */
+
 /**
  * Behavioural tests for the automated review pipeline.
  *
@@ -395,11 +397,27 @@ new file mode 100644
         expect(await runRuleChecks(contextFor(patch))).toHaveLength(0);
     });
 
-    test("flags a single-line unbraced conditional", async () => {
-        const ruleIds = (await runRuleChecks(contextFor(ADDED_FILE_PATCH))).map(
-            (finding) => finding.ruleId,
+    test("suggests a braced replacement for a single-line conditional", async () => {
+        const finding = (await runRuleChecks(contextFor(ADDED_FILE_PATCH))).find(
+            (candidate) => candidate.ruleId === "REPO-TS-02",
         );
-        expect(ruleIds).toContain("REPO-TS-02");
+        expect(finding?.suggestion).toBe(
+            ["    if (value > 0) {", "        return value;", "    }"].join("\n"),
+        );
+    });
+
+    test("suggests enabling a focused test on the cited line", async () => {
+        const patch = `diff --git a/packages/workflow/src/thing.test.ts b/packages/workflow/src/thing.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/thing.test.ts
+@@ -0,0 +1 @@
++test.only("thing", () => {});
+`;
+        const finding = (await runRuleChecks(contextFor(patch))).find(
+            (candidate) => candidate.ruleId === "REPO-TEST-01",
+        );
+        expect(finding?.suggestion).toBe('test("thing", () => {});');
     });
 
     test("leaves console output alone in scripts and tests", async () => {
@@ -454,6 +472,148 @@ new file mode 100644
 +}
 `;
         expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+    });
+
+    test("does not require a test for a fixture or a child-process harness", async () => {
+        // A fixture or harness is exercised by the suite that calls it, so a
+        // unit test beside it would only restate that suite.
+        const patches = [
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "packages/server/src/testing/thing.ts",
+            ),
+            ADDED_FILE_PATCH.replaceAll(
+                "apps/control-api/src/thing.ts",
+                "packages/server/src/thing.fixture.ts",
+            ),
+        ];
+        for (const patch of patches) {
+            expect(await findUncoveredSourceFiles(contextFor(patch))).toHaveLength(0);
+        }
+    });
+
+    test("accepts a service-wide executable boundary suite as coverage", async () => {
+        // A service's modules are exercised end to end by its boundary suite,
+        // which spawns the real executable instead of importing one module.
+        const withBoundary = `${ADDED_FILE_PATCH}diff --git a/apps/control-api/src/boundary.test.ts b/apps/control-api/src/boundary.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/control-api/src/boundary.test.ts
+@@ -0,0 +1,1 @@
++test("executable boundary", () => {});
+`;
+        expect(await findUncoveredSourceFiles(contextFor(withBoundary))).toHaveLength(0);
+    });
+
+    /**
+     * Writes a checkout holding every fixture file, and returns the patch that
+     * adds the named paths.
+     *
+     * The added modules are written too: the graph is built from the head
+     * checkout, which holds them, and an import that points at one of them has to
+     * resolve for the exemption to be decided at all.
+     */
+    async function checkoutAdding(
+        files: Record<string, string[]>,
+        added: readonly string[],
+    ): Promise<{ root: string; patch: string }> {
+        const root = await mkdtemp(join(tmpdir(), "rostrum-review-test-"));
+        for (const [path, lines] of Object.entries(files)) {
+            await Bun.write(join(root, path), lines.join("\n"));
+        }
+        const patch = added
+            .map((path) => {
+                const body = files[path] ?? [];
+                return `diff --git a/${path} b/${path}
+new file mode 100644
+--- /dev/null
++++ b/${path}
+@@ -0,0 +1,${body.length} @@
+${body.map((line) => `+${line}`).join("\n")}
+`;
+            })
+            .join("");
+        return { root, patch };
+    }
+
+    test("exempts a module that only scripts and tests import", async () => {
+        // The chain of importers decides. `d` is reached only from a script and a
+        // test, so it owes no test. `c` is reached from that script and from
+        // `server`, which owes a test because nothing imports it, so `c` owes one
+        // too.
+        const { root, patch } = await checkoutAdding(
+            {
+                "apps/demo/src/c.ts": ["export const c = 1;"],
+                "apps/demo/src/d.ts": ["export const d = 2;"],
+                "apps/demo/src/server.ts": [
+                    'import { c } from "./c";',
+                    "",
+                    "export const server = c;",
+                ],
+                "apps/demo/src/b.test.ts": ['import { d } from "./d";', "", 'test("d", () => d);'],
+                "scripts/a.ts": [
+                    'import { c } from "../apps/demo/src/c.ts";',
+                    'import { d } from "../apps/demo/src/d.ts";',
+                    "",
+                    "report(c, d);",
+                ],
+            },
+            ["apps/demo/src/c.ts", "apps/demo/src/d.ts"],
+        );
+        const findings = await findUncoveredSourceFiles(
+            contextFor(patch, { workingDirectory: root }),
+        );
+        expect(findings.map((finding) => finding.path)).toEqual(["apps/demo/src/c.ts"]);
+    });
+
+    test("still requires a test for a module nothing imports", async () => {
+        // An entry point is where the product starts. Nothing importing it is the
+        // reason it needs a test, not a reason to exempt it.
+        const { root, patch } = await checkoutAdding(
+            { "apps/demo/src/entry.ts": ["export const entry = 1;"] },
+            ["apps/demo/src/entry.ts"],
+        );
+        const findings = await findUncoveredSourceFiles(
+            contextFor(patch, { workingDirectory: root }),
+        );
+        expect(findings.map((finding) => finding.path)).toEqual(["apps/demo/src/entry.ts"]);
+    });
+
+    test("exempts a module reached through another exempt module", async () => {
+        // `deep` is imported by `d`, which only a script and a test import, so the
+        // exemption holds one level further from the script.
+        const { root, patch } = await checkoutAdding(
+            {
+                "apps/demo/src/d.ts": [
+                    'import { deep } from "./deep";',
+                    "",
+                    "export const d = deep;",
+                ],
+                "apps/demo/src/deep.ts": ["export const deep = 2;"],
+                "apps/demo/src/b.test.ts": ['import { d } from "./d";', "", 'test("d", () => d);'],
+                "scripts/a.ts": ['import { d } from "../apps/demo/src/d.ts";', "", "report(d);"],
+            },
+            ["apps/demo/src/d.ts", "apps/demo/src/deep.ts"],
+        );
+        expect(
+            await findUncoveredSourceFiles(contextFor(patch, { workingDirectory: root })),
+        ).toHaveLength(0);
+    });
+
+    test("exempts modules that only reach each other and a script", async () => {
+        // `x` and `y` import each other, and only the script reaches the pair from
+        // outside, so both are still reached only from a file that owes no test.
+        const { root, patch } = await checkoutAdding(
+            {
+                "apps/demo/src/x.ts": ['import { y } from "./y";', "", "export const x = y;"],
+                "apps/demo/src/y.ts": ['import { x } from "./x";', "", "export const y = x;"],
+                "scripts/a.ts": ['import { x } from "../apps/demo/src/x.ts";', "", "report(x);"],
+            },
+            ["apps/demo/src/x.ts", "apps/demo/src/y.ts"],
+        );
+        expect(
+            await findUncoveredSourceFiles(contextFor(patch, { workingDirectory: root })),
+        ).toHaveLength(0);
     });
 });
 
@@ -840,6 +1000,54 @@ describe("reviewer output handling", () => {
         );
         expect(findings.map((finding) => finding.title)).toEqual(["Real"]);
         expect(findings[0]?.lens).toBe("tests");
+    });
+
+    test("keeps suggestions only for exact added-line replacements", () => {
+        const context = contextFor(ADDED_FILE_PATCH);
+        const lens: Lens = {
+            id: "correctness",
+            label: "Correctness",
+            promptPath: "lenses/01-correctness.md",
+            rulePaths: ["rules/repository-conventions.md"],
+            applies: () => true,
+        };
+        const findings = normalizeFindings(
+            {
+                findings: [
+                    {
+                        path: "apps/control-api/src/thing.ts",
+                        line: 2,
+                        title: "Local",
+                        suggestion: "if (value > 0) {\r\n    return value;\r\n}\r\n",
+                    },
+                    {
+                        path: "apps/control-api/src/thing.ts",
+                        line: 9,
+                        title: "Re-anchored",
+                        suggestion: "return value;",
+                    },
+                    {
+                        path: "apps/control-api/src/thing.ts",
+                        line: 3,
+                        title: "Fenced",
+                        suggestion: "```suggestion\nreturn value;\n```",
+                    },
+                ],
+            },
+            lens,
+            context,
+        );
+        expect(findings.map((finding) => finding.suggestion)).toEqual([
+            "if (value > 0) {\n    return value;\n}",
+            undefined,
+            undefined,
+        ]);
+    });
+
+    test("renders a local replacement at the bottom of the inline comment", () => {
+        const suggestion = ["if (value > 0) {", "    return value;", "}"].join("\n");
+        const rendered = renderComment(findingFor({ suggestion }));
+        expect(rendered.endsWith(`\n\n\`\`\`suggestion\n${suggestion}\n\`\`\``)).toBe(true);
     });
 });
 

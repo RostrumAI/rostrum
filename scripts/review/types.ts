@@ -50,6 +50,13 @@ export interface Finding {
     body: string;
     /** The changed code the finding rests on, trimmed. */
     evidence: string;
+    /**
+     * Exact replacement for the cited line, when that one-line range contains the complete fix.
+     *
+     * The replacement may contain several output lines because GitHub applies the suggestion to the
+     * single line the finding is anchored to.
+     */
+    suggestion?: string;
     /** Lens that produced the finding, or `rules` for the deterministic pass. */
     lens: string;
 }

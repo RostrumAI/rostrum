@@ -1,3 +1,5 @@
+/** @fileoverview Workflow repository integration tests. */
+
 import { afterAll, describe, expect, test } from "bun:test";
 import {
     createWorkflowValidator,
@@ -21,7 +23,6 @@ import type { CreatedDraft, PublishInput, StoredRevision } from "./workflow-repo
 // Postgres cluster so the tests run wherever the repository clones.
 const testPostgres = await startTestPostgres();
 afterAll(() => testPostgres.stop());
-const databaseUrl = testPostgres.url;
 
 const FINDINGS_DRAFT: Finding[] = [
     {
@@ -118,13 +119,14 @@ interface Storage {
 
 /** Opens one migrated database with empty tables and closes it afterwards. */
 async function withDatabase<T>(run: (database: Storage) => Promise<T>): Promise<T> {
-    const db = createDatabase(databaseUrl);
+    const handle = createDatabase(testPostgres.options);
+    const db = handle.db;
     try {
         await migrateToLatest(db);
         await sql`TRUNCATE publications, revisions, workflows`.execute(db);
         return await run({ db, workflows: new WorkflowRepository(db, preparer) });
     } finally {
-        await db.destroy();
+        await handle.close({ timeoutMs: 1_000 });
     }
 }
 
@@ -228,7 +230,8 @@ describe("drafts and revisions", () => {
     test("survives a full connection restart byte-for-byte", async () => {
         let created: CreatedDraft;
         {
-            const first = createDatabase(databaseUrl);
+            const handle = createDatabase(testPostgres.options);
+            const first = handle.db;
             try {
                 await migrateToLatest(first);
                 await sql`TRUNCATE publications, revisions, workflows`.execute(first);
@@ -245,11 +248,12 @@ describe("drafts and revisions", () => {
                 );
                 await firstWorkflows.publish(input);
             } finally {
-                await first.destroy();
+                await handle.close({ timeoutMs: 1_000 });
             }
         }
         {
-            const reopened = createDatabase(databaseUrl);
+            const handle = createDatabase(testPostgres.options);
+            const reopened = handle.db;
             try {
                 const reopenedWorkflows = new WorkflowRepository(reopened, preparer);
                 const draft = await reopenedWorkflows.getRevision(
@@ -260,7 +264,7 @@ describe("drafts and revisions", () => {
                 const publication = await reopenedWorkflows.getPublication(created.workflowId, 1);
                 expect(publication?.digest).toBeDefined();
             } finally {
-                await reopened.destroy();
+                await handle.close({ timeoutMs: 1_000 });
             }
         }
     });

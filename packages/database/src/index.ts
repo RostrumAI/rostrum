@@ -1,5 +1,5 @@
 /**
- * Entry point of the database package.
+ * @fileoverview Entry point of the database package.
  *
  * The package owns the Postgres schema end to end. `src/schema/` declares
  * what can physically exist in Postgres — the Kysely table map the
@@ -11,7 +11,8 @@
  * package one-way, and it depends on no application.
  */
 
-export { createDatabase } from "./client";
+export type { DatabaseCheck, DatabaseHandle, DatabaseOptions } from "./client";
+export { createDatabase, validateDatabaseOptions } from "./client";
 export { migrateToLatest, TsFileMigrationProvider } from "./migrator";
 export { WorkflowRepository } from "./repositories/workflow-repository";
 export {

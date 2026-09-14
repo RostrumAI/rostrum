@@ -54,6 +54,9 @@ export function renderComment(finding: Finding): string {
         );
     }
     lines.push("", `<sub>lens: ${finding.lens} · confidence ${finding.confidence}/100</sub>`);
+    if (finding.suggestion !== undefined) {
+        lines.push("", "```suggestion", finding.suggestion, "```");
+    }
     return lines.join("\n");
 }
 

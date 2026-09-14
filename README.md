@@ -5,6 +5,7 @@ Rostrum is a platform for defining and executing workflows. This repository cont
 ## Prerequisites
 
 - [Bun](https://bun.sh) 1.x — runtime, package manager, and test runner
+- [Python](https://www.python.org) 3.8 or later — staged-file handling for the pre-commit hook
 - [Docker](https://www.docker.com) — local Postgres for development
 
 ## Setup
@@ -15,8 +16,16 @@ bun run docs:setup
 bun run db:up
 ```
 
-`bun install` creates `node_modules` from the committed `bun.lock`. Use
-`bun install --frozen-lockfile` to fail instead of modifying the lockfile.
+`bun install` creates `node_modules` from the committed `bun.lock` and installs
+the repository's Git hooks. Use `bun install --frozen-lockfile` to fail instead
+of modifying the lockfile.
+
+The pre-commit hook runs `bun run lint:staged`. It reformats the staged content
+of every changed file, applying import organization and safe fixes, and rejects
+a commit whose staged content Biome cannot parse. Editing below the index is
+left alone: a partially staged file keeps its unstaged changes, and the commit
+carries only the formatted staged lines. Non-fixable lint diagnostics are CI's
+responsibility, not the hook's. Skip the hook with `git commit --no-verify`.
 
 `bun run docs:setup` clones the independent development-documentation repository
 into the ignored `dev-docs/` directory. Running it again leaves an existing
@@ -33,6 +42,7 @@ the `DATABASE_URL` environment variable.
 | --- | --- |
 | `bun run check` | Typechecks every workspace package with `tsc --noEmit` |
 | `bun run format` | Formats all files with Biome |
+| `bun run lint:staged` | Reformats staged content and rejects staged files Biome cannot parse, leaving unstaged working-tree changes untouched |
 | `bun run lint` | Lints all files with Biome |
 | `bun run test` | Runs unit and integration tests with `bun test` |
 | `bun run docs:setup` | Clones the development-documentation repository into `dev-docs/` when absent |
