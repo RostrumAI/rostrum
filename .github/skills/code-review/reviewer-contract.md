@@ -83,13 +83,15 @@ Field rules:
 | --- | --- | --- |
 | `critical` | A defect that breaks documented behavior or is exploitable: data loss, a wrong result the caller acts on, an authorization bypass, a leaked credential. | BLOCKING |
 | `high` | An obvious bug that can affect functionality, or a security weakness that needs a second mistake to exploit. | BLOCKING |
-| `medium` | A repository convention broken at file or module scope: where code lives, how it is wired, what it exposes, or a missing test for new behavior. | BLOCKING |
-| `low` | A problem confined to a line: an unbraced conditional, a missing comment, a name that misleads. | Worth fixing; not blocking |
+| `medium` | A repository convention broken at file or module scope: where code lives, how it is wired, what it exposes, a missing test for new behavior, a test with no comment stating its subject, or an obvious missing edge case. | BLOCKING |
+| `low` | A problem confined to a line: an unbraced conditional, a name that misleads, a comment that restates its code, or a test case that is conceivable but very unlikely. | Worth fixing; not blocking |
 | `informational` | A suggestion with no defect behind it. | Not blocking |
 
 The report marks `medium` and above BLOCKING, because those are the findings the author has to answer
 before the change merges. Reserve `critical`: it is a claim that the code is wrong today in a way that
-matters, and spending it on a preference costs the whole report its credibility.
+matters, and spending it on a preference costs the whole report its credibility. Grade a missing test
+by likelihood: an edge case the changed code plainly handles is `medium`, and one that is conceivable
+but very unlikely is `low` or `informational`.
 
 ## Writing a finding
 

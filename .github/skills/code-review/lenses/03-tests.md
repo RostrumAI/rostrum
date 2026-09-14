@@ -49,11 +49,20 @@ Everything else that runs in production or in the test suite owes a test.
 9. **Deletions.** A change that removes a test must remove the behavior it covered or move the
    coverage elsewhere. A test deleted because it was inconvenient is a finding.
 10. **Migration coverage.** A migration has a test that applies it and rolls it back.
+11. **Tests are commented.** Every test carries a comment above it stating what it proves: the
+    technical behavior for a unit test, the product requirement for an integration, end-to-end, or
+    smoke test. Inside, short comments mark the setup and what each assertion group checks. A test
+    with no subject comment, or an inner comment that only restates the code, is a finding.
+12. **Edge cases are covered.** Beyond the happy path, the suite covers what the changed code
+    accepts: empty collections, malformed input, conflicting state, values at a limit, and repeat
+    invocations. Report an obvious missing case as `medium`; a case that is conceivable but very
+    unlikely is `low` or `informational`.
 
 ## How to work
 
 For each new source file in the diff, find the test that covers it and read that test. Report the
 gap when the test is absent. When the test is present, read what it asserts and ask whether a
-plausible bug would fail it; report when the answer is no.
+plausible bug would fail it; report when the answer is no. Then check the test against items 11 and
+12: are its comments and its edge cases what the change owes?
 
 Report `REPO-TEST-*` rule ids.

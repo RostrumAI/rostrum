@@ -38,3 +38,14 @@ Write function bodies so a reader can follow the steps without reconstructing th
 - State purpose and contract in the declaration's TSDoc. Execution detail belongs in the comments beside the statements it explains, not in the block above the function.
 
 The review rules in `.github/skills/code-review/rules/repository-conventions.md` state the detailed comment and TSDoc requirements.
+
+## Tests
+
+Every test documents what it proves.
+
+- Put a comment above each test stating what it is meant to test. A unit test states the technical behavior; an integration, end-to-end, or smoke test states the product requirement.
+- Inside the test, comment what each block sets up and why, and what the assertions check.
+- Keep each comment to one short line, and never restate the code beside it.
+- Cover the edge cases, not only the happy path: empty collections, malformed input, conflicting state, values at a boundary, repeated invocations, and every documented failure outcome.
+
+The review rules in `.github/skills/code-review/rules/repository-conventions.md` state the detailed test requirements.
