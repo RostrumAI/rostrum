@@ -22,6 +22,7 @@ export class DaemonApp {
     }
 
     private readonly loaded: FeatureBundle<ServiceAccessor>;
+    private openApiDocument: Promise<Record<string, unknown>> | undefined;
 
     private constructor(loaded: FeatureBundle<ServiceAccessor>) {
         // Hold the loaded features for route binding and contract generation.
@@ -30,6 +31,7 @@ export class DaemonApp {
         // Log first, so this middleware wraps every route registered below.
         this.routes.use("*", async (c, next) => {
             const started = performance.now();
+            // An answer reflects the admitted request and the live dependencies, so none is reusable.
             c.header("Cache-Control", "no-store");
             await next();
             this.logger.info("request completed", {
@@ -49,7 +51,7 @@ export class DaemonApp {
                 feature.createHandler((context) => context.env),
             );
         }
-        this.routes.get("/openapi.json", async (c) => c.json(await this.openApi()));
+        this.routes.get("/openapi.json", async (c) => c.json(await this.getOpenApiDocument()));
 
         // Index the methods each path allows, so a wrong method can answer 405.
         const allowedByPath = new Map<string, string[]>();
@@ -89,13 +91,16 @@ export class DaemonApp {
         });
     }
 
-    /** The lifecycle authenticates and admits a request before invoking this method. */
+    /**
+     * Serves one admitted request with the services active at admission; the route
+     * table stays private, so this is the only way to reach it.
+     */
     fetch(request: Request, services: Services): Response | Promise<Response> {
         return this.routes.fetch(request, services);
     }
 
     /** Generates the daemon's private OpenAPI document without service resources. */
-    openApi(): Promise<Record<string, unknown>> {
+    generateOpenApiDocument(): Promise<Record<string, unknown>> {
         return generateSpecs(this.routes, {
             documentation: {
                 openapi: "3.1.0",
@@ -114,7 +119,23 @@ export class DaemonApp {
         });
     }
 
+    /**
+     * Returns the document the daemon serves, generating it once and reusing that
+     * copy. Binding has finished before any request arrives, so the route table
+     * cannot change under it.
+     */
+    private getOpenApiDocument(): Promise<Record<string, unknown>> {
+        this.openApiDocument ??= this.generateOpenApiDocument().catch((error: unknown) => {
+            // Do not keep a failed generation: the next request tries again.
+            this.openApiDocument = undefined;
+            throw error;
+        });
+        return this.openApiDocument;
+    }
+
+    /** Builds the OpenAPI entry for one bound feature, including the 401 every private route answers. */
     private describeFeature(feature: LoadedFeature<ServiceAccessor>): DescribeRouteOptions {
+        // Authentication precedes routing, so every route documents the same boundary rejection.
         const responses: NonNullable<DescribeRouteOptions["responses"]> = {
             "401": {
                 description: "Bearer authentication required",
@@ -123,6 +144,8 @@ export class DaemonApp {
                 },
             },
         };
+
+        // Fold each response the feature declares over that boundary entry by component name.
         for (const [status, response] of Object.entries(feature.responses ?? {})) {
             responses[status] = {
                 description: response.description,

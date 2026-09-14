@@ -20,7 +20,7 @@ try {
     const app = await DaemonApp.create();
     assert.deepEqual(
         served,
-        await app.openApi(),
+        await app.generateOpenApiDocument(),
         "served and resource-free generated OpenAPI must agree",
     );
     const checkedIn = JSON.parse(
