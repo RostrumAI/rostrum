@@ -5,7 +5,7 @@ import type { Context } from "hono";
 import { ErrorResponseSchema } from "../../schemas";
 import type { ServiceAccessor } from "../../services";
 import { workflowErrorResponse } from "../../workflows/errors";
-import { readRequestBody } from "../../workflows/request-body";
+import { readDocumentRequestBody } from "../../workflows/request-body";
 import { revisionResponse, WorkflowRevisionSchema } from "../../workflows/schemas";
 import { CreateDraftRequestSchema } from "./create.schema";
 
@@ -53,7 +53,10 @@ export const createHandler =
     (getServices: ServiceAccessor): FeatureHandler =>
     async (c: Context) => {
         try {
-            const { request, documentText } = await readRequestBody(c, CreateDraftRequestSchema);
+            const { request, documentText } = await readDocumentRequestBody(
+                c,
+                CreateDraftRequestSchema,
+            );
             const created = await getServices(c).workflows.createDraft(
                 documentText,
                 request.name ?? null,

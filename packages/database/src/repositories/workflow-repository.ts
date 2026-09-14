@@ -1,4 +1,4 @@
-import type { Finding, PublicationPreparer } from "@rostrum/workflow";
+import type { Finding, PublicationCanonicalizer } from "@rostrum/workflow";
 import { type Kysely, sql } from "kysely";
 // The `uuid` package is the RFC 9562 implementation of record; minting and
 // version checks are its job, not this repository's.
@@ -15,12 +15,12 @@ import type {
     CreateDraftInput,
     CreatedDraft,
     Publication,
-    PublishInput,
+    PublicationInsertInput,
     PublishResult,
+    Revision,
     RewindResult,
     SaveRevisionInput,
     SaveRevisionResult,
-    StoredRevision,
 } from "./workflow-repository.types";
 
 /**
@@ -43,17 +43,17 @@ import type {
 export class WorkflowRepository {
     private readonly db: Kysely<Database>;
 
-    private readonly preparer: PublicationPreparer;
+    private readonly canonicalizer: PublicationCanonicalizer;
 
     /**
      * Creates a repository bound to one Kysely instance. The publication
-     * preparer canonicalizes stored text again at retrieval so tampered or
+     * canonicalizer canonicalizes stored text again at retrieval so tampered or
      * non-canonical rows fail verification; callers supply it because
-     * publication preparation belongs to @rostrum/workflow.
+     * publication canonicalization belongs to @rostrum/workflow.
      */
-    constructor(db: Kysely<Database>, preparer: PublicationPreparer) {
+    constructor(db: Kysely<Database>, canonicalizer: PublicationCanonicalizer) {
         this.db = db;
-        this.preparer = preparer;
+        this.canonicalizer = canonicalizer;
     }
 
     /**
@@ -120,7 +120,7 @@ export class WorkflowRepository {
                 .forUpdate()
                 .executeTakeFirst();
             if (!draft) {
-                return { outcome: "not-found" } as const;
+                return { outcome: "workflow-not-found" } as const;
             }
             if (draft.currentRevision !== input.baseRevision) {
                 if (!draft.currentRevision) {
@@ -155,7 +155,7 @@ export class WorkflowRepository {
     }
 
     /** Returns the draft's current revision, or null when it has none. */
-    async getCurrentRevision(workflowId: string): Promise<StoredRevision | null> {
+    async getCurrentRevision(workflowId: string): Promise<Revision | null> {
         this.assertWorkflowId(workflowId);
         const draft = await this.db
             .selectFrom("workflows")
@@ -166,14 +166,14 @@ export class WorkflowRepository {
             return null;
         }
         const row = await this.getRevisionRow(this.db, workflowId, draft.currentRevision);
-        return row ? this.toStoredRevision(row) : null;
+        return row ? this.toRevision(row) : null;
     }
 
     /** Returns one stored revision, byte-exact, or null when it does not exist. */
-    async getRevision(workflowId: string, revisionId: string): Promise<StoredRevision | null> {
+    async getRevision(workflowId: string, revisionId: string): Promise<Revision | null> {
         this.assertWorkflowId(workflowId);
         const row = await this.getRevisionRow(this.db, workflowId, revisionId);
-        return row ? this.toStoredRevision(row) : null;
+        return row ? this.toRevision(row) : null;
     }
 
     /**
@@ -194,7 +194,7 @@ export class WorkflowRepository {
                 .forUpdate()
                 .executeTakeFirst();
             if (!draft) {
-                return { outcome: "not-found" } as const;
+                return { outcome: "workflow-not-found" } as const;
             }
             const target = await this.getRevisionRow(tx, workflowId, targetRevisionId);
             if (!target) {
@@ -240,10 +240,10 @@ export class WorkflowRepository {
      * returns that existing publication instead of creating another.
      *
      * Validation and canonicalization happen before this call: the input
-     * carries the preparation `PublicationPreparer` produced for a valid
+     * carries the canonical form `PublicationCanonicalizer` produced for a valid
      * revision.
      */
-    async publish(input: PublishInput): Promise<PublishResult> {
+    async publish(input: PublicationInsertInput): Promise<PublishResult> {
         this.assertWorkflowId(input.workflowId);
         return this.db.transaction().execute(async (tx) => {
             const locked = await tx
@@ -253,7 +253,7 @@ export class WorkflowRepository {
                 .forUpdate()
                 .executeTakeFirst();
             if (!locked) {
-                return { outcome: "not-found" } as const;
+                return { outcome: "workflow-not-found" } as const;
             }
             const revision = await this.getRevisionRow(tx, input.workflowId, input.revisionId);
             if (!revision) {
@@ -329,15 +329,15 @@ export class WorkflowRepository {
             );
         }
         try {
-            const prepared = await this.preparer.prepare(parsed as object);
-            if (prepared.digest !== row.digest) {
+            const canonicalized = await this.canonicalizer.canonicalize(parsed as object);
+            if (canonicalized.digest !== row.digest) {
                 throw new DigestVerificationError(
                     workflowId,
                     publicationNumber,
-                    `recomputed digest ${prepared.digest} does not equal stored digest ${row.digest}`,
+                    `recomputed digest ${canonicalized.digest} does not equal stored digest ${row.digest}`,
                 );
             }
-            if (prepared.canonicalText !== row.canonicalText) {
+            if (canonicalized.canonicalText !== row.canonicalText) {
                 throw new DigestVerificationError(
                     workflowId,
                     publicationNumber,
@@ -412,18 +412,18 @@ export class WorkflowRepository {
         db: Kysely<Database>,
         workflowId: string,
         revisionId: string,
-    ): Promise<StoredRevision> {
+    ): Promise<Revision> {
         const row = await this.getRevisionRow(db, workflowId, revisionId);
         if (!row) {
             throw new CorruptWorkflowStateError(
                 `Revision ${revisionId} of workflow ${workflowId} is missing`,
             );
         }
-        return this.toStoredRevision(row);
+        return this.toRevision(row);
     }
 
     /** Maps one row into the application shape, parsing and checking its findings snapshot. */
-    private toStoredRevision(row: RevisionRow): StoredRevision {
+    private toRevision(row: RevisionRow): Revision {
         let parsed: unknown;
         try {
             parsed = JSON.parse(row.findings);

@@ -3,7 +3,7 @@
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { ControlApiConfig } from "@rostrum/server/config";
-import { type CheckResult, DaemonReadinessSchema } from "@rostrum/server/protocol";
+import { DaemonReadinessSchema, type ReadinessCheckResult } from "@rostrum/server/protocol";
 import { Value } from "typebox/value";
 
 /**
@@ -64,7 +64,7 @@ function sendProbe(origin: URL, token: string, signal: AbortSignal): Promise<Pro
 }
 
 /** Classifies a transport failure into the stable daemon check codes. */
-function classifyTransportFailure(error: unknown, signal: AbortSignal): CheckResult {
+function classifyTransportFailure(error: unknown, signal: AbortSignal): ReadinessCheckResult {
     const message = error instanceof Error ? error.message : String(error);
     if (signal.aborted) {
         return { status: "failed", code: "daemon_timeout" };
@@ -82,7 +82,7 @@ function classifyTransportFailure(error: unknown, signal: AbortSignal): CheckRes
 export async function checkDaemonReadiness(
     config: ControlApiConfig,
     signal: AbortSignal,
-): Promise<CheckResult> {
+): Promise<ReadinessCheckResult> {
     // Only the newest token is ever sent; older tokens are never a fallback.
     const token = config.tokens.at(-1);
     if (token === undefined) {

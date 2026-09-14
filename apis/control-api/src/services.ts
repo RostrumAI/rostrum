@@ -14,7 +14,7 @@ import { ControlApiApp } from "./app";
 import { checkDaemonReadiness } from "./daemon/client";
 import { WorkflowService } from "./workflows/service";
 
-/** Dependencies available to a Control API request. */
+/** Resources available to a Control API request. */
 export interface Services {
     readonly workflows: WorkflowService;
     /** Aggregated dependency readiness within its deadline. */
@@ -25,7 +25,7 @@ export interface Services {
 export type ServiceAccessor = (context: Context<{ Bindings: Services }>) => Services;
 
 /** Resources owned by one active Control API configuration. */
-export interface Dependencies {
+export interface Resources {
     readonly database: DatabaseHandle;
     readonly app: ControlApiApp;
     readonly workflows: WorkflowService;
@@ -45,7 +45,7 @@ function databaseOptions(config: ControlApiConfig): DatabaseOptions {
 }
 
 /** Creates the application and its database-backed workflow service. */
-export async function createDependencies(config: ControlApiConfig): Promise<Dependencies> {
+export async function createResources(config: ControlApiConfig): Promise<Resources> {
     const options = databaseOptions(config);
     validateDatabaseOptions(options);
     const database = createDatabase(options);
@@ -71,14 +71,14 @@ export async function createDependencies(config: ControlApiConfig): Promise<Depe
  */
 export function readiness(
     config: ControlApiConfig,
-    dependencies: Pick<Dependencies, "database">,
+    resources: Pick<Resources, "database">,
     signal: AbortSignal,
 ): Promise<Readiness> {
     return checkReadiness(
         {
             database: {
                 check: (probeSignal) =>
-                    dependencies.database.probe({
+                    resources.database.probe({
                         signal: probeSignal,
                         timeoutMs: config.dependencyTimeoutMs,
                     }),

@@ -1,9 +1,9 @@
 /** @fileoverview Concurrent dependency-readiness aggregation. */
 
-import type { CheckResult, Readiness } from "./protocol";
+import type { Readiness, ReadinessCheckResult } from "./protocol";
 
 /** The stable failure codes a readiness check may report. */
-export type CheckFailureCode = Extract<CheckResult, { status: "failed" }>["code"];
+export type CheckFailureCode = Extract<ReadinessCheckResult, { status: "failed" }>["code"];
 
 /**
  * One dependency probe in a readiness aggregate: the bounded check plus the
@@ -11,7 +11,7 @@ export type CheckFailureCode = Extract<CheckResult, { status: "failed" }>["code"
  */
 export interface ReadinessProbe {
     /** Runs the bounded check. Must observe `signal` so a sibling failure can cancel it. */
-    check(signal: AbortSignal): Promise<CheckResult>;
+    check(signal: AbortSignal): Promise<ReadinessCheckResult>;
     /** Stable code reported when the overall deadline expires before this check settles. */
     timeoutCode: CheckFailureCode;
     /** Stable code reported when this check throws. */
@@ -34,7 +34,7 @@ export async function checkReadiness(
     signal?: AbortSignal,
 ): Promise<Readiness> {
     // Shared aggregate state: collected checks, cancellation, and one settle point.
-    const checks: Record<string, CheckResult> = {};
+    const checks: Record<string, ReadinessCheckResult> = {};
     const controller = new AbortController();
     const result = Promise.withResolvers<Readiness>();
     let settled = false;

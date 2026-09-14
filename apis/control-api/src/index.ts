@@ -2,17 +2,17 @@
 
 import { type ControlApiConfig, ServiceConfigSource } from "@rostrum/server/config";
 import { runService } from "@rostrum/server/lifecycle";
-import { createDependencies, type Dependencies, readiness } from "./services";
+import { createResources, type Resources, readiness } from "./services";
 
-/** Starts the Control API with reloadable configuration and owned dependencies. */
+/** Starts the Control API with reloadable configuration and owned resources. */
 const config = new ServiceConfigSource("control-api");
-await runService<ControlApiConfig, Dependencies>({
+await runService<ControlApiConfig, Resources>({
     name: "control-api",
     loadConfig: () => config.load(),
-    createDependencies,
-    fetch: (request, config, dependencies) =>
-        dependencies.app.fetch(request, {
-            workflows: dependencies.workflows,
-            readiness: (signal) => readiness(config, dependencies, signal),
+    createResources,
+    fetch: (request, config, resources) =>
+        resources.app.fetch(request, {
+            workflows: resources.workflows,
+            readiness: (signal) => readiness(config, resources, signal),
         }),
 });

@@ -4,8 +4,8 @@ import { afterAll, describe, expect, test } from "bun:test";
 import {
     createWorkflowValidator,
     type Finding,
-    PublicationPreparer,
-    V1_RULE_SET,
+    PublicationCanonicalizer,
+    V1_WORKFLOW_FORMAT_RULE_SET,
 } from "@rostrum/workflow";
 import boundedLoopJson from "@rostrum/workflow/fixtures/valid/bounded-loop.json";
 import conditionalGroupsJson from "@rostrum/workflow/fixtures/valid/conditional-groups.json";
@@ -17,7 +17,7 @@ import type { Database } from "../schema/database";
 import { startTestPostgres } from "../testing/postgres";
 import { WorkflowRepository } from "./workflow-repository";
 import { DigestVerificationError, InvalidWorkflowInputError } from "./workflow-repository.errors";
-import type { CreatedDraft, PublishInput, StoredRevision } from "./workflow-repository.types";
+import type { CreatedDraft, PublicationInsertInput, Revision } from "./workflow-repository.types";
 
 // CI supplies DATABASE_URL; everywhere else the suite starts an embedded
 // Postgres cluster so the tests run wherever the repository clones.
@@ -34,7 +34,7 @@ const FINDINGS_DRAFT: Finding[] = [
 ];
 
 const validator = createWorkflowValidator();
-const preparer = new PublicationPreparer(V1_RULE_SET);
+const canonicalizer = new PublicationCanonicalizer(V1_WORKFLOW_FORMAT_RULE_SET);
 
 /**
  * Fresh copies of the shared fixture documents. The optional name rewrites
@@ -73,13 +73,13 @@ async function preparePublishInput(
     workflowId: string,
     revisionId: string,
     document: Record<string, unknown>,
-): Promise<PublishInput> {
-    const prepared = await preparer.prepare(document);
+): Promise<PublicationInsertInput> {
+    const canonicalized = await canonicalizer.canonicalize(document);
     return {
         workflowId,
         revisionId,
-        canonicalText: prepared.canonicalText,
-        digest: prepared.digest,
+        canonicalText: canonicalized.canonicalText,
+        digest: canonicalized.digest,
         workflowFormatVersion: document.workflowFormatVersion as string,
     };
 }
@@ -104,7 +104,7 @@ async function revisionIds(database: Storage, workflowId: string): Promise<strin
 }
 
 /** Asserts one save succeeded and returns its revision (test seam). */
-function savedRevision(result: { outcome: string; revision?: StoredRevision }): StoredRevision {
+function savedRevision(result: { outcome: string; revision?: Revision }): Revision {
     if (result.outcome !== "saved" || !result.revision) {
         throw new Error(`Expected a saved revision, got outcome '${result.outcome}'`);
     }
@@ -124,7 +124,7 @@ async function withDatabase<T>(run: (database: Storage) => Promise<T>): Promise<
     try {
         await migrateToLatest(db);
         await sql`TRUNCATE publications, revisions, workflows`.execute(db);
-        return await run({ db, workflows: new WorkflowRepository(db, preparer) });
+        return await run({ db, workflows: new WorkflowRepository(db, canonicalizer) });
     } finally {
         await handle.close({ timeoutMs: 1_000 });
     }
@@ -223,7 +223,7 @@ describe("drafts and revisions", () => {
                 content: "{}",
                 findings: [],
             });
-            expect(result.outcome).toBe("not-found");
+            expect(result.outcome).toBe("workflow-not-found");
         });
     });
 
@@ -235,7 +235,7 @@ describe("drafts and revisions", () => {
             try {
                 await migrateToLatest(first);
                 await sql`TRUNCATE publications, revisions, workflows`.execute(first);
-                const firstWorkflows = new WorkflowRepository(first, preparer);
+                const firstWorkflows = new WorkflowRepository(first, canonicalizer);
                 const document = conditionalGroupsDocument("Restart durable");
                 created = await firstWorkflows.createDraft({
                     content: JSON.stringify(document),
@@ -255,7 +255,7 @@ describe("drafts and revisions", () => {
             const handle = createDatabase(testPostgres.options);
             const reopened = handle.db;
             try {
-                const reopenedWorkflows = new WorkflowRepository(reopened, preparer);
+                const reopenedWorkflows = new WorkflowRepository(reopened, canonicalizer);
                 const draft = await reopenedWorkflows.getRevision(
                     created.workflowId,
                     created.revision.revisionId,
@@ -416,7 +416,7 @@ describe("rewind", () => {
     test("reports missing workflows and targets", async () => {
         await withDatabase(async (database) => {
             expect(await database.workflows.rewind(mintUuidV7(), mintUuidV7())).toEqual({
-                outcome: "not-found",
+                outcome: "workflow-not-found",
             });
             const created = await database.workflows.createDraft({
                 content: "{}",
@@ -554,7 +554,7 @@ describe("publication", () => {
                     digest: "a".repeat(64),
                     workflowFormatVersion: "v1",
                 }),
-            ).toEqual({ outcome: "not-found" });
+            ).toEqual({ outcome: "workflow-not-found" });
 
             // The workflow exists, but the revision belongs to another one.
             const other = await database.workflows.createDraft({

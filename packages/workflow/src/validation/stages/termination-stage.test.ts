@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { V1_RULE_SET } from "../../rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import {
     buildDocument,
     conditional,
@@ -14,7 +14,7 @@ const stage = new TerminationStage();
 
 function run(document: unknown) {
     const context = new ValidationContext(document, null);
-    context.selectRuleSet(V1_RULE_SET);
+    context.selectRuleSet(V1_WORKFLOW_FORMAT_RULE_SET);
     return stage.run(context);
 }
 

@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { WorkflowDocumentSchema } from "../../workflows/schemas";
+import { PermissiveWorkflowDocumentSchema } from "../../workflows/schemas";
 
 /**
  * The body of POST /workflows: the document to store plus an optional
@@ -13,7 +13,7 @@ export const CreateDraftRequestSchema = Type.Object(
                 description: "Optional display label for the first revision.",
             }),
         ),
-        document: WorkflowDocumentSchema,
+        document: PermissiveWorkflowDocumentSchema,
     },
     { additionalProperties: false },
 );

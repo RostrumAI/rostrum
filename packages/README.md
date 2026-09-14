@@ -11,5 +11,5 @@ step.
   can physically exist in Postgres, the TypeScript migration modules, and
   repositories that own transactions, row locks, optimistic checks, and
   row-to-application mapping. Applications depend on this package one-way;
-  it depends on no application, and validation and publication preparation
-  stay in `workflow/`.
+  it depends on no application, and validation and publication
+  canonicalization stay in `workflow/`.

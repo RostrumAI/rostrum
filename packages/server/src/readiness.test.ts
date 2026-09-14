@@ -1,12 +1,12 @@
 /** @fileoverview Concurrent readiness aggregation and cancellation tests. */
 
 import { describe, expect, test } from "bun:test";
-import type { CheckResult } from "./protocol";
+import type { ReadinessCheckResult } from "./protocol";
 import { checkReadiness } from "./readiness";
 
 /** Resolves only when readiness cancellation reaches the probe. */
-function waitForAbort(signal: AbortSignal, onAbort?: () => void): Promise<CheckResult> {
-    const { promise, resolve } = Promise.withResolvers<CheckResult>();
+function waitForAbort(signal: AbortSignal, onAbort?: () => void): Promise<ReadinessCheckResult> {
+    const { promise, resolve } = Promise.withResolvers<ReadinessCheckResult>();
     signal.addEventListener(
         "abort",
         () => {

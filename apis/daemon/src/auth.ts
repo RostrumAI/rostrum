@@ -2,7 +2,7 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { DaemonConfig } from "@rostrum/server/config";
-import { isToken } from "@rostrum/server/tokens";
+import { isTokenSyntax } from "@rostrum/server/tokens";
 
 const acceptedDigests = new WeakMap<readonly string[], readonly Buffer[]>();
 
@@ -18,7 +18,7 @@ export function authenticate(
     // Only one well-formed bearer credential is considered; anything else is rejected below.
     const authorization = request.headers.get("authorization");
     const match = authorization === null ? null : /^Bearer ([a-fA-F0-9]+)$/i.exec(authorization);
-    if (match && isToken(match[1] ?? "")) {
+    if (match && isTokenSyntax(match[1] ?? "")) {
         // Encode the accepted set once per configured token list, so a reload pays for it once.
         let accepted = acceptedDigests.get(config.tokens);
         if (accepted === undefined) {

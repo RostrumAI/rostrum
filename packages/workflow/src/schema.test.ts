@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Compile } from "typebox/compile";
-import { WorkflowDocument } from "./schema";
+import { WorkflowDocumentSchema } from "./schema";
 
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");
 
@@ -21,7 +21,7 @@ function loadCategory(name: string): string[] {
         .sort();
 }
 
-const validator = Compile(WorkflowDocument);
+const validator = Compile(WorkflowDocumentSchema);
 
 describe("valid examples pass schema validation", () => {
     for (const file of loadCategory("valid")) {

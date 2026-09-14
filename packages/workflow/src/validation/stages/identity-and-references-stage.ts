@@ -17,7 +17,7 @@ import type { ValidationStage } from "../validation-stage";
  * one of `successors`/`conditional` and of `loop`/`conditional`, and a
  * present `config` validates against the registered config schema.
  */
-export class IdentityStage implements ValidationStage {
+export class IdentityAndReferencesStage implements ValidationStage {
     readonly id = "identity";
     readonly prerequisites: readonly string[] = ["shape"];
 

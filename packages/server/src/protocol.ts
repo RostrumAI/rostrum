@@ -55,7 +55,7 @@ const DatabaseCheckSchema = Type.Union([OkSchema, DatabaseFailureSchema]);
 const DaemonCheckSchema = Type.Union([OkSchema, DaemonFailureSchema]);
 
 /** One dependency's readiness outcome: ok, or a failure with its stable code. */
-export type CheckResult =
+export type ReadinessCheckResult =
     | Static<typeof OkSchema>
     | Static<typeof DatabaseFailureSchema>
     | Static<typeof DaemonFailureSchema>;
@@ -63,7 +63,7 @@ export type CheckResult =
 /** Overall readiness with one result per dependency that was checked. */
 export interface Readiness {
     status: "ready" | "not_ready";
-    checks: { database?: CheckResult; daemon?: CheckResult };
+    checks: { database?: ReadinessCheckResult; daemon?: ReadinessCheckResult };
 }
 
 /** Wire shape of the daemon's readiness document. */

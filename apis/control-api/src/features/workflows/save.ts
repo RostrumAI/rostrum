@@ -10,7 +10,7 @@ import {
     workflowNotFound,
     workflowRevisionConflict,
 } from "../../workflows/errors";
-import { readRequestBody } from "../../workflows/request-body";
+import { readDocumentRequestBody } from "../../workflows/request-body";
 import {
     revisionResponse,
     WorkflowIdSchema,
@@ -76,7 +76,10 @@ export const createHandler =
     async (c: Context) => {
         try {
             const workflowId = c.req.param("workflowId") ?? "";
-            const { request, documentText } = await readRequestBody(c, SaveRevisionRequestSchema);
+            const { request, documentText } = await readDocumentRequestBody(
+                c,
+                SaveRevisionRequestSchema,
+            );
             const result = await getServices(c).workflows.saveRevision(
                 workflowId,
                 documentText,
@@ -88,7 +91,7 @@ export const createHandler =
                     return c.json(revisionResponse(result.revision));
                 case "conflict":
                     throw new WorkflowApiError(workflowRevisionConflict(result.currentRevision));
-                case "not-found":
+                case "workflow-not-found":
                     throw new WorkflowApiError(
                         workflowNotFound(`Workflow ${workflowId} does not exist`),
                     );

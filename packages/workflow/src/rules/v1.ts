@@ -1,9 +1,9 @@
 import { Type } from "typebox";
-import { WorkflowDocument } from "../schema";
-import { CompatibilityStage } from "../validation/stages/compatibility-stage";
+import { WorkflowDocumentSchema } from "../schema";
 import { ConditionalStage } from "../validation/stages/conditional-stage";
 import { GraphStage } from "../validation/stages/graph-stage";
-import { IdentityStage } from "../validation/stages/identity-stage";
+import { IdentityAndReferencesStage } from "../validation/stages/identity-and-references-stage";
+import { InputOutputCompatibilityStage } from "../validation/stages/input-output-compatibility-stage";
 import { ReferencesStage } from "../validation/stages/references-stage";
 import { ShapeStage } from "../validation/stages/shape-stage";
 import { TerminationStage } from "../validation/stages/termination-stage";
@@ -32,18 +32,18 @@ const stepTypes = new StepTypeRegistry({
 stepTypes.seal();
 
 /** The frozen v1 rule set: schema, step types, metadata members, and validation stages. */
-export const V1_RULE_SET: WorkflowFormatRuleSet = Object.freeze({
+export const V1_WORKFLOW_FORMAT_RULE_SET: WorkflowFormatRuleSet = Object.freeze({
     version: "v1",
-    documentSchema: WorkflowDocument,
+    documentSchema: WorkflowDocumentSchema,
     stepTypes,
     metadataMembers: Object.freeze(["name", "description"]),
     stages: Object.freeze([
-        new ShapeStage(WorkflowDocument),
-        new IdentityStage(stepTypes),
+        new ShapeStage(WorkflowDocumentSchema),
+        new IdentityAndReferencesStage(stepTypes),
         new GraphStage(),
         new ConditionalStage(),
         new TerminationStage(),
         new ReferencesStage(),
-        new CompatibilityStage(),
+        new InputOutputCompatibilityStage(),
     ]),
 });

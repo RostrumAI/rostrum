@@ -14,7 +14,7 @@ import type { ValidationStage } from "../validation-stage";
  * type compatibility blocking; v1 bindings carry no consumer-side
  * schema, so there is nothing to compare and the stage emits nothing.
  */
-export class CompatibilityStage implements ValidationStage {
+export class InputOutputCompatibilityStage implements ValidationStage {
     readonly id = "compatibility";
     readonly prerequisites: readonly string[] = ["references"];
 

@@ -1,4 +1,4 @@
-import type { StoredRevision } from "@rostrum/database";
+import type { Revision } from "@rostrum/database";
 import { type Static, Type } from "typebox";
 
 /**
@@ -141,7 +141,7 @@ export const RewindRequestSchema = Type.Object(
 );
 
 /** The permissive document member of the request bodies. */
-export const WorkflowDocumentSchema = Type.Unknown({
+export const PermissiveWorkflowDocumentSchema = Type.Unknown({
     description:
         "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract.",
 });
@@ -150,7 +150,7 @@ export const WorkflowDocumentSchema = Type.Unknown({
  * Maps one stored revision onto the WorkflowRevision response shape, the
  * uniform body of create, save, rewind, and both revisions' retrievals.
  */
-export function revisionResponse(revision: StoredRevision): Static<typeof WorkflowRevisionSchema> {
+export function revisionResponse(revision: Revision): Static<typeof WorkflowRevisionSchema> {
     return {
         workflowId: revision.workflowId,
         revisionId: revision.revisionId,

@@ -1,4 +1,4 @@
-import { InvalidWorkflowInputError, type StoredRevision } from "@rostrum/database";
+import { InvalidWorkflowInputError, type Revision } from "@rostrum/database";
 import type { Finding } from "@rostrum/workflow";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -74,7 +74,7 @@ export function workflowIdentityConflict(message: string): ErrorPayload {
 }
 
 /** Maps a stale base revision to 409, carrying the current revision and its findings. */
-export function workflowRevisionConflict(currentRevision: StoredRevision): ErrorPayload {
+export function workflowRevisionConflict(currentRevision: Revision): ErrorPayload {
     return {
         status: 409,
         code: "revision_conflict",

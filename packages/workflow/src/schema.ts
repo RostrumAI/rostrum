@@ -118,7 +118,7 @@ const Conditional = Type.Object(
 );
 
 /** A workflow format v1 document. */
-export const WorkflowDocument = Type.Object(
+export const WorkflowDocumentSchema = Type.Object(
     {
         workflowFormatVersion: Type.Literal("v1"),
         id: UuidV7,
@@ -132,7 +132,7 @@ export const WorkflowDocument = Type.Object(
     { additionalProperties: false },
 );
 
-export type WorkflowDocument = Static<typeof WorkflowDocument>;
+export type WorkflowDocument = Static<typeof WorkflowDocumentSchema>;
 
 export type WorkflowStep = Static<typeof Step>;
 export type WorkflowConditional = Static<typeof Conditional>;

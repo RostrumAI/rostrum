@@ -2,7 +2,7 @@ import type { WorkflowFormatRuleSet } from "../rules/workflow-format-rule-set";
 import { CanonicalizationError, canonicalize } from "./canonical-json";
 
 /** The canonical publication form of a workflow document and its content digest. */
-export interface PublicationPreparation {
+export interface CanonicalPublication {
     /**
      * The full document in RFC 8785 canonical form, including metadata
      * members. This is the text stored with a publication.
@@ -16,19 +16,19 @@ export interface PublicationPreparation {
     digest: string;
 }
 /**
- * Prepares a valid workflow document for publication.
+ * Canonicalizes a valid workflow document for publication.
  *
- * The preparer canonicalizes the document once and computes the digest
- * over the definitional content: the rule set's metadata members
- * (`name` and `description` in v1) are removed before canonicalization.
- * The document must be duplicate-key free, which parse-based validation
- * guarantees; canonicalization rejects non-finite numbers, which no
- * canonical form can represent.
+ * The canonicalizer runs RFC 8785 once and computes the digest over the
+ * definitional content: the rule set's metadata members (`name` and
+ * `description` in v1) are removed before canonicalization. The document
+ * must be duplicate-key free, which parse-based validation guarantees;
+ * canonicalization rejects non-finite numbers, which no canonical form can
+ * represent.
  */
-export class PublicationPreparer {
+export class PublicationCanonicalizer {
     private readonly metadataMembers: readonly string[];
 
-    /** Constructs a preparer bound to one workflow-format rule set's metadata classification. */
+    /** Constructs a canonicalizer bound to one workflow-format rule set's metadata classification. */
     constructor(ruleSet: WorkflowFormatRuleSet) {
         this.metadataMembers = ruleSet.metadataMembers;
     }
@@ -39,7 +39,7 @@ export class PublicationPreparer {
      * Throws `CanonicalizationError` when the document is not a JSON
      * object or contains a value with no canonical form.
      */
-    async prepare(document: object): Promise<PublicationPreparation> {
+    async canonicalize(document: object): Promise<CanonicalPublication> {
         if (document === null || Array.isArray(document)) {
             throw new CanonicalizationError("The workflow document must be a JSON object");
         }

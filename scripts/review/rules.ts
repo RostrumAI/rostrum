@@ -17,14 +17,14 @@
 import { type LineEntry, visibleLineEntries, visibleLines } from "./diff.ts";
 import { buildImportGraph, modulesImportedOnlyByExemptFiles } from "./import-graph.ts";
 import { blankInlineCode, type LineRegions, scanSourceLines } from "./source-text.ts";
-import type { FileDiff, Finding, ReviewContext } from "./types.ts";
+import type { FileDiff, ReviewContext, ReviewFinding } from "./types.ts";
 
 /** One mechanical check over the added lines of a file. */
 interface RuleCheck {
     /** Rule id cited in the finding. */
     id: string;
     /** Severity carried by every finding the check produces. */
-    severity: Finding["severity"];
+    severity: ReviewFinding["severity"];
     /** One-line statement of the problem. */
     title: string;
     /** What the author should do instead. */
@@ -207,8 +207,8 @@ export const RULE_CHECKS: RuleCheck[] = [
  * @param context - Review context holding the parsed files.
  * @returns Certain findings, in file order.
  */
-export async function runRuleChecks(context: ReviewContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
+export async function runRuleChecks(context: ReviewContext): Promise<ReviewFinding[]> {
+    const findings: ReviewFinding[] = [];
     for (const file of context.files) {
         // A template literal or block comment can open on a line the diff does not
         // show, so the regions are resolved against the file as it exists at the
@@ -426,7 +426,7 @@ async function exportsSomething(workingDirectory: string, file: FileDiff): Promi
  * @param context - Review context holding the parsed files and the repository checkout.
  * @returns A finding per uncovered new source file.
  */
-export async function findUncoveredSourceFiles(context: ReviewContext): Promise<Finding[]> {
+export async function findUncoveredSourceFiles(context: ReviewContext): Promise<ReviewFinding[]> {
     const testPaths = new Set(
         context.files.filter((file) => isTestFile(file.path)).map((file) => file.path),
     );
@@ -448,7 +448,7 @@ export async function findUncoveredSourceFiles(context: ReviewContext): Promise<
     // importer the change does not touch still decides the outcome.
     const graph = await buildImportGraph(context.workingDirectory);
     const importedOnlyByExemptFiles = modulesImportedOnlyByExemptFiles(graph, owesNoTest);
-    const findings: Finding[] = [];
+    const findings: ReviewFinding[] = [];
     for (const file of candidates) {
         if (importedOnlyByExemptFiles.has(file.path)) {
             continue;
@@ -490,7 +490,7 @@ export async function findUncoveredSourceFiles(context: ReviewContext): Promise<
  * @param context - Review context holding the parsed files and pull request body.
  * @returns At most one finding.
  */
-export function findUnjustifiedDependencyChange(context: ReviewContext): Finding[] {
+export function findUnjustifiedDependencyChange(context: ReviewContext): ReviewFinding[] {
     const manifests = context.files.filter((file) => isDependencyManifest(file.path));
     if (manifests.length === 0) {
         return [];

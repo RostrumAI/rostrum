@@ -8,7 +8,7 @@ interface Marker {
     dependency: number;
 }
 
-/** Reads the serving configuration's marker and the identity of its owned resources. */
+/** Reads the serving configuration's marker and the id of its owned resources. */
 async function marker(origin: string): Promise<Marker> {
     const response = await fetch(`${origin}/marker`);
     return (await response.json()) as Marker;
@@ -16,7 +16,7 @@ async function marker(origin: string): Promise<Marker> {
 
 /**
  * Reload atomicity against the real runtime. A change that does not alter the
- * dependency identity must be applied in place, and a rejected candidate must
+ * dependency fingerprint must be applied in place, and a rejected candidate must
  * leave the live configuration entirely untouched.
  */
 describe("SIGHUP configuration reload", () => {
@@ -35,7 +35,7 @@ describe("SIGHUP configuration reload", () => {
             await fixture.waitFor((line) => line.includes("reload applied"));
 
             // Same port (the listener was not replaced) and the same resource
-            // identity (a non-database change must not rebuild the pool).
+            // id (a non-database change must not rebuild the pool).
             expect(await marker(origin)).toEqual({ marker: "after", dependency: 1 });
         } finally {
             fixture.signal("SIGTERM");
@@ -43,7 +43,7 @@ describe("SIGHUP configuration reload", () => {
         expect(await fixture.exited()).toBe(0);
     });
 
-    test("rebuilds and retires dependencies when the candidate changes the database identity", async () => {
+    test("rebuilds and retires resources when the candidate changes the database fingerprint", async () => {
         const fixture = await spawnFixture({
             marker: "before",
             holdMs: 0,

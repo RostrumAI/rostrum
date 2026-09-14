@@ -7,11 +7,11 @@
  * repositories define how Rostrum reads and writes that data: transactions,
  * row locks, optimistic checks, immutability rules, and the mapping
  * between stored rows and application values. Validation and publication
- * preparation stay in @rostrum/workflow; applications depend on this
+ * canonicalization stay in @rostrum/workflow; applications depend on this
  * package one-way, and it depends on no application.
  */
 
-export type { DatabaseCheck, DatabaseHandle, DatabaseOptions } from "./client";
+export type { DatabaseHandle, DatabaseOptions, DatabaseProbeResult } from "./client";
 export { createDatabase, validateDatabaseOptions } from "./client";
 export { migrateToLatest, TsFileMigrationProvider } from "./migrator";
 export { WorkflowRepository } from "./repositories/workflow-repository";
@@ -26,12 +26,12 @@ export type {
     CreateDraftInput,
     CreatedDraft,
     Publication,
-    PublishInput,
+    PublicationInsertInput,
     PublishResult,
+    Revision,
     RewindResult,
     SaveRevisionInput,
     SaveRevisionResult,
-    StoredRevision,
 } from "./repositories/workflow-repository.types";
 export type { Database } from "./schema/database";
 export type { PublicationRow } from "./schema/publications";

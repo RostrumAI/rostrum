@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PublicationPreparer } from "../src/publish/publication-preparer";
-import { V1_RULE_SET } from "../src/rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "../src/rules/v1";
+import { PublicationCanonicalizer } from "./publish/publication-canonicalizer";
 import { digestWorkflow } from "./testing/digest";
 
 /**
@@ -11,7 +11,7 @@ import { digestWorkflow } from "./testing/digest";
  * members (`name`, `description` in v1) removed.
  *
  * Every vector was reproduced independently before it shipped: once by
- * the library's canonicalizer (`PublicationPreparer`) and once by a
+ * the library's canonicalizer (`PublicationCanonicalizer`) and once by a
  * separate implementation written against RFC 8785 alone.
  */
 
@@ -21,7 +21,7 @@ const vectors = JSON.parse(
     readFileSync(join(FIXTURES_DIR, "digest-vectors.json"), "utf8"),
 ) as Record<string, string>;
 
-const preparer = new PublicationPreparer(V1_RULE_SET);
+const canonicalizer = new PublicationCanonicalizer(V1_WORKFLOW_FORMAT_RULE_SET);
 
 function loadFixture(relative: string): Record<string, unknown> {
     return JSON.parse(readFileSync(join(FIXTURES_DIR, relative), "utf8")) as Record<
@@ -39,7 +39,7 @@ describe("each valid fixture reproduces its committed digest vector", () => {
     for (const [relative, expected] of Object.entries(vectors)) {
         test(relative, async () => {
             const document = loadFixture(relative);
-            const { digest } = await preparer.prepare(document);
+            const { digest } = await canonicalizer.canonicalize(document);
             expect(digest).toBe(expected);
         });
     }
@@ -57,7 +57,9 @@ describe("the second implementation agrees on every vector", () => {
 describe("digest invariance", () => {
     test("reformatting the text does not change the digest", async () => {
         const compact = JSON.stringify(loadFixture("valid/sequential.json"));
-        expect((await preparer.prepare(JSON.parse(compact))).digest).toBe(sequentialDigest);
+        expect((await canonicalizer.canonicalize(JSON.parse(compact))).digest).toBe(
+            sequentialDigest,
+        );
     });
 
     test("reordering object members does not change the digest", async () => {
@@ -66,7 +68,7 @@ describe("digest invariance", () => {
         for (const key of Object.keys(document).reverse()) {
             reversed[key] = document[key];
         }
-        expect((await preparer.prepare(reversed)).digest).toBe(sequentialDigest);
+        expect((await canonicalizer.canonicalize(reversed)).digest).toBe(sequentialDigest);
     });
 
     test("a metadata-only edit leaves the digest unchanged", async () => {
@@ -75,7 +77,7 @@ describe("digest invariance", () => {
             name: "Renamed workflow",
             description: "Different description.",
         };
-        expect((await preparer.prepare(renamed)).digest).toBe(sequentialDigest);
+        expect((await canonicalizer.canonicalize(renamed)).digest).toBe(sequentialDigest);
     });
 
     test("an operational edit changes the digest", async () => {
@@ -84,7 +86,7 @@ describe("digest invariance", () => {
             name: "Minimum workflow",
             firstNode: "0192b0a0-7e1d-7000-8000-000000000099",
         };
-        const { digest } = await preparer.prepare(edited);
+        const { digest } = await canonicalizer.canonicalize(edited);
         expect(digest).not.toBe(vectors["valid/minimum.json"]);
         expect(digest).toMatch(/^[0-9a-f]{64}$/);
     });

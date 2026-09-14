@@ -1,23 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { V1_RULE_SET } from "../../rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import { WorkflowFormatRegistry } from "../../rules/workflow-format-rule-set";
 import { buildDocument } from "../../testing/documents";
 import { ValidationContext } from "../validation-context";
-import { FormatStage } from "./format-stage";
+import { FormatVersionStage } from "./format-version-stage";
 
-const registry = new WorkflowFormatRegistry([V1_RULE_SET]);
+const registry = new WorkflowFormatRegistry([V1_WORKFLOW_FORMAT_RULE_SET]);
 
 function run(document: unknown) {
     const context = new ValidationContext(document, null);
-    const findings = new FormatStage(registry).run(context);
+    const findings = new FormatVersionStage(registry).run(context);
     return { context, findings };
 }
 
-describe("FormatStage", () => {
+describe("FormatVersionStage", () => {
     test("selects the v1 rule set for an exact match", () => {
         const { context, findings } = run(buildDocument());
         expect(findings).toEqual([]);
-        expect(context.ruleSet).toBe(V1_RULE_SET);
+        expect(context.ruleSet).toBe(V1_WORKFLOW_FORMAT_RULE_SET);
     });
 
     test("reports a missing workflowFormatVersion at its pointer", () => {

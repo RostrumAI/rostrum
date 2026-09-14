@@ -21,7 +21,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { ruleIdFromComment } from "./finding-triage.ts";
 import {
     COMMENT_MARKER,
     fetchReviewThreads,
@@ -29,7 +29,6 @@ import {
     type ReviewThread,
     resolveRepository,
 } from "./github.ts";
-import { ruleIdFromComment } from "./merge.ts";
 import { runProcessOrThrow } from "./process.ts";
 import { isBlocking, type Severity } from "./types.ts";
 import { parseVerdict, type Verdict } from "./verdicts.ts";
@@ -65,7 +64,7 @@ export interface FindingOutcome {
     /** Pull request the finding was posted on. */
     pullRequest: number;
     /** Verdict reached, or `unadjudicated` when the thread has none. */
-    verdict: Verdict | "unadjudicated" | "open";
+    verdict: Verdict | "unadjudicated";
 }
 
 /** Per-rule tally used to decide whether a rule is working. */
@@ -140,7 +139,7 @@ function outcomeFor(thread: ReviewThread, pullRequest: number): FindingOutcome |
         ruleId,
         path: thread.path,
         pullRequest,
-        verdict: verdict ?? (thread.isResolved ? "code_changed" : "open"),
+        verdict: verdict ?? (thread.isResolved ? "code_changed" : "unadjudicated"),
     };
 }
 

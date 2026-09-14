@@ -12,7 +12,7 @@ export type ServiceName = "control-api" | "daemon";
  * Both service configs satisfy this shape; these are exactly the fields a
  * reload can change without restarting the process.
  */
-export interface RuntimeConfig {
+export interface ReloadableServiceConfig {
     readonly host: string;
     readonly port: number;
     readonly logLevel: LogLevel;
@@ -30,13 +30,13 @@ export interface RuntimeConfig {
  * Resources owned by one active configuration. The runtime closes them on
  * shutdown or after a successful reload.
  */
-export interface ServiceDependencies {
+export interface ServiceResources {
     /** Releases every owned resource within `timeoutMs`; safe to call once. */
     close(options: { timeoutMs: number }): Promise<void>;
 }
 
 /** Inputs the shared runtime needs from one executable service. */
-export interface RunServiceOptions<C extends RuntimeConfig, D extends ServiceDependencies> {
+export interface RunServiceOptions<C extends ReloadableServiceConfig, D extends ServiceResources> {
     readonly name: ServiceName;
     /**
      * Validates a complete candidate from the startup sources. Called at boot
@@ -44,12 +44,12 @@ export interface RunServiceOptions<C extends RuntimeConfig, D extends ServiceDep
      */
     loadConfig(): C;
     /** Acquires resources owned by one active configuration. */
-    createDependencies(config: C): Promise<D>;
-    /** Serves a request with the configuration and dependencies active at admission. */
+    createResources(config: C): Promise<D>;
+    /** Serves a request with the configuration and resources active at admission. */
     fetch(
         request: Request,
         config: C,
-        dependencies: D,
+        resources: D,
         signal: AbortSignal,
     ): Response | Promise<Response>;
     /**
@@ -63,8 +63,8 @@ export interface RunServiceOptions<C extends RuntimeConfig, D extends ServiceDep
 /** The bound HTTP listener the runtime serves requests from. */
 type BoundServer = Bun.Server<undefined>;
 
-/** Database-settings identity: only these changes rebuild dependencies. */
-const dependencyIdentity = (config: RuntimeConfig): string =>
+/** Database-settings fingerprint: only these changes rebuild resources. */
+const dependencyFingerprint = (config: ReloadableServiceConfig): string =>
     JSON.stringify([
         config.databaseUrl,
         config.databaseTls,
@@ -73,8 +73,8 @@ const dependencyIdentity = (config: RuntimeConfig): string =>
         config.dependencyTimeoutMs,
     ]);
 
-/** Listener identity: only these changes replace the bound listener. */
-const listenerIdentity = (config: RuntimeConfig): string =>
+/** Listener fingerprint: only these changes replace the bound listener. */
+const listenerFingerprint = (config: ReloadableServiceConfig): string =>
     JSON.stringify([config.host, config.port, config.tls?.cert, config.tls?.key]);
 
 /** The boundary 503 a request receives when it arrives during shutdown. */
@@ -97,17 +97,17 @@ function internalErrorResponse(): Response {
  * Runs one service process with authenticated admission, reload, and bounded
  * shutdown.
  */
-export async function runService<C extends RuntimeConfig, D extends ServiceDependencies>(
+export async function runService<C extends ReloadableServiceConfig, D extends ServiceResources>(
     options: RunServiceOptions<C, D>,
 ): Promise<void> {
-    // Bring the service up: configuration, logging, dependencies, and their identities.
+    // Bring the service up: configuration, logging, resources, and their fingerprints.
     const logger = getLogger(options.name);
     // Invalid configuration must fail before any service resource is acquired.
     let liveConfig = options.loadConfig();
     await configureLogging(liveConfig.logLevel);
-    let liveDependencies = await options.createDependencies(liveConfig);
-    let liveIdentity = dependencyIdentity(liveConfig);
-    let liveListenerIdentity = listenerIdentity(liveConfig);
+    let liveResources = await options.createResources(liveConfig);
+    let liveDependencyFingerprint = dependencyFingerprint(liveConfig);
+    let liveListenerFingerprint = listenerFingerprint(liveConfig);
 
     /** Active requests and their deadline controllers. */
     const outstanding = new Map<Request, AbortController>();
@@ -123,9 +123,9 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 ? {}
                 : { tls: { cert: config.tls.cert, key: config.tls.key } }),
             fetch: async (request: Request) => {
-                // Serve each request with the configuration and dependencies live at admission.
+                // Serve each request with the configuration and resources live at admission.
                 const config = liveConfig;
-                const dependencies = liveDependencies;
+                const resources = liveResources;
                 // Authentication precedes the draining gate and everything else.
                 const rejection = options.authenticate?.(request, config);
                 if (rejection !== undefined) {
@@ -137,7 +137,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 const controller = new AbortController();
                 outstanding.set(request, controller);
                 try {
-                    return await options.fetch(request, config, dependencies, controller.signal);
+                    return await options.fetch(request, config, resources, controller.signal);
                 } finally {
                     outstanding.delete(request);
                 }
@@ -156,9 +156,9 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
         url: `${liveConfig.tls === undefined ? "http" : "https"}://${liveConfig.host}:${server.port}`,
     });
 
-    const retire = async (dependencies: D, timeoutMs: number): Promise<void> => {
+    const retire = async (resources: D, timeoutMs: number): Promise<void> => {
         try {
-            await dependencies.close({ timeoutMs });
+            await resources.close({ timeoutMs });
         } catch (error) {
             logger.warn("retired resource close failed", { error: String(error) });
         }
@@ -180,18 +180,18 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             return;
         }
 
-        // Only a changed database identity rebuilds dependencies; the previous
+        // Only a changed database fingerprint rebuilds resources; the previous
         // set retires once the swap succeeds.
-        const candidateDependencyIdentity = dependencyIdentity(candidate);
-        const candidateListenerIdentity = listenerIdentity(candidate);
-        let nextDependencies = liveDependencies;
-        let nextIdentity = liveIdentity;
+        const candidateDependencyFingerprint = dependencyFingerprint(candidate);
+        const candidateListenerFingerprint = listenerFingerprint(candidate);
+        let nextResources = liveResources;
+        let nextDependencyFingerprint = liveDependencyFingerprint;
         let retired: D | undefined;
-        if (candidateDependencyIdentity !== liveIdentity) {
+        if (candidateDependencyFingerprint !== liveDependencyFingerprint) {
             try {
-                nextDependencies = await options.createDependencies(candidate);
-                nextIdentity = candidateDependencyIdentity;
-                retired = liveDependencies;
+                nextResources = await options.createResources(candidate);
+                nextDependencyFingerprint = candidateDependencyFingerprint;
+                retired = liveResources;
             } catch {
                 logger.warn("reload rejected", { reason: "dependency replacement failed" });
                 return;
@@ -201,13 +201,13 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
         // Shutdown takes priority: never reopen a draining service.
         if (draining) {
             if (retired !== undefined) {
-                await retire(nextDependencies, candidate.shutdownTimeoutMs);
+                await retire(nextResources, candidate.shutdownTimeoutMs);
             }
             logger.warn("reload rejected", { reason: "service is draining" });
             return;
         }
 
-        const listenerChanged = candidateListenerIdentity !== liveListenerIdentity;
+        const listenerChanged = candidateListenerFingerprint !== liveListenerFingerprint;
         if (listenerChanged) {
             const previousServer = server;
             const sameAddress =
@@ -223,7 +223,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 // Never reopen after shutdown begins.
                 if (draining) {
                     if (retired !== undefined) {
-                        await retire(nextDependencies, candidate.shutdownTimeoutMs);
+                        await retire(nextResources, candidate.shutdownTimeoutMs);
                     }
                     logger.warn("reload rejected", { reason: "service is draining" });
                     return;
@@ -238,7 +238,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                     // The original listener is still serving; retaining it is
                     // the restoration for a failed different-address candidate.
                     if (retired !== undefined) {
-                        await retire(nextDependencies, candidate.shutdownTimeoutMs);
+                        await retire(nextResources, candidate.shutdownTimeoutMs);
                     }
                     return;
                 }
@@ -252,7 +252,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                     process.exit(1);
                 }
                 if (retired !== undefined) {
-                    await retire(nextDependencies, candidate.shutdownTimeoutMs);
+                    await retire(nextResources, candidate.shutdownTimeoutMs);
                 }
                 return;
             }
@@ -263,9 +263,9 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
         }
 
         liveConfig = candidate;
-        liveDependencies = nextDependencies;
-        liveIdentity = nextIdentity;
-        liveListenerIdentity = candidateListenerIdentity;
+        liveResources = nextResources;
+        liveDependencyFingerprint = nextDependencyFingerprint;
+        liveListenerFingerprint = candidateListenerFingerprint;
         await configureLogging(candidate.logLevel);
         logger.info("reload applied", {
             listener: listenerChanged,
@@ -309,11 +309,11 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 process.exit(1);
             }, deadlineMs);
             server.stop(true);
-            await retire(liveDependencies, 0);
+            await retire(liveResources, 0);
             clearTimeout(forced);
             process.exit(1);
         }
-        await retire(liveDependencies, Math.max(0, deadlineMs - (Date.now() - started)));
+        await retire(liveResources, Math.max(0, deadlineMs - (Date.now() - started)));
         logger.info("shutdown complete");
         process.exit(0);
     };

@@ -32,7 +32,7 @@ export async function parseWorkflowBody(c: Context): Promise<ParsedBody> {
  * author's formatting byte-for-byte, so the stored revision's findings
  * anchor to the text retrieval returns.
  */
-export async function readRequestBody<T extends TObject>(
+export async function readDocumentRequestBody<T extends TObject>(
     c: Context,
     schema: T,
 ): Promise<{ request: Static<T>; documentText: string }> {

@@ -143,7 +143,7 @@ export class WorkflowGraph {
      * loop body member → its loop step, so downstream steps can consume
      * iteration outputs.
      */
-    orderingEdges(includeLoopFeeds: boolean): Map<string, string[]> {
+    orderingEdges(includeIterationResultEdges: boolean): Map<string, string[]> {
         const edges = new Map<string, string[]>();
         for (const [stepId, targets] of this.controlEdges()) {
             edges.set(stepId, [...targets]);
@@ -155,7 +155,7 @@ export class WorkflowGraph {
                 edges.set(dependency, targets);
             }
         }
-        if (includeLoopFeeds) {
+        if (includeIterationResultEdges) {
             for (const node of this.stepsById.values()) {
                 if (!node.step.loop) {
                     continue;

@@ -7,7 +7,7 @@ import { ErrorResponseSchema } from "../../schemas";
 import type { ServiceAccessor } from "../../services";
 import { workflowErrorResponse } from "../../workflows/errors";
 import { parseWorkflowBody } from "../../workflows/request-body";
-import { ValidateResponseSchema, WorkflowDocumentSchema } from "../../workflows/schemas";
+import { PermissiveWorkflowDocumentSchema, ValidateResponseSchema } from "../../workflows/schemas";
 
 /**
  * Route binding for explicit validation. Parse failures answer 400 with
@@ -38,7 +38,7 @@ export const route: FeatureRoute = {
 /** OpenAPI components contributed by this slice. */
 export const schema: FeatureSchemas = {
     ValidateResponse: ValidateResponseSchema,
-    WorkflowDocument: WorkflowDocumentSchema,
+    WorkflowDocument: PermissiveWorkflowDocumentSchema,
     ErrorResponse: ErrorResponseSchema,
 };
 

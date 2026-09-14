@@ -27,7 +27,7 @@
         "format": "biome format --write .",
         "review": "bun run scripts/review/index.ts",
         "review:adjudicate": "bun run scripts/review/adjudicate-cli.ts",
-        "review:retro": "bun run scripts/review/retro-cli.ts",
+        "review:retrospective": "bun run scripts/review/retrospective-cli.ts",
         "docs:setup": "bun run scripts/setup-dev-docs.ts",
         "db:up": "docker compose up -d --wait postgres",
         "db:down": "docker compose down",

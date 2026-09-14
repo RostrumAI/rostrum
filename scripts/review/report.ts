@@ -5,14 +5,14 @@
  * A review comment has to carry everything a reader needs without a second
  * lookup: which rule was violated, how serious it is, what the offending code
  * is, and what to do instead. The comment also carries the marker and rule id
- * that suppression depends on, so this module and the merge module must agree on
+ * that suppression depends on, so this module and the finding-triage module must agree on
  * the format.
  */
 
+import { countBySeverity } from "./finding-triage.ts";
 import { COMMENT_MARKER, type DraftComment, SUMMARY_MARKER } from "./github.ts";
-import { countBySeverity } from "./merge.ts";
 import type { LensResult } from "./reviewer.ts";
-import { type Finding, isBlocking, type ReviewContext, type Severity } from "./types.ts";
+import { isBlocking, type ReviewContext, type ReviewFinding, type Severity } from "./types.ts";
 
 /** Severity names as they are written in a comment. */
 const SEVERITY_LABELS: Record<Severity, string> = {
@@ -29,10 +29,10 @@ const SEVERITY_ORDER: readonly Severity[] = ["critical", "high", "medium", "low"
 /**
  * Renders a finding as a review comment.
  *
- * @param finding - Finding to render.
+ * @param finding - ReviewFinding to render.
  * @returns Comment body carrying the pipeline marker and the cited rule id.
  */
-export function renderComment(finding: Finding): string {
+export function renderComment(finding: ReviewFinding): string {
     const lines = [
         COMMENT_MARKER,
         `**\`${finding.ruleId}\` · ${SEVERITY_LABELS[finding.severity]}${
@@ -66,7 +66,7 @@ export function renderComment(finding: Finding): string {
  * @param findings - Findings that survived filtering.
  * @returns One draft comment per finding.
  */
-export function renderComments(findings: Finding[]): DraftComment[] {
+export function renderComments(findings: ReviewFinding[]): DraftComment[] {
     return findings.map((finding) => ({
         path: finding.path,
         line: finding.line,
@@ -89,7 +89,7 @@ export function renderComments(findings: Finding[]): DraftComment[] {
  */
 export function renderSummary(
     context: ReviewContext,
-    findings: Finding[],
+    findings: ReviewFinding[],
     lensResults: LensResult[],
     stats: { suppressed: number; duplicates: number; capped: number; belowFloor: number },
 ): string {

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ControlApiConfig } from "@rostrum/server/config";
-import { createDependencies, type Dependencies, readiness } from "./services";
+import { createResources, type Resources, readiness } from "./services";
 
 const config: ControlApiConfig = {
     host: "127.0.0.1",
@@ -20,25 +20,25 @@ const config: ControlApiConfig = {
     daemonUrl: "http://127.0.0.1:1",
 };
 
-let dependencies: Dependencies;
+let resources: Resources;
 let server: Bun.Server<undefined>;
 
 beforeAll(async () => {
-    dependencies = await createDependencies(config);
+    resources = await createResources(config);
     server = Bun.serve({
         hostname: "127.0.0.1",
         port: 0,
         fetch: (request) =>
-            dependencies.app.fetch(request, {
-                workflows: dependencies.workflows,
-                readiness: (signal) => readiness(config, dependencies, signal),
+            resources.app.fetch(request, {
+                workflows: resources.workflows,
+                readiness: (signal) => readiness(config, resources, signal),
             }),
     });
 });
 
 afterAll(async () => {
     server.stop(true);
-    await dependencies.close({ timeoutMs: 1_000 });
+    await resources.close({ timeoutMs: 1_000 });
 });
 
 test("serves liveness and the checked-in OpenAPI document", async () => {

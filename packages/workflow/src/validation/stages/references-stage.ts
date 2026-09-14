@@ -1,6 +1,10 @@
 import type { Finding } from "../../findings";
-import { escapePointerToken } from "../../source-map";
-import { isReferenceObject, LOOP_RESULTS_OUTPUT, STEP_REF_PATTERN } from "../refs";
+import { escapePointerToken } from "../../json-source-map";
+import {
+    isReferenceObject,
+    LOOP_RESULTS_OUTPUT,
+    STEP_OUTPUT_REF_PATTERN,
+} from "../data-references";
 import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 import type { WorkflowGraph } from "../workflow-graph";
@@ -151,7 +155,7 @@ export class ReferencesStage implements ValidationStage {
     ): void {
         // Pass 1, shape: the ref must split into a step id and an output
         // name; anything else is reported once as a syntax problem.
-        const match = STEP_REF_PATTERN.exec(ref);
+        const match = STEP_OUTPUT_REF_PATTERN.exec(ref);
         const targetStepId = match?.[1];
         const outputName = match?.[2];
         if (!targetStepId || outputName === undefined) {

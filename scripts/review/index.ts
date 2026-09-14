@@ -22,6 +22,14 @@ import { parseArgs } from "node:util";
 import { numericOption } from "./config.ts";
 import { findFile, parseUnifiedDiff, snapToDiff } from "./diff.ts";
 import {
+    applyConfidenceFloor,
+    applyPerRuleCap,
+    deduplicate,
+    partitionThreads,
+    sortFindings,
+    suppressPostedFindings,
+} from "./finding-triage.ts";
+import {
     fetchPatch,
     fetchPullRequest,
     fetchReviewThreads,
@@ -31,14 +39,6 @@ import {
     upsertSummary,
 } from "./github.ts";
 import { selectLenses } from "./lenses.ts";
-import {
-    applyConfidenceFloor,
-    applyPerRuleCap,
-    deduplicate,
-    partitionThreads,
-    sortFindings,
-    suppressAnswered,
-} from "./merge.ts";
 import { runProcessOrThrow } from "./process.ts";
 import { renderComments, renderSummary } from "./report.ts";
 import {
@@ -46,7 +46,7 @@ import {
     API_KEY_ENV,
     DEFAULT_AGENT_TIMEOUT_SECONDS,
     DEFAULT_MODEL,
-    OMP_BINARY_ENV,
+    REVIEW_BINARY_ENV,
     runLens,
     runWithConcurrency,
 } from "./reviewer.ts";
@@ -55,7 +55,12 @@ import {
     findUnjustifiedDependencyChange,
     runRuleChecks,
 } from "./rules.ts";
-import { type Finding, isBlocking, type PullRequestRef, type ReviewContext } from "./types.ts";
+import {
+    isBlocking,
+    type PullRequestRef,
+    type ReviewContext,
+    type ReviewFinding,
+} from "./types.ts";
 
 /** Minimum confidence a model finding needs before it is posted. */
 const DEFAULT_CONFIDENCE_FLOOR = 80;
@@ -82,23 +87,23 @@ async function main(): Promise<number> {
             json: { type: "boolean", default: false },
             lenses: { type: "string" },
             model: { type: "string" },
-            confidence: { type: "string" },
+            "confidence-floor": { type: "string" },
             concurrency: { type: "string" },
             "dry-run-rules": { type: "boolean", default: false },
-            "repo-root": { type: "string" },
+            "review-checkout": { type: "string" },
         },
         allowPositionals: false,
     });
 
     // The corpus and this script come from the checkout the workflow trusts, while
-    // `--repo-root` names the checkout the reviewers read. In CI those differ: the
+    // `--review-checkout` names the checkout the reviewers read. In CI those differ: the
     // script runs from the base branch, and the reviewers read the pull request head.
     const repositoryRoot = join(import.meta.dir, "..", "..");
-    const reviewRoot = values["repo-root"] ?? repositoryRoot;
+    const reviewRoot = values["review-checkout"] ?? repositoryRoot;
     const skillDirectory = join(repositoryRoot, ".github", "skills", "code-review");
     const model = values.model ?? process.env.REVIEW_MODEL ?? DEFAULT_MODEL;
     const confidenceFloor = numericOption(
-        values.confidence ?? process.env.REVIEW_CONFIDENCE_FLOOR,
+        values["confidence-floor"] ?? process.env.REVIEW_CONFIDENCE_FLOOR,
         DEFAULT_CONFIDENCE_FLOOR,
         "confidence floor",
         { min: 0, max: 100 },
@@ -120,7 +125,7 @@ async function main(): Promise<number> {
 
     const scratch = await mkdtemp(join(tmpdir(), "rostrum-review-"));
     if (!(await Bun.file(`${reviewRoot}/package.json`).exists())) {
-        throw new Error(`--repo-root does not look like the repository: ${reviewRoot}`);
+        throw new Error(`--review-checkout does not look like the repository: ${reviewRoot}`);
     }
     const local = values.since !== undefined;
     const ref = local ? null : await resolveRef(values.pr, repositoryRoot);
@@ -184,7 +189,7 @@ async function main(): Promise<number> {
         return 0;
     }
 
-    if (process.env[API_KEY_ENV] === undefined && process.env[OMP_BINARY_ENV] === undefined) {
+    if (process.env[API_KEY_ENV] === undefined && process.env[REVIEW_BINARY_ENV] === undefined) {
         console.error(
             `${API_KEY_ENV} is not set. The reviewer lenses cannot run without it; set the variable or pass --dry-run-rules.`,
         );
@@ -213,7 +218,7 @@ async function main(): Promise<number> {
     );
     const aboveFloor = applyConfidenceFloor(anchored, confidenceFloor);
     const deduped = deduplicate(aboveFloor, context);
-    const { kept: unanswered, suppressed } = suppressAnswered(deduped.kept, threads);
+    const { kept: unanswered, suppressed } = suppressPostedFindings(deduped.kept, threads);
     const capped = applyPerRuleCap(sortFindings(unanswered));
     const findings = capped.kept;
 
@@ -324,8 +329,8 @@ function skipReasonFor(
  * @param context - Review context holding the parsed files.
  * @returns Findings with corrected line numbers.
  */
-function anchorFindings(findings: Finding[], context: ReviewContext): Finding[] {
-    const anchored: Finding[] = [];
+function anchorFindings(findings: ReviewFinding[], context: ReviewContext): ReviewFinding[] {
+    const anchored: ReviewFinding[] = [];
     for (const finding of findings) {
         const file = findFile(context.files, finding.path);
         if (file === null) {
@@ -346,7 +351,7 @@ function anchorFindings(findings: Finding[], context: ReviewContext): Finding[] 
  * @param findings - Findings being posted.
  * @returns Review body text.
  */
-function reviewBody(findings: Finding[]): string {
+function reviewBody(findings: ReviewFinding[]): string {
     const blocking = findings.filter((finding) => isBlocking(finding.severity)).length;
     return [
         `Automated review: ${findings.length} finding${findings.length === 1 ? "" : "s"}${
@@ -360,7 +365,7 @@ function reviewBody(findings: Finding[]): string {
  *
  * @param findings - Findings to print.
  */
-function printFindings(findings: Finding[]): void {
+function printFindings(findings: ReviewFinding[]): void {
     if (findings.length === 0) {
         console.log("No findings.");
         return;
