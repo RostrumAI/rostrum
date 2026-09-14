@@ -43,6 +43,39 @@ describe("SIGHUP configuration reload", () => {
         expect(await fixture.exited()).toBe(0);
     });
 
+    test("rebuilds and retires dependencies when the candidate changes the database identity", async () => {
+        const fixture = await spawnFixture({
+            marker: "before",
+            holdMs: 0,
+            shutdownTimeoutMs: 6_000,
+        });
+        try {
+            const origin = `http://127.0.0.1:${fixture.port}`;
+            expect(await marker(origin)).toEqual({ marker: "before", dependency: 1 });
+
+            fixture.writeConfig({
+                marker: "after",
+                holdMs: 0,
+                shutdownTimeoutMs: 6_000,
+                databaseUrl: "postgres://fixture@127.0.0.1:2/other",
+            });
+            fixture.signal("SIGHUP");
+            // The swap is announced before the previous set is retired, so wait for
+            // the retirement itself rather than for the "reload applied" line.
+            await fixture.waitFor((line) => line.includes("fixture dependency closed"));
+
+            // Requests after the reload use the replacement, and the retired set is
+            // closed exactly once.
+            expect(await marker(origin)).toEqual({ marker: "after", dependency: 2 });
+            expect(
+                fixture.lines().filter((line) => line.includes("fixture dependency closed")),
+            ).toHaveLength(1);
+        } finally {
+            fixture.signal("SIGTERM");
+        }
+        expect(await fixture.exited()).toBe(0);
+    });
+
     test("keeps the original listener when a different address cannot bind", async () => {
         const fixture = await spawnFixture({
             marker: "before",
