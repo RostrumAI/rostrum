@@ -139,8 +139,8 @@ export class WorkflowGraph {
 
     /**
      * Ordering edges: control-flow edges plus dependency edges
-     * (dependency → dependent). With `includeLoopFeeds`, also adds each
-     * loop body member → its loop step, so downstream steps can consume
+     * (dependency → dependent). With `includeIterationResultEdges`, also adds
+     * each loop body member → its loop step, so downstream steps can consume
      * iteration outputs.
      */
     orderingEdges(includeIterationResultEdges: boolean): Map<string, string[]> {

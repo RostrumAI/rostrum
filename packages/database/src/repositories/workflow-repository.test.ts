@@ -69,7 +69,7 @@ const RAW_NUL_CONTENT = `{
 }
 `;
 
-async function preparePublishInput(
+async function buildPublicationInsertInput(
     workflowId: string,
     revisionId: string,
     document: Record<string, unknown>,
@@ -241,7 +241,7 @@ describe("drafts and revisions", () => {
                     content: JSON.stringify(document),
                     findings: [],
                 });
-                const input = await preparePublishInput(
+                const input = await buildPublicationInsertInput(
                     created.workflowId,
                     created.revision.revisionId,
                     document,
@@ -359,7 +359,7 @@ describe("rewind", () => {
             );
 
             // Publish from the second revision, then rewind past its source.
-            const input = await preparePublishInput(
+            const input = await buildPublicationInsertInput(
                 workflowId,
                 second.revisionId,
                 boundedLoopDocument("Renamed"),
@@ -504,7 +504,7 @@ describe("publication", () => {
                 findings: [],
             });
             const workflowId = created.workflowId;
-            const input = await preparePublishInput(
+            const input = await buildPublicationInsertInput(
                 workflowId,
                 created.revision.revisionId,
                 document,
@@ -592,7 +592,7 @@ describe("publication", () => {
                 findings: [],
             });
             const workflowId = created.workflowId;
-            const firstInput = await preparePublishInput(
+            const firstInput = await buildPublicationInsertInput(
                 workflowId,
                 created.revision.revisionId,
                 before,
@@ -607,7 +607,11 @@ describe("publication", () => {
                     findings: [],
                 }),
             );
-            const secondInput = await preparePublishInput(workflowId, renamed.revisionId, after);
+            const secondInput = await buildPublicationInsertInput(
+                workflowId,
+                renamed.revisionId,
+                after,
+            );
             expect((await database.workflows.publish(secondInput)).outcome).toBe("published");
 
             expect(secondInput.digest).toBe(firstInput.digest);
@@ -623,7 +627,7 @@ describe("publication", () => {
                 findings: [],
             });
             const workflowId = created.workflowId;
-            const publishedInput = await preparePublishInput(
+            const publishedInput = await buildPublicationInsertInput(
                 workflowId,
                 created.revision.revisionId,
                 document,
@@ -652,7 +656,11 @@ describe("publication", () => {
             });
             const workflowId = created.workflowId;
             await database.workflows.publish(
-                await preparePublishInput(workflowId, created.revision.revisionId, document),
+                await buildPublicationInsertInput(
+                    workflowId,
+                    created.revision.revisionId,
+                    document,
+                ),
             );
 
             // A flipped digest must fail.
@@ -677,7 +685,11 @@ describe("publication", () => {
             });
             const workflowId = created.workflowId;
             await database.workflows.publish(
-                await preparePublishInput(workflowId, created.revision.revisionId, document),
+                await buildPublicationInsertInput(
+                    workflowId,
+                    created.revision.revisionId,
+                    document,
+                ),
             );
 
             // Pretty-printed JSON is semantically identical and digest-equal
