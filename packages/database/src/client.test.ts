@@ -306,7 +306,7 @@ describe("database readiness and pool ownership", () => {
     });
 });
 
-test("verified database TLS uses runtime extra trust and verifies DNS and IP SANs", async () => {
+test("verified database TLS uses runtime extra trust and rejects an IP-literal identity", async () => {
     const directory = await mkdtemp(join(tmpdir(), "rostrum-db-tls-"));
     const run = async (args: string[]) => {
         const result = Bun.spawn(["openssl", ...args], {

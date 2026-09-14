@@ -11,10 +11,16 @@ export function isToken(value: string): boolean {
 
 /** Parses oldest-to-newest tokens without exposing secret content in errors. */
 export function parseTokens(text: string, source: "file" | "environment"): readonly string[] {
+    // Each source writes its tokens differently: a file is line-per-token, the
+    // environment comma-separated.
     const entries = source === "file" ? text.split(/\r?\n/) : text.split(",");
+
+    // A file's final newline is not an entry.
     if (source === "file" && entries.at(-1)?.trim() === "") {
         entries.pop();
     }
+
+    // Normalize every entry, rejecting malformed tokens and duplicates.
     const tokens: string[] = [];
     const seen = new Set<string>();
     for (const entry of entries) {
@@ -31,9 +37,13 @@ export function parseTokens(text: string, source: "file" | "environment"): reado
         seen.add(token);
         tokens.push(token);
     }
+
+    // At least one token must remain.
     if (tokens.length === 0) {
         throw new ConfigurationError("tokens", "requires at least one token");
     }
+
+    // Freeze the oldest-to-newest order the caller receives.
     return Object.freeze(tokens);
 }
 
@@ -43,15 +53,20 @@ export function loadTokens(
     filePath: string | undefined,
     cwd: string,
 ): readonly string[] {
+    // Selecting both sources at once is ambiguous, so it is rejected.
     if (env.DAEMON_TOKEN !== undefined && env.DAEMON_TOKEN_FILE !== undefined) {
         throw new ConfigurationError(
             "tokens",
             "cannot select both DAEMON_TOKEN and DAEMON_TOKEN_FILE",
         );
     }
+
+    // The environment token is used directly when it is the selected source.
     if (env.DAEMON_TOKEN !== undefined) {
         return parseTokens(env.DAEMON_TOKEN, "environment");
     }
+
+    // Otherwise a file must be named, either by the environment or by configuration.
     const selected = env.DAEMON_TOKEN_FILE ?? filePath;
     if (!selected) {
         throw new ConfigurationError("daemonTokenFile", "or DAEMON_TOKEN is required");
@@ -62,5 +77,7 @@ export function loadTokens(
     } catch {
         throw new ConfigurationError("daemonTokenFile", "must be a readable token file");
     }
+
+    // Parse the file with its line-oriented syntax.
     return parseTokens(text, "file");
 }

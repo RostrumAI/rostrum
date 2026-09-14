@@ -12,9 +12,12 @@ export class ConfigurationError extends Error {
 
 /** Classifies raw IP literals, never DNS names or URL-normalized IPv4 aliases. */
 export function isLiteralLoopback(host: string): boolean {
+    // IPv4 loopback is the 127/8 block.
     if (isIP(host) === 4) {
         return host.split(".")[0] === "127";
     }
+
+    // IPv6 loopback is ::1; a zone suffix means the host is not a plain literal.
     if (isIP(host) !== 6 || host.includes("%")) {
         return false;
     }
@@ -38,16 +41,22 @@ export function validateDaemonUrl(value: string, allowInsecureLocal: boolean): s
     if (!parts) {
         return fail();
     }
+
+    // Userinfo and percent-encoding could address a different host than they show.
     const authority = parts[2]!;
     if (authority.includes("@") || authority.includes("%")) {
         fail();
     }
+
+    // Extract the raw host before URL normalization; only the local exception requires a loopback literal.
     const literal = authority.startsWith("[")
         ? /^\[([^\]]+)\](?::[0-9]+)?$/.exec(authority)?.[1]
         : /^([^:]+)(?::[0-9]+)?$/.exec(authority)?.[1];
     if (!literal) {
         return fail();
     }
+
+    // Build the URL and let the local exception permit insecure literal loopback.
     let url: URL;
     try {
         url = new URL(value);
@@ -57,6 +66,8 @@ export function validateDaemonUrl(value: string, allowInsecureLocal: boolean): s
     if (allowInsecureLocal && !isLiteralLoopback(literal)) {
         fail();
     }
+
+    // Outside that exception the origin must be HTTPS; hand back the normalized one.
     if (url.protocol !== "https:" && !(allowInsecureLocal && url.protocol === "http:")) {
         fail();
     }

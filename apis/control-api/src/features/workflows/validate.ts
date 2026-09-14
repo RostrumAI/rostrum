@@ -1,3 +1,5 @@
+/** @fileoverview Workflow validation feature slice. */
+
 import type { FeatureHandler, FeatureRoute, FeatureSchemas } from "@rostrum/server/loader";
 import type { Context } from "hono";
 import type { Static } from "typebox";

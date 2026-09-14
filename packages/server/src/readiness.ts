@@ -33,11 +33,13 @@ export async function checkReadiness(
     timeoutMs: number,
     signal?: AbortSignal,
 ): Promise<Readiness> {
+    // Shared aggregate state: collected checks, cancellation, and one settle point.
     const checks: Record<string, CheckResult> = {};
     const controller = new AbortController();
     const result = Promise.withResolvers<Readiness>();
     let settled = false;
 
+    // Settle once: record the outcome, cancel the siblings, and resolve.
     const stop = (final: Readiness): void => {
         if (settled) {
             return;
@@ -50,6 +52,7 @@ export async function checkReadiness(
         result.resolve(final);
     };
 
+    // Any probe that never answered is reported with its timeout code.
     const onDeadline = (): void => {
         for (const [name, probe] of Object.entries(probes)) {
             if (!(name in checks)) {
@@ -59,6 +62,7 @@ export async function checkReadiness(
         stop({ status: "not_ready", checks: { ...checks } });
     };
 
+    // The caller's signal and our timer share one settle path.
     const timer = setTimeout(onDeadline, timeoutMs);
     signal?.addEventListener("abort", onDeadline, { once: true });
     if (signal?.aborted) {
@@ -67,11 +71,13 @@ export async function checkReadiness(
 
     const entries = Object.entries(probes);
     let outstanding = entries.length;
+    // No probes means nothing to wait for.
     if (outstanding === 0) {
         stop({ status: "ready", checks: {} });
         return result.promise;
     }
 
+    // Dispatch every probe; the first failure settles the aggregate.
     for (const [name, probe] of entries) {
         if (settled) {
             break;

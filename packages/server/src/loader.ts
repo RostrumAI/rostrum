@@ -40,6 +40,7 @@ export interface ResponseDefinition {
     schemaName?: string;
 }
 
+/** One documented path or header parameter. */
 export interface ParameterDefinition {
     /** Parameter name: a path token such as `workflowId`, or a header name. */
     name: string;
@@ -103,9 +104,11 @@ export interface LoadedFeature<S> {
     createHandler: FeatureHandlerFactory<S>;
 }
 
-/** Validated features plus their contributed OpenAPI components. */
+/** Manifest of all routes, handler factories, and the OpenAPI components they created */
 export interface FeatureBundle<S> {
+    /** The feature slices this bundle exposes, in deterministic load order. */
     features: LoadedFeature<S>[];
+    /** The OpenAPI components contributed by the loaded slices, keyed by component name. */
     components: Record<string, TSchema>;
 }
 

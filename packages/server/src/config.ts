@@ -106,9 +106,14 @@ export class ServiceConfigSource<S extends Service> {
         env: Record<string, string | undefined> = process.env,
         cwd = process.cwd(),
     ) {
+        // Fix the service, the startup environment, and the working directory
+        // that later loads resolve their files against.
         this.service = service;
         this.env = Object.freeze({ ...env });
         this.cwd = resolve(cwd);
+
+        // The selected file is fixed at boot because the operator chose it.
+        // An explicitly selected empty path is rejected rather than defaulted.
         const selected = env[service === "daemon" ? "DAEMON_CONFIG" : "CONTROL_API_CONFIG"];
         if (selected !== undefined && selected.trim() === "") {
             throw new ConfigurationError("config", "must select a non-empty file path");
@@ -119,6 +124,7 @@ export class ServiceConfigSource<S extends Service> {
 
     /** Loads and validates one complete configuration candidate. */
     load(): ConfigFor<S> {
+        // Refuse to start with certificate verification disabled.
         if (
             this.env.NODE_TLS_REJECT_UNAUTHORIZED === "0" ||
             process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0"
@@ -128,8 +134,12 @@ export class ServiceConfigSource<S extends Service> {
                 "must not disable certificate verification",
             );
         }
+
+        // Pick this service's validating and file-level schemas.
         const schema = this.service === "daemon" ? DaemonSchema : ControlApiSchema;
         const fileSchema = this.service === "daemon" ? DaemonFileSchema : ControlApiFileSchema;
+
+        // Read the YAML file; only the default file may be absent.
         let text: string | undefined;
         try {
             text = readFileSync(this.file, "utf8");
@@ -138,6 +148,8 @@ export class ServiceConfigSource<S extends Service> {
                 throw new ConfigurationError("config", "must be a readable YAML file");
             }
         }
+
+        // The file must parse as YAML.
         let file: unknown = {};
         if (text !== undefined) {
             try {
@@ -146,9 +158,13 @@ export class ServiceConfigSource<S extends Service> {
                 throw new ConfigurationError("config", "must contain valid YAML");
             }
         }
+
+        // Unknown keys and wrongly typed fields are operator mistakes, not settings.
         if (!Value.Check(fileSchema, file)) {
             throw new ConfigurationError("config", "contains unknown keys or invalid field types");
         }
+
+        // Layer the file over the documented defaults to form the candidate.
         const candidate: Record<string, unknown> = {
             host: "127.0.0.1",
             port: this.service === "daemon" ? 3001 : 3000,
@@ -160,6 +176,8 @@ export class ServiceConfigSource<S extends Service> {
             ...(this.service === "daemon" ? { behindReverseProxy: false } : {}),
             ...file,
         };
+
+        // Environment variables win over the file, coerced by their target type.
         for (const field of Object.keys(schema.properties)) {
             const name = environmentFields[field];
             const value = name === undefined ? undefined : this.env[name];
@@ -188,7 +206,11 @@ export class ServiceConfigSource<S extends Service> {
                 candidate[field] = value;
             }
         }
+
+        // An unset log level follows the environment: quiet in production, chatty elsewhere.
         candidate.logLevel ??= candidate.nodeEnv === "production" ? "info" : "debug";
+
+        // Reject an incomplete or invalid candidate, naming the property at fault.
         if (!Value.Check(schema, candidate)) {
             // Schema messages may include supplied values: report only the known property name.
             for (const [field, property] of Object.entries(schema.properties)) {
@@ -206,6 +228,9 @@ export class ServiceConfigSource<S extends Service> {
             }
             throw new ConfigurationError("config", "contains invalid settings");
         }
+
+        // The insecure-local exception is development-only, and a token file is
+        // an input to loading rather than a runtime setting.
         const { daemonTokenFile, ...settings } = candidate;
         if (settings.allowInsecureLocal && settings.nodeEnv === "production") {
             throw new ConfigurationError(
@@ -213,6 +238,8 @@ export class ServiceConfigSource<S extends Service> {
                 "is restricted to development and test",
             );
         }
+
+        // Load tokens, then run the checks only this service needs.
         const tokens = loadTokens(this.env, daemonTokenFile as string | undefined, this.cwd);
         if (this.service === "control-api") {
             const config = { ...settings, tokens } as unknown as ControlApiConfig;

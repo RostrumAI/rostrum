@@ -100,6 +100,7 @@ function internalErrorResponse(): Response {
 export async function runService<C extends RuntimeConfig, D extends ServiceDependencies>(
     options: RunServiceOptions<C, D>,
 ): Promise<void> {
+    // Bring the service up: configuration, logging, dependencies, and their identities.
     const logger = getLogger(options.name);
     // Invalid configuration must fail before any service resource is acquired.
     let liveConfig = options.loadConfig();
@@ -122,6 +123,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
                 ? {}
                 : { tls: { cert: config.tls.cert, key: config.tls.key } }),
             fetch: async (request: Request) => {
+                // Serve each request with the configuration and dependencies live at admission.
                 const config = liveConfig;
                 const dependencies = liveDependencies;
                 // Authentication precedes the draining gate and everything else.
@@ -146,6 +148,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             },
         });
 
+    // Bind the listener and announce where the service is reachable.
     let server = buildServer(liveConfig);
     logger.info("listening", {
         host: liveConfig.host,
@@ -162,6 +165,7 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
     };
 
     const applyReload = async (): Promise<void> => {
+        // A candidate that cannot load, or that arrives while draining, changes nothing.
         let candidate: C;
         try {
             candidate = options.loadConfig();
@@ -176,6 +180,8 @@ export async function runService<C extends RuntimeConfig, D extends ServiceDepen
             return;
         }
 
+        // Only a changed database identity rebuilds dependencies; the previous
+        // set retires once the swap succeeds.
         const candidateDependencyIdentity = dependencyIdentity(candidate);
         const candidateListenerIdentity = listenerIdentity(candidate);
         let nextDependencies = liveDependencies;

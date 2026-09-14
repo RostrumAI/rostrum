@@ -37,10 +37,12 @@ export interface DatabaseHandle {
     close(options: { timeoutMs: number }): Promise<void>;
 }
 
+/** Rejects a bad policy field by name, without echoing the supplied value. */
 function invalid(field: string): never {
     throw new Error(`Invalid database configuration: ${field}`);
 }
 
+/** Parses and validates one connection policy into a driver target. */
 function parseTarget(options: DatabaseOptions): {
     host: string;
     port: number;
@@ -48,6 +50,7 @@ function parseTarget(options: DatabaseOptions): {
     password: string;
     database: string;
 } {
+    // Process-wide driver settings can weaken verification behind the policy's back.
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
         invalid("TLS verification bypass");
     }
@@ -55,6 +58,8 @@ function parseTarget(options: DatabaseOptions): {
     if (process.env.PGTARGETSESSIONATTRS) {
         invalid("PGTARGETSESSIONATTRS is unsupported");
     }
+
+    // Every option must have the shape the driver expects, including a safe name to record.
     if (typeof options.tls !== "boolean") {
         invalid("tls");
     }
@@ -73,6 +78,8 @@ function parseTarget(options: DatabaseOptions): {
     ) {
         invalid("connectTimeoutMs");
     }
+
+    // Turn the URL into a literal host and port, rejecting aliases, fragments, and whitespace.
     let url: URL;
     try {
         url = new URL(options.url);
@@ -96,6 +103,9 @@ function parseTarget(options: DatabaseOptions): {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
         invalid("port");
     }
+
+    // Enforce the TLS decision: an sslmode that matches it, no production escape
+    // hatch, and plaintext only against a literal loopback development/test target.
     const expectedSslMode = options.tls ? "verify-full" : "disable";
     for (const [key, value] of url.searchParams) {
         if (
@@ -115,6 +125,8 @@ function parseTarget(options: DatabaseOptions): {
     if (!options.tls && (!options.allowInsecureLocal || !local)) {
         invalid("plaintext requires a literal loopback development/test target");
     }
+
+    // Decode the credential and database names, rejecting NULs and encoded path separators.
     try {
         const user = decodeURIComponent(url.username);
         const password = decodeURIComponent(url.password);
@@ -141,6 +153,7 @@ select id, workflow_id, content, findings, type, name, created_at from revisions
 select workflow_id, publication_number, revision_id, workflow_format_version,
        canonical_text, digest, created_at from publications where false`;
 
+/** One shared in-flight probe plus the subscribers waiting on it. */
 interface Flight {
     controller: AbortController;
     subscribers: number;
@@ -199,10 +212,12 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
     let closing: Promise<void> | undefined;
     let flight: Flight | undefined;
 
+    /** Runs one isolated probe connection under the caller's deadline. */
     async function runProbe(signal: AbortSignal, timeoutMs: number): Promise<DatabaseCheck> {
         let socket: Socket | undefined;
         let ended: Promise<void> | undefined;
         let abort: (() => void) | undefined;
+
         // A refused, unreachable, or TLS-rejected transport never reaches
         // postgres.js's own error path when the socket is supplied: the driver
         // retries instead of failing the pending query, which would surface as a
@@ -243,12 +258,14 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
                 return raw;
             },
         };
+
         // Same narrowed-Options cast as the pool: the host array preserves IPv6.
         const probe = postgres(probeOptions as unknown as postgres.Options<{}>);
         abort = () => {
             ended ??= probe.end({ timeout: 0 }).finally(() => socket?.destroy());
         };
         signal.addEventListener("abort", abort, { once: true });
+
         try {
             if (signal.aborted) {
                 abort();
@@ -299,12 +316,16 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
     return {
         db,
         probe({ signal, timeoutMs }) {
+            // A closing handle fails the probe instead of opening a connection.
             if (closing) {
                 return Promise.resolve({ status: "failed", code: "database_unavailable" });
             }
+
+            // A caller that already aborted, or supplied no usable deadline, fails its own probe.
             if (signal?.aborted || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
                 return Promise.resolve({ status: "failed", code: "database_timeout" });
             }
+
             // A flight whose controller is already aborted is settling and would
             // hand this caller its own failure (a fabricated timeout) instead of
             // using the caller's own deadline. Treat it as no live flight.
@@ -324,6 +345,8 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
             }
             const current = flight;
             current.subscribers++;
+
+            // Give this subscriber its own deadline and settle it once.
             const { promise, resolve } = Promise.withResolvers<DatabaseCheck>();
             let settled = false;
             const finish = (result: DatabaseCheck) => {
