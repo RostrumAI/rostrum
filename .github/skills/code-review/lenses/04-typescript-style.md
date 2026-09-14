@@ -35,8 +35,10 @@ matter most in this repository, because the review history shows them recurring:
 5. **Exports.** Named exports only. No default exports.
 6. **Control flow.** `switch` over long `if`/`else` chains on the same subject. Explicit braces. No
    assignment inside a condition.
-7. **Names.** A function name states what it does and on what, so a call site reads correctly without
-   opening the definition. A generic name on a narrow helper is a finding.
+7. **Names.** A function name states the action and its subject, so a call site reads correctly
+   without opening the definition. The verb must say what the call does: `generateOpenApi()`, not
+   `openApi()`; `createWorkflow()`, not `workflow()`. A name that carries only a subject, or a generic
+   verb on a narrow helper, is a finding. Read the call site and name the effect the name fails to show.
 8. **Library reuse.** Code that hand-rolls what a dependency already provides is a finding: an
    identifier generator, a canonicalizer, a validator, a logger, a migration runner.
 9. **Dead weight.** Commented-out code, unused exports, unreachable compatibility shims, and

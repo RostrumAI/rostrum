@@ -214,11 +214,13 @@ per-route handlers document only the outcomes specific to them, so the error sha
 ## 6. Naming and terminology
 
 ### REPO-NAME-01 — Name a function so the call site reads correctly without opening it
-A function name states what it does and on what; retrieval functions take a `get` prefix, and a
-generic name on a narrowly scoped helper is a finding.
-**Applies to:** `apps/**`, `apis/**`, `packages/**` · **Check:** mechanical · **Severity:** medium
-**Flag:** A call like `getRevision(id)` ambiguous about its target; `publishedVersion` where `getPublishedVersion` is meant; a workflow-scoped helper named `notFound`.
-**Evidence:** PR #12 `apps/control-api/src/workflows/service.ts:165` — "I should always be able to tell exactly what a function is doing by reading just its call … WorkflowService.getRevision would"; `retrieve-version.ts:63` — "Rename `publishedVersion` to `getPublishedVersion`"; `errors.ts:64` — "`notFound` is a really generic helper function name especially since its scoped specifically to workflows".
+A function name states the action and its subject, so the call site says what happens without the
+definition. The verb carries the effect: `server.generateOpenApi()` and `server.createWorkflow()` say
+what the call does, where `server.openApi()` and `server.workflow()` name only a subject. Retrieval
+functions take a `get` prefix, and a generic verb on a narrowly scoped helper is a finding.
+**Applies to:** `apps/**`, `apis/**`, `packages/**` · **Check:** judgment · **Severity:** medium
+**Flag:** A name whose verb does not say what the call does (`openApi`, `workflow`); `getRevision(id)` ambiguous about its target; `publishedVersion` where `getPublishedVersion` is meant; a workflow-scoped helper named `notFound`.
+**Evidence:** PR #12 `apps/control-api/src/workflows/service.ts:165` — "I should always be able to tell exactly what a function is doing by reading just its call … WorkflowService.getRevision would"; `retrieve-version.ts:63` — "Rename `publishedVersion` to `getPublishedVersion`"; `errors.ts:64` — "`notFound` is a really generic helper function name especially since its scoped specifically to workflows". Maintainer direction: a call must say what it produces, so `generateOpenApi()` replaces `openApi()` and `createWorkflow()` replaces `workflow()`.
 
 ### REPO-NAME-02 — Use the terminology the current decisions define
 Names and prose follow the governed terms; do not reintroduce a retired concept under a new name or
@@ -393,10 +395,12 @@ covers is deleted, and a suite made redundant by an integration/CI check is dele
 **Evidence:** PR #12 `apps/control-api/src/workflows/documents.test.ts:7` — "What tests are being accomplished here that aren't already covered by packages/workflow/src/parse/json-source-parser.test.ts?"; `app.test.ts:1` — "if we have a test (as a CLI command, not in code) that the webserver can start … this entire file becomes unneeded"; `loader.test.ts:1`, `server.test.ts:1`, `workflows-lifecycle.test.ts:1` — "Another useless test suite"; "create integration tests for the entire flow and delete this file".
 
 ### REPO-TEST-06 — Cover the boundaries and repeat-call behavior, not only the happy path
-Edge cases the implementation accepts (empty collections, repeat invocations, malformed input,
-conflicting states) each get a case; an idempotency or repeat-call question must be answered by a test.
+Edge cases the implementation accepts (empty collections, malformed input, conflicting states, values
+at a limit, repeat invocations) each get a case; an idempotency or repeat-call question must be
+answered by a test. Grade the gap by how likely the case is: an edge case the changed code plainly
+handles is `medium`, and one that is conceivable but very unlikely is `low` or `informational`.
 **Applies to:** `**/*.test.ts` · **Check:** judgment · **Severity:** medium
-**Flag:** A new suite with no empty-input, error-outcome, or repeated-invocation case; a documented outcome with no test.
+**Flag:** A new suite with no empty-input, error-outcome, boundary-value, or repeated-invocation case; a documented outcome with no test; a branch of the changed code that no case exercises.
 **Evidence:** PR #7 `packages/workflow/src/validation/stages/conditional-stage.test.ts:7` — "How do we handle scenarios such as empty groups? Are there any other test cases we could be missing?"; PR #12 `apps/control-api/src/features/workflows/create.test.ts:26` — "what happens if this endpoint is hit twice in a row (idempotency check)?"
 
 ### REPO-TEST-07 — Read document inputs from the shared fixtures
@@ -426,6 +430,15 @@ files away from the module.
 **Applies to:** `apps/**`, `apis/**`, `packages/**`, `**/*.test.ts` · **Check:** mechanical · **Severity:** low
 **Flag:** A test file outside `src/` beside its subject, or a test whose fixture path assumes a moved tree.
 **Evidence:** PR #9 `packages/workflow/src/fixtures/expected/incomplete/conditional-invalid-operator.json:1` reply — "All the `.test.ts` files live in `src/` (no `tests/` dir exists)".
+
+### REPO-TEST-11 — Comment each test with its subject, its setup, and its assertions
+Every test carries a comment above it stating what it proves: a unit test names the technical
+behavior, and an integration, end-to-end, or smoke test names the product requirement it verifies.
+Inside the test, short comments mark what each block sets up and why, and what the assertions check.
+Keep every comment to one short line, and never restate the code beneath it.
+**Applies to:** `**/*.test.ts` · **Check:** judgment · **Severity:** medium
+**Flag:** A `test` or `describe` callback with no comment stating its subject; a test whose setup or assertion blocks carry no comment saying what they prove; an inner comment that restates the call it precedes.
+**Evidence:** Maintainer direction — the comment above a test dictates what it is meant to test, with succinct inner comments for the setup and the assertions. The level follows the verification stage: unit tests state technical behavior, while e2e, integration, and smoke tests state the product-level requirement.
 
 ## 10. Fixtures
 
@@ -610,6 +623,7 @@ a file whose purpose changed is renamed to match.
 | REPO-TEST-08 | #9 `packages/database/src/repositories/workflow-repository.test.ts:27` |
 | REPO-TEST-09 | #9 `packages/database/src/repositories/workflow-repository.ts:1` reply; #9 `packages/database/src/schema/database.ts:1` |
 | REPO-TEST-10 | #9 `packages/workflow/src/fixtures/expected/incomplete/conditional-invalid-operator.json:1` reply |
+| REPO-TEST-11 | Maintainer direction: the comment above a test states its subject, with succinct inner comments for setup and assertions |
 | REPO-FIXTURE-01 | #9 `packages/workflow/src/fixtures/expected/incomplete/conditional-invalid-operator.json:1` |
 | REPO-FIXTURE-02 | #9 `packages/workflow/src/fixtures/expected/incomplete/conditional-invalid-operator.json:1` reply |
 | REPO-DB-01 | #9 `packages/storage/migrations/001_workflows.sql:1`; #9 `packages/storage/src/migrator.ts:22` |
