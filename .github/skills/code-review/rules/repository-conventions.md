@@ -259,6 +259,17 @@ that restates them goes stale.
 **Flag:** A literal `"rostrum"` or a hardcoded version string in a handler or module.
 **Evidence:** PR #5 `apps/control-api/src/features/system/get-version.handler.ts:6` — "we don't need to say we're rostrum. I'm thinking maybe this also comes from the package.json".
 
+### REPO-NAME-04 — Name a value by what kind of thing it is, not only the subject it covers
+A field, context member, or parameter that holds a collaborator states the collaborator's kind, so a
+reader knows whether the call site reaches a repository, a service, a client, or a helper without
+opening the declaration. Related collaborators sit behind a facade named for their category, and the
+member names the subject: `context.database.workflows`, `this.db.workflows`, `clients.daemon`. A bare
+subject noun is a finding, because the same word could name a repository, a service, or a collection of
+records.
+**Applies to:** `apps/**`, `apis/**`, `packages/**` · **Check:** judgment · **Severity:** medium
+**Flag:** A field, context member, or parameter named with a bare subject noun whose kind the reader cannot tell — `private readonly workflows: WorkflowRepository` where `db.workflows` names the kind; also a facade name that hides the category, such as `manager`, `util`, or `helpers`.
+**Evidence:** Maintainer direction, raised on several pull requests. PR #61 `context.workflows` — "isn't clear what 'workflows' is. Is it a service? Database call? Util?" — resolved to `context.database.workflows`. PR #62 `apis/control-api/src/services/workflows/workflow-service.ts:65` — "this also suffers the 'what does this mean' issue … `private readonly db: { workflows: WorkflowRepository }`".
+
 ### REPO-WRITING-01 — Use standard terms and the rejected-word replacements
 Use the repository's plain term for a concept: `database` not "store", "request body" not "envelope";
 avoid jargon such as "backstop" in favor of words a reader can resolve.
@@ -622,6 +633,7 @@ a file whose purpose changed is renamed to match.
 | REPO-WRITING-01 | #9 `apps/control-api/src/workflows/store.ts:24`; #12 `create.ts:54`; #9 `migrations/002_revisions.ts:32` |
 | REPO-NAME-02 | #3 `docs/decisions/epic-01/e1-s3-draft-publication-lifecycle.md:15` |
 | REPO-NAME-03 | #5 `apps/control-api/src/features/system/get-version.handler.ts:6` |
+| REPO-NAME-04 | PR #61 `context.workflows` thread; PR #62 `services/workflows/workflow-service.ts:65` |
 | REPO-DOC-01 | #9 `packages/database/src/repositories/workflow-repository.ts:1`; #7 `json-source-parser.ts:155`; #5 `get-health.handler.ts:5` |
 | REPO-DOC-02 | #5 `get-health.handler.ts:3`; #12 `apps/control-api/src/app.ts:121` |
 | REPO-DOC-03 | #7 `json-source-parser.ts:281`; #7 `json-source-parser.ts:94`; #7 `conditional-stage.ts:37`; #7 `references-stage.ts:144`; #7 `termination-stage.ts:36`; #7 `graph-stage.ts:18` |

@@ -35,6 +35,7 @@ Apply the key standards below while writing code, not only during review. The au
 ### Names and module boundaries
 
 - Name functions for their action and subject, using `get` for retrieval. A call such as `generateOpenApi()` or `createWorkflow()` should explain its effect without opening the definition.
+- Name a value by what kind of thing it is, not only the subject it covers. A field, context member, or parameter holding a collaborator states its kind, and related collaborators sit behind a facade named for their category: `db.workflows`, `clients.daemon`, not a bare `workflows` that could be a repository, a service, or a collection. The review rule is `REPO-NAME-04`.
 - Use descriptive names and the current domain terminology; avoid ambiguous abbreviations. Treat acronyms as words (`parseJson`, not `parseJSON`). Use `UpperCamelCase` for types and classes and `lowerCamelCase` for functions, variables, and properties, except module-level and static readonly constants, which use `CONSTANT_CASE`.
 - Keep schemas and helpers at the smallest scope that consumes them. Export only what other modules use, with named exports rather than defaults.
 - Use relative imports within a package and workspace package names across packages. Packages must not import from applications or introduce package dependency cycles.

@@ -62,16 +62,21 @@ export type PublishWorkflowResult =
  * so the findings a save returns anchor to the text retrieval returns.
  */
 export class WorkflowService {
-    private readonly workflows: WorkflowRepository;
+    /** The persistence this service borrows: one repository per stored subject. */
+    private readonly db: {
+        /** Reads and writes workflows, their revisions, and their publications. */
+        readonly workflows: WorkflowRepository;
+    };
+
     private readonly validator: WorkflowValidator;
     private readonly registry: WorkflowFormatRegistry;
 
     private constructor(
-        workflows: WorkflowRepository,
+        db: { workflows: WorkflowRepository },
         validator: WorkflowValidator,
         registry: WorkflowFormatRegistry,
     ) {
-        this.workflows = workflows;
+        this.db = db;
         this.validator = validator;
         this.registry = registry;
     }
@@ -83,10 +88,12 @@ export class WorkflowService {
      */
     static create(database: DatabaseHandle): WorkflowService {
         return new WorkflowService(
-            new WorkflowRepository(
-                database.db,
-                new PublicationCanonicalizer(V1_WORKFLOW_FORMAT_RULE_SET),
-            ),
+            {
+                workflows: new WorkflowRepository(
+                    database.db,
+                    new PublicationCanonicalizer(V1_WORKFLOW_FORMAT_RULE_SET),
+                ),
+            },
             WORKFLOW_VALIDATOR,
             WORKFLOW_FORMAT_REGISTRY,
         );
@@ -116,7 +123,7 @@ export class WorkflowService {
             : parsed.text;
         const result = this.validateStoredText(text);
         return this.fromStorage(() =>
-            this.workflows.createDraft({
+            this.db.workflows.createDraft({
                 workflowId,
                 content: text,
                 findings: result.findings,
@@ -152,7 +159,7 @@ export class WorkflowService {
                 // exist the save is 404, and the embedded-id disagreement
                 // only matters against a workflow that exists.
                 const current = await this.fromStorage(() =>
-                    this.workflows.getCurrentRevision(workflowId),
+                    this.db.workflows.getCurrentRevision(workflowId),
                 );
                 if (!current) {
                     return { outcome: "workflow-not-found" };
@@ -164,7 +171,7 @@ export class WorkflowService {
         }
         const result = this.validateStoredText(text);
         return this.fromStorage(() =>
-            this.workflows.saveRevision(workflowId, {
+            this.db.workflows.saveRevision(workflowId, {
                 baseRevision,
                 content: text,
                 findings: result.findings,
@@ -175,12 +182,12 @@ export class WorkflowService {
 
     /** Returns the draft's current revision, or null when the workflow does not exist. */
     async getCurrentRevision(workflowId: string): Promise<Revision | null> {
-        return this.fromStorage(() => this.workflows.getCurrentRevision(workflowId));
+        return this.fromStorage(() => this.db.workflows.getCurrentRevision(workflowId));
     }
 
     /** Returns one stored revision byte-exact, or null when it does not exist. */
     async getRevision(workflowId: string, revisionId: string): Promise<Revision | null> {
-        return this.fromStorage(() => this.workflows.getRevision(workflowId, revisionId));
+        return this.fromStorage(() => this.db.workflows.getRevision(workflowId, revisionId));
     }
 
     /**
@@ -197,14 +204,14 @@ export class WorkflowService {
         | { outcome: "workflow-not-found" }
     > {
         const result = await this.fromStorage(() =>
-            this.workflows.rewind(workflowId, targetRevisionId),
+            this.db.workflows.rewind(workflowId, targetRevisionId),
         );
         switch (result.outcome) {
             case "rewound":
                 return result;
             case "no-op": {
                 const current = await this.fromStorage(() =>
-                    this.workflows.getCurrentRevision(workflowId),
+                    this.db.workflows.getCurrentRevision(workflowId),
                 );
                 if (!current) {
                     throw new Error(`workflow ${workflowId} has no current revision`);
@@ -223,7 +230,9 @@ export class WorkflowService {
      * Republishing the same revision returns the existing publication.
      */
     async publish(workflowId: string): Promise<PublishWorkflowResult> {
-        const current = await this.fromStorage(() => this.workflows.getCurrentRevision(workflowId));
+        const current = await this.fromStorage(() =>
+            this.db.workflows.getCurrentRevision(workflowId),
+        );
         if (!current) {
             return { outcome: "workflow-not-found" };
         }
@@ -244,7 +253,7 @@ export class WorkflowService {
             parsed.document,
         );
         const stored = await this.fromStorage(() =>
-            this.workflows.publish({
+            this.db.workflows.publish({
                 workflowId,
                 revisionId: current.revisionId,
                 canonicalText: canonicalized.canonicalText,
@@ -260,7 +269,9 @@ export class WorkflowService {
         workflowId: string,
         publicationNumber: number,
     ): Promise<Publication | null> {
-        return this.fromStorage(() => this.workflows.getPublication(workflowId, publicationNumber));
+        return this.fromStorage(() =>
+            this.db.workflows.getPublication(workflowId, publicationNumber),
+        );
     }
 
     /**
