@@ -21,7 +21,9 @@ describe("JSON body decoding", () => {
         const result = await decodeJsonBody(withBody(text), bodySchema);
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) {
+            throw new Error("expected the body to decode");
+        }
         expect(result.decoded.body).toEqual({ value: "first" });
         // Byte-exact text is what operations that store documents rely on.
         expect(result.decoded.text).toBe(text);
@@ -30,7 +32,9 @@ describe("JSON body decoding", () => {
     test("answers 400 for a body that is not JSON, or not the declared shape", async () => {
         const malformed = await decodeJsonBody(withBody("{"), bodySchema);
         expect(malformed.ok).toBe(false);
-        if (malformed.ok) return;
+        if (malformed.ok) {
+            throw new Error("expected malformed JSON to be rejected");
+        }
         expect(malformed.response.status).toBe(400);
         expect(await malformed.response.json()).toEqual({
             code: "invalid_request_body",
@@ -40,7 +44,9 @@ describe("JSON body decoding", () => {
 
         const mismatched = await decodeJsonBody(withBody('{"value": 1}'), bodySchema);
         expect(mismatched.ok).toBe(false);
-        if (mismatched.ok) return;
+        if (mismatched.ok) {
+            throw new Error("expected a schema mismatch to be rejected");
+        }
         expect(mismatched.response.status).toBe(400);
         expect(await mismatched.response.json()).toEqual({
             code: "invalid_request_body",
@@ -59,14 +65,18 @@ describe("path parameter validation", () => {
         );
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) {
+            throw new Error("expected the parameters to validate");
+        }
         expect(result.params).toEqual({ itemId: "abc" });
     });
 
     test("answers 400 naming an invalid or missing parameter", async () => {
         const invalid = validatePathParameters(schema, () => "no");
         expect(invalid.ok).toBe(false);
-        if (invalid.ok) return;
+        if (invalid.ok) {
+            throw new Error("expected an invalid parameter to be rejected");
+        }
         expect(invalid.response.status).toBe(400);
         expect(await invalid.response.json()).toEqual({
             code: "invalid_parameter",
@@ -76,7 +86,9 @@ describe("path parameter validation", () => {
 
         const missing = validatePathParameters(schema, () => undefined);
         expect(missing.ok).toBe(false);
-        if (missing.ok) return;
+        if (missing.ok) {
+            throw new Error("expected a missing parameter to be rejected");
+        }
         expect(await missing.response.json()).toEqual({
             code: "invalid_parameter",
             message: "the path parameter itemId is required",
