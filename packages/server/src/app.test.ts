@@ -195,6 +195,17 @@ describe("service registration", () => {
         ).toThrow(/undeclared/);
     });
 
+    test("rejects a component that carries no name", () => {
+        expect(() =>
+            register({
+                ...base,
+                responses: {
+                    200: { description: "The things", body: defineSchema(" ", itemSchema) },
+                },
+            }),
+        ).toThrow(/needs a name/);
+    });
+
     test("rejects one component name carrying two different schemas", () => {
         const other = defineSchema("Item", Type.Object({ other: Type.String() }));
 

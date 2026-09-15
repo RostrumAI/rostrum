@@ -66,8 +66,9 @@ centralizes exports, needs a stated purpose or it should not exist.
 
 A service module under `src/services/` is one boot-time value built by the application's
 `createServiceBuilder`. It carries its binding, request schemas, OpenAPI metadata, documented
-responses, the components it contributes, and a `handler(request, response, context)`; the
-application registers it from one static `routes.ts`. The rules below keep that shape.
+responses, and a `handler(request, response, context)`; the application registers it from one static
+`routes.ts`. A body it documents with a named schema contributes that component, while a body left as
+a plain schema is documented inline at that operation. The rules below keep that shape.
 
 ### REPO-SLICE-01 — Declare one service per module through the application's builder
 A route module declares exactly one service value built by the application's shared builder, so its
