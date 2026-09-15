@@ -1,51 +1,35 @@
-/** @fileoverview Shared service startup, reload, and shutdown runtime. */
+/** @fileoverview Shared service startup, authenticated admission, and bounded shutdown. */
 
 import { getLogger, type LogLevel } from "@logtape/logtape";
 import { configureLogging } from "./logger";
-import { ConfigurationError } from "./network";
 
 /** The service a runtime hosts; selects the log category. */
 export type ServiceName = "control-api" | "daemon";
 
-/**
- * Configuration a running service needs, independent of where it came from.
- * Both service configs satisfy this shape; these are exactly the fields a
- * reload can change without restarting the process.
- */
-export interface ReloadableServiceConfig {
+/** Configuration read once at startup and fixed for the lifetime of the process. */
+export interface ServiceRuntimeConfig {
     readonly host: string;
     readonly port: number;
     readonly logLevel: LogLevel;
-    readonly nodeEnv: "development" | "test" | "production";
-    readonly databaseUrl: string;
-    readonly databaseTls: boolean;
-    readonly allowInsecureLocal: boolean;
-    readonly dependencyTimeoutMs: number;
     readonly shutdownTimeoutMs: number;
     /** Present when the listener serves TLS directly (direct mode only). */
     readonly tls?: { readonly cert: string; readonly key: string };
 }
 
-/**
- * Resources owned by one active configuration. The runtime closes them on
- * shutdown or after a successful reload.
- */
+/** Resources owned by one service process and closed once when it stops. */
 export interface ServiceResources {
     /** Releases every owned resource within `timeoutMs`; safe to call once. */
     close(options: { timeoutMs: number }): Promise<void>;
 }
 
 /** Inputs the shared runtime needs from one executable service. */
-export interface RunServiceOptions<C extends ReloadableServiceConfig, D extends ServiceResources> {
+export interface RunServiceOptions<C extends ServiceRuntimeConfig, D extends ServiceResources> {
     readonly name: ServiceName;
-    /**
-     * Validates a complete candidate from the startup sources. Called at boot
-     * and on SIGHUP; a rejected reload leaves the current configuration active.
-     */
+    /** Loads and validates configuration once, before logging or resource acquisition. */
     loadConfig(): C;
-    /** Acquires resources owned by one active configuration. */
+    /** Acquires the resources owned by this process. */
     createResources(config: C): Promise<D>;
-    /** Serves a request with the configuration and resources active at admission. */
+    /** Serves a request with the process's fixed configuration and resources. */
     fetch(
         request: Request,
         config: C,
@@ -63,20 +47,6 @@ export interface RunServiceOptions<C extends ReloadableServiceConfig, D extends 
 /** The bound HTTP listener the runtime serves requests from. */
 type BoundServer = Bun.Server<undefined>;
 
-/** Database-settings fingerprint: only these changes rebuild resources. */
-const dependencyFingerprint = (config: ReloadableServiceConfig): string =>
-    JSON.stringify([
-        config.databaseUrl,
-        config.databaseTls,
-        config.allowInsecureLocal,
-        config.nodeEnv,
-        config.dependencyTimeoutMs,
-    ]);
-
-/** Listener fingerprint: only these changes replace the bound listener. */
-const listenerFingerprint = (config: ReloadableServiceConfig): string =>
-    JSON.stringify([config.host, config.port, config.tls?.cert, config.tls?.key]);
-
 /** The boundary 503 a request receives when it arrives during shutdown. */
 function drainingResponse(): Response {
     return Response.json(
@@ -93,241 +63,213 @@ function internalErrorResponse(): Response {
     );
 }
 
-/**
- * Runs one service process with authenticated admission, reload, and bounded
- * shutdown.
- */
-export async function runService<C extends ReloadableServiceConfig, D extends ServiceResources>(
+/** Runs one service process with authenticated admission and one shutdown deadline. */
+export async function runService<C extends ServiceRuntimeConfig, D extends ServiceResources>(
     options: RunServiceOptions<C, D>,
 ): Promise<void> {
-    // Bring the service up: configuration, logging, resources, and their fingerprints.
+    // Reject invalid configuration before initializing logging or service resources.
+    const config = options.loadConfig();
+    await configureLogging(config.logLevel);
     const logger = getLogger(options.name);
-    // Invalid configuration must fail before any service resource is acquired.
-    let liveConfig = options.loadConfig();
-    await configureLogging(liveConfig.logLevel);
-    let liveResources = await options.createResources(liveConfig);
-    let liveDependencyFingerprint = dependencyFingerprint(liveConfig);
-    let liveListenerFingerprint = listenerFingerprint(liveConfig);
+    const resources = await options.createResources(config);
 
-    /** Active requests and their deadline controllers. */
-    const outstanding = new Map<Request, AbortController>();
-    let draining = false;
-    let reloadInFlight: Promise<void> | undefined;
-    let shutdownInFlight: Promise<void> | undefined;
-
-    const buildServer = (config: C): BoundServer =>
-        Bun.serve({
-            hostname: config.host,
-            port: config.port,
-            ...(config.tls === undefined
-                ? {}
-                : { tls: { cert: config.tls.cert, key: config.tls.key } }),
-            fetch: async (request: Request) => {
-                // Serve each request with the configuration and resources live at admission.
-                const config = liveConfig;
-                const resources = liveResources;
-                // Authentication precedes the draining gate and everything else.
-                const rejection = options.authenticate?.(request, config);
-                if (rejection !== undefined) {
-                    return rejection;
-                }
-                if (draining) {
-                    return drainingResponse();
-                }
-                const controller = new AbortController();
-                outstanding.set(request, controller);
-                try {
-                    return await options.fetch(request, config, resources, controller.signal);
-                } finally {
-                    outstanding.delete(request);
-                }
-            },
-            error(error: Error) {
-                logger.error("request failed", { error: String(error) });
-                return internalErrorResponse();
-            },
-        });
-
-    // Bind the listener and announce where the service is reachable.
-    let server = buildServer(liveConfig);
-    logger.info("listening", {
-        host: liveConfig.host,
-        port: server.port,
-        url: `${liveConfig.tls === undefined ? "http" : "https"}://${liveConfig.host}:${server.port}`,
-    });
-
-    const retire = async (resources: D, timeoutMs: number): Promise<void> => {
+    // Keep resource ownership independent of how startup or shutdown finishes.
+    let closeStarted = false;
+    const closeResources = async (timeoutMs: number): Promise<boolean> => {
+        if (closeStarted) {
+            return false;
+        }
+        closeStarted = true;
         try {
             await resources.close({ timeoutMs });
-        } catch (error) {
-            logger.warn("retired resource close failed", { error: String(error) });
+            return true;
+        } catch {
+            logger.error("resource close failed");
+            return false;
         }
     };
 
-    const applyReload = async (): Promise<void> => {
-        // A candidate that cannot load, or that arrives while draining, changes nothing.
-        let candidate: C;
+    // Retain accepted work until its handler and response body have finished.
+    const outstanding = new Map<Request, AbortController>();
+    let requestsDrained: (() => void) | undefined;
+    let draining = false;
+    const bindServer = async (): Promise<BoundServer> => {
         try {
-            candidate = options.loadConfig();
-        } catch (error) {
-            logger.warn("reload rejected", {
-                reason: error instanceof ConfigurationError ? error.message : "invalid candidate",
+            return Bun.serve({
+                hostname: config.host,
+                port: config.port,
+                ...(config.tls === undefined
+                    ? {}
+                    : { tls: { cert: config.tls.cert, key: config.tls.key } }),
+                fetch: async (request: Request) => {
+                    // Authenticate before rejecting requests that arrive during shutdown.
+                    const rejection = options.authenticate?.(request, config);
+                    if (rejection !== undefined) {
+                        return rejection;
+                    }
+                    if (draining) {
+                        return drainingResponse();
+                    }
+
+                    // Propagate disconnects without losing track of unfinished handler work.
+                    const controller = new AbortController();
+                    const abort = (): void => controller.abort(request.signal.reason);
+                    const finish = (): void => {
+                        request.signal.removeEventListener("abort", abort);
+                        outstanding.delete(request);
+                        if (outstanding.size === 0) {
+                            requestsDrained?.();
+                        }
+                    };
+                    outstanding.set(request, controller);
+                    request.signal.addEventListener("abort", abort, { once: true });
+                    if (request.signal.aborted) {
+                        abort();
+                    }
+
+                    // Observe stream completion and cancellation without buffering its contents.
+                    try {
+                        const response = await options.fetch(
+                            request,
+                            config,
+                            resources,
+                            controller.signal,
+                        );
+                        if (response.body === null) {
+                            finish();
+                            return response;
+                        }
+                        const reader = response.body.getReader();
+                        const body = new ReadableStream<Uint8Array>(
+                            {
+                                async pull(stream) {
+                                    try {
+                                        const { done, value } = await reader.read();
+                                        if (done) {
+                                            finish();
+                                            stream.close();
+                                        } else {
+                                            stream.enqueue(value);
+                                        }
+                                    } catch (error) {
+                                        finish();
+                                        stream.error(error);
+                                    }
+                                },
+                                async cancel(reason) {
+                                    controller.abort(reason);
+                                    try {
+                                        await reader.cancel(reason);
+                                    } finally {
+                                        finish();
+                                    }
+                                },
+                            },
+                            { highWaterMark: 0 },
+                        );
+                        return new Response(body, response);
+                    } catch (error) {
+                        finish();
+                        throw error;
+                    }
+                },
+                error(error: Error) {
+                    logger.error("request failed", { error: String(error) });
+                    return internalErrorResponse();
+                },
             });
-            return;
-        }
-        if (draining) {
-            logger.warn("reload rejected", { reason: "service is draining" });
-            return;
-        }
-
-        // Only a changed database fingerprint rebuilds resources; the previous
-        // set retires once the swap succeeds.
-        const candidateDependencyFingerprint = dependencyFingerprint(candidate);
-        const candidateListenerFingerprint = listenerFingerprint(candidate);
-        let nextResources = liveResources;
-        let nextDependencyFingerprint = liveDependencyFingerprint;
-        let retired: D | undefined;
-        if (candidateDependencyFingerprint !== liveDependencyFingerprint) {
-            try {
-                nextResources = await options.createResources(candidate);
-                nextDependencyFingerprint = candidateDependencyFingerprint;
-                retired = liveResources;
-            } catch {
-                logger.warn("reload rejected", { reason: "dependency replacement failed" });
-                return;
-            }
-        }
-
-        // Shutdown takes priority: never reopen a draining service.
-        if (draining) {
-            if (retired !== undefined) {
-                await retire(nextResources, candidate.shutdownTimeoutMs);
-            }
-            logger.warn("reload rejected", { reason: "service is draining" });
-            return;
-        }
-
-        const listenerChanged = candidateListenerFingerprint !== liveListenerFingerprint;
-        if (listenerChanged) {
-            const previousServer = server;
-            const sameAddress =
-                candidate.host === liveConfig.host && candidate.port === liveConfig.port;
-            if (sameAddress) {
-                // A same-address bind cannot coexist with the live listener:
-                // stop admission, drain under the old deadline, then rebind.
-                await Promise.race([
-                    previousServer.stop(false),
-                    Bun.sleep(liveConfig.shutdownTimeoutMs).then(() => previousServer.stop(true)),
-                ]);
-                // Shutdown may have started while the old listener drained.
-                // Never reopen after shutdown begins.
-                if (draining) {
-                    if (retired !== undefined) {
-                        await retire(nextResources, candidate.shutdownTimeoutMs);
-                    }
-                    logger.warn("reload rejected", { reason: "service is draining" });
-                    return;
-                }
-            }
-            let rebound: BoundServer;
-            try {
-                rebound = buildServer(candidate);
-            } catch {
-                logger.error("listener replacement failed");
-                if (!sameAddress) {
-                    // The original listener is still serving; retaining it is
-                    // the restoration for a failed different-address candidate.
-                    if (retired !== undefined) {
-                        await retire(nextResources, candidate.shutdownTimeoutMs);
-                    }
-                    return;
-                }
-                // The previous listener was released for the same address, so it
-                // must be re-created; failing that, exit rather than claim a
-                // working listener.
-                try {
-                    server = buildServer(liveConfig);
-                } catch {
-                    logger.fatal("listener restoration failed");
-                    process.exit(1);
-                }
-                if (retired !== undefined) {
-                    await retire(nextResources, candidate.shutdownTimeoutMs);
-                }
-                return;
-            }
-            if (!sameAddress) {
-                await previousServer.stop(true);
-            }
-            server = rebound;
-        }
-
-        liveConfig = candidate;
-        liveResources = nextResources;
-        liveDependencyFingerprint = nextDependencyFingerprint;
-        liveListenerFingerprint = candidateListenerFingerprint;
-        await configureLogging(candidate.logLevel);
-        logger.info("reload applied", {
-            listener: listenerChanged,
-            dependencies: retired !== undefined,
-        });
-        if (retired !== undefined) {
-            await retire(retired, candidate.shutdownTimeoutMs);
+        } catch (error) {
+            // Preserve the bind failure even when cleanup fails or never settles.
+            process.exitCode = 1;
+            const expired = Promise.withResolvers<void>();
+            const deadline = setTimeout(() => {
+                logger.error("startup cleanup deadline exceeded");
+                expired.resolve();
+                setImmediate(() => process.exit(1));
+            }, config.shutdownTimeoutMs);
+            await Promise.race([closeResources(config.shutdownTimeoutMs), expired.promise]);
+            clearTimeout(deadline);
+            throw error;
         }
     };
 
-    const requestReload = (): void => {
-        // Serialize and coalesce: a reload already in flight absorbs the signal.
-        if (reloadInFlight !== undefined) {
-            return;
+    // Bind one listener; configuration changes require a process restart.
+    const server = await bindServer();
+    logger.info("listening", {
+        host: config.host,
+        port: server.port,
+        url: `${config.tls === undefined ? "http" : "https"}://${config.host}:${server.port}`,
+    });
+
+    // Abort overdue local work before terminating its client connections.
+    const forceConnections = (): void => {
+        for (const controller of outstanding.values()) {
+            controller.abort();
         }
-        reloadInFlight = applyReload().finally(() => {
-            reloadInFlight = undefined;
-        });
+        try {
+            void server.stop(true).catch(() => logger.error("connection close failed"));
+        } catch {
+            logger.error("connection close failed");
+        }
     };
 
     const drain = async (signal: string): Promise<void> => {
-        logger.info("shutdown started", { signal });
-        const deadlineMs = liveConfig.shutdownTimeoutMs;
-        const started = Date.now();
-        // Disable Bun's idle timeout while the shutdown deadline governs requests.
-        for (const request of outstanding.keys()) {
-            server.timeout(request, 0);
-        }
-        const completed = await Promise.race([
-            server.stop(false).then(() => true),
-            Bun.sleep(deadlineMs).then(() => false),
-        ]);
-        if (!completed) {
+        // One referenced timer bounds both HTTP draining and owned resource cleanup.
+        const expiresAt = performance.now() + config.shutdownTimeoutMs;
+        const expire = (): never => {
             logger.warn("shutdown deadline exceeded", { signal });
-            // Abort local operations before force-closing connections.
-            for (const controller of outstanding.values()) {
-                controller.abort();
+            forceConnections();
+            void closeResources(0);
+            logger.error("forced shutdown", { signal });
+            process.exit(1);
+        };
+        const deadline = setTimeout(expire, config.shutdownTimeoutMs);
+        logger.info("shutdown started", { signal });
+        try {
+            // Keep Bun's normal idle timeout except while this deadline governs requests.
+            for (const request of outstanding.keys()) {
+                server.timeout(request, 0);
             }
-            const forced = setTimeout(() => {
-                logger.error("forced shutdown", { signal });
+            const acceptedWork = new Promise<void>((resolve) => {
+                if (outstanding.size === 0) {
+                    resolve();
+                } else {
+                    requestsDrained = resolve;
+                }
+            });
+            await Promise.all([server.stop(false), acceptedWork]);
+
+            // Give cleanup only the unused portion of the original shutdown budget.
+            const closed = await closeResources(Math.max(0, expiresAt - performance.now()));
+            if (performance.now() >= expiresAt) {
+                expire();
+            }
+            clearTimeout(deadline);
+            if (!closed) {
                 process.exit(1);
-            }, deadlineMs);
-            server.stop(true);
-            await retire(liveResources, 0);
-            clearTimeout(forced);
+            }
+            logger.info("shutdown complete");
+            process.exit(0);
+        } catch {
+            // A failed drain still releases ownership under the same deadline.
+            logger.error("shutdown failed", { signal });
+            forceConnections();
+            await closeResources(Math.max(0, expiresAt - performance.now()));
+            clearTimeout(deadline);
             process.exit(1);
         }
-        await retire(liveResources, Math.max(0, deadlineMs - (Date.now() - started)));
-        logger.info("shutdown complete");
-        process.exit(0);
     };
 
     const shutdown = (signal: string): void => {
-        // Repeated signals must not close resources twice or extend the deadline.
-        if (shutdownInFlight !== undefined) {
+        if (draining) {
             return;
         }
         draining = true;
-        shutdownInFlight = drain(signal);
+        void drain(signal);
     };
 
-    process.on("SIGHUP", requestReload);
+    // SIGHUP never reads configuration or changes resources or listeners.
+    process.on("SIGHUP", () => logger.info("restart required", { signal: "SIGHUP" }));
     process.on("SIGTERM", () => shutdown("SIGTERM"));
     process.on("SIGINT", () => shutdown("SIGINT"));
 }

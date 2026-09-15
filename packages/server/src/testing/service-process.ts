@@ -18,7 +18,7 @@ export interface FixtureProcess {
     signal(name: "SIGTERM" | "SIGINT" | "SIGHUP"): void;
     /** Resolves with the process exit code. */
     exited(): Promise<number>;
-    /** Rewrites the candidate configuration the fixture reloads from. */
+    /** Rewrites the configuration file after boot, so a test can prove it is not read again. */
     writeConfig(config: Record<string, unknown>): void;
 }
 
@@ -28,7 +28,7 @@ export interface FixtureProcess {
  * provide because it installs process-wide handlers and calls `process.exit`.
  */
 export async function spawnFixture(initial: Record<string, unknown>): Promise<FixtureProcess> {
-    // Write the candidate configuration the fixture reads at boot and on reload.
+    // Write the configuration file the fixture reads once at startup.
     const directory = mkdtempSync(join(tmpdir(), "rostrum-server-"));
     const configPath = join(directory, "config.json");
     writeFileSync(configPath, JSON.stringify(initial));

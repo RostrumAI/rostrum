@@ -10,31 +10,51 @@ import { Value } from "typebox/value";
 import { ConfigurationError, isLiteralLoopback, validateDaemonUrl } from "./network";
 import { loadTokens } from "./tokens";
 
-/** Configuration shared by independently runnable services. */
+/** Immutable startup settings shared by independently runnable services. */
 export interface BaseConfig {
-    host: string;
-    port: number;
-    nodeEnv: "development" | "test" | "production";
-    logLevel: LogLevel;
-    databaseUrl: string;
-    databaseTls: boolean;
-    allowInsecureLocal: boolean;
-    tokens: readonly string[];
-    dependencyTimeoutMs: number;
-    shutdownTimeoutMs: number;
+    /** Address on which this service accepts requests. */
+    readonly host: string;
+    /** Listener port; zero selects an available port. */
+    readonly port: number;
+    /** Deployment environment used to enforce production restrictions. */
+    readonly nodeEnv: "development" | "test" | "production";
+    /** Minimum severity emitted by service logging. */
+    readonly logLevel: LogLevel;
+    /** Connection URL for the service-owned database handle. */
+    readonly databaseUrl: string;
+    /** Whether database connections require verified TLS. */
+    readonly databaseTls: boolean;
+    /** Whether development or test may use loopback-only plaintext transport. */
+    readonly allowInsecureLocal: boolean;
+    /** Accepted credentials in oldest-to-newest order; clients send the newest. */
+    readonly tokens: readonly string[];
+    /** Maximum duration of a dependency readiness check, in milliseconds. */
+    readonly dependencyTimeoutMs: number;
+    /** Maximum duration of graceful shutdown, in milliseconds. */
+    readonly shutdownTimeoutMs: number;
 }
 
-/** Daemon listener, database, authentication, and lifecycle settings. */
+/** Immutable daemon listener, database, authentication, and lifecycle settings. */
 export interface DaemonConfig extends BaseConfig {
-    behindReverseProxy: boolean;
-    tlsCertFile?: string;
-    tlsKeyFile?: string;
-    tls?: { cert: string; key: string };
+    /** Whether a same-host reverse proxy terminates incoming TLS. */
+    readonly behindReverseProxy: boolean;
+    /** Certificate file resolved against the startup working directory. */
+    readonly tlsCertFile?: string;
+    /** Private-key file resolved against the startup working directory. */
+    readonly tlsKeyFile?: string;
+    /** Validated PEM material used when the daemon terminates TLS directly. */
+    readonly tls?: {
+        /** PEM certificate presented by the daemon listener. */
+        readonly cert: string;
+        /** PEM private key matching the listener certificate. */
+        readonly key: string;
+    };
 }
 
-/** Control API listener, database, daemon-client, and lifecycle settings. */
+/** Immutable Control API listener, database, daemon-client, and lifecycle settings. */
 export interface ControlApiConfig extends BaseConfig {
-    daemonUrl: string;
+    /** Validated, normalized origin of the daemon service. */
+    readonly daemonUrl: string;
 }
 
 type Service = "daemon" | "control-api";
@@ -93,7 +113,7 @@ const environmentFields: Record<string, string> = {
     daemonUrl: "DAEMON_URL",
 };
 
-/** Retains startup inputs so each load validates a complete reload candidate. */
+/** Captures startup inputs for independent parses of immutable service configuration. */
 export class ServiceConfigSource<S extends Service> {
     private readonly service: S;
     private readonly env: Readonly<Record<string, string | undefined>>;
@@ -122,7 +142,7 @@ export class ServiceConfigSource<S extends Service> {
         this.file = resolve(this.cwd, selected ?? "config.yaml");
     }
 
-    /** Loads and validates one complete configuration candidate. */
+    /** Parses and validates a fresh immutable startup configuration on each call. */
     load(): ConfigFor<S> {
         // Refuse to start with certificate verification disabled.
         if (
@@ -243,18 +263,17 @@ export class ServiceConfigSource<S extends Service> {
         const tokenFile = typeof daemonTokenFile === "string" ? daemonTokenFile : undefined;
         const tokens = loadTokens(this.env, tokenFile, this.cwd);
 
-        // `Value.Check(schema, candidate)` above proved every field's presence and
-        // type, but a TypeBox result cannot narrow a Record, so the validated
-        // settings are asserted as the service's config rather than re-decoded.
+        // The schema proved the settings' types, but cannot narrow the Record to
+        // this service's shape. Assert only the validated input fields.
         if (this.service === "control-api") {
-            const config = { ...settings, tokens } as unknown as ControlApiConfig;
-            config.daemonUrl = validateDaemonUrl(config.daemonUrl, config.allowInsecureLocal);
-            return config as ConfigFor<S>;
+            const control = settings as unknown as Omit<ControlApiConfig, "tokens">;
+            const daemonUrl = validateDaemonUrl(control.daemonUrl, control.allowInsecureLocal);
+            return Object.freeze({ ...control, tokens, daemonUrl }) as ConfigFor<S>;
         }
-        const config = { ...settings, tokens } as unknown as DaemonConfig;
+        const daemon = settings as unknown as Omit<DaemonConfig, "tokens" | "tls">;
         if (
-            (config.allowInsecureLocal || config.behindReverseProxy) &&
-            !isLiteralLoopback(config.host)
+            (daemon.allowInsecureLocal || daemon.behindReverseProxy) &&
+            !isLiteralLoopback(daemon.host)
         ) {
             throw new ConfigurationError(
                 "host",
@@ -262,16 +281,17 @@ export class ServiceConfigSource<S extends Service> {
             );
         }
         // Proxy mode does not read certificates: the same-host proxy owns TLS termination.
-        if (!config.behindReverseProxy) {
-            if (config.tlsCertFile !== undefined || config.tlsKeyFile !== undefined) {
-                if (!config.tlsCertFile || !config.tlsKeyFile) {
+        let tls: DaemonConfig["tls"];
+        if (!daemon.behindReverseProxy) {
+            if (daemon.tlsCertFile !== undefined || daemon.tlsKeyFile !== undefined) {
+                if (!daemon.tlsCertFile || !daemon.tlsKeyFile) {
                     throw new ConfigurationError("tls", "requires both certificate and key files");
                 }
                 let cert: string;
                 let key: string;
                 try {
-                    cert = readFileSync(resolve(this.cwd, config.tlsCertFile), "utf8");
-                    key = readFileSync(resolve(this.cwd, config.tlsKeyFile), "utf8");
+                    cert = readFileSync(resolve(this.cwd, daemon.tlsCertFile), "utf8");
+                    key = readFileSync(resolve(this.cwd, daemon.tlsKeyFile), "utf8");
                     if (!new X509Certificate(cert).checkPrivateKey(createPrivateKey(key))) {
                         throw new Error();
                     }
@@ -282,14 +302,16 @@ export class ServiceConfigSource<S extends Service> {
                         "requires a readable, valid, matching PEM certificate and private key",
                     );
                 }
-                config.tls = { cert, key };
-            } else if (!config.allowInsecureLocal) {
+                tls = Object.freeze({ cert, key });
+            } else if (!daemon.allowInsecureLocal) {
                 throw new ConfigurationError(
                     "tls",
                     "requires a certificate and key outside local or reverse-proxy mode",
                 );
             }
         }
-        return config as ConfigFor<S>;
+
+        // Keep validated settings and direct TLS material fixed for the caller's lifetime.
+        return Object.freeze({ ...daemon, tokens, ...(tls ? { tls } : {}) }) as ConfigFor<S>;
     }
 }

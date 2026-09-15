@@ -2,15 +2,19 @@
 
 import { readFileSync } from "node:fs";
 import { getLogger } from "@logtape/logtape";
-import { type ReloadableServiceConfig, runService, type ServiceResources } from "./lifecycle";
+import { runService, type ServiceResources, type ServiceRuntimeConfig } from "./lifecycle";
 import { ConfigurationError } from "./network";
 
 /** Runs the real lifecycle with controlled configuration and handlers. */
-interface FixtureConfig extends ReloadableServiceConfig {
-    /** Served by `/marker`, so a test can prove which configuration answered. */
+interface FixtureConfig extends ServiceRuntimeConfig {
+    /** Served by `/marker`, so a test can prove which configuration is serving. */
     marker: string;
     /** How long `/hold` stays outstanding. */
     holdMs: number;
+    /** How many chunks `/stream` emits before closing. */
+    streamChunks: number;
+    /** How long `/stream` waits between chunks. */
+    streamDelayMs: number;
 }
 
 const CONFIG_PATH = process.env.FIXTURE_CONFIG;
@@ -18,7 +22,7 @@ if (CONFIG_PATH === undefined) {
     throw new Error("FIXTURE_CONFIG is required");
 }
 
-/** Reads the candidate the test wrote; a malformed file is a rejected reload. */
+/** Reads the startup configuration; the process reads this file exactly once. */
 function loadConfig(): FixtureConfig {
     let raw: unknown;
     try {
@@ -34,28 +38,24 @@ function loadConfig(): FixtureConfig {
         throw new ConfigurationError("marker", "is required");
     }
     const nodeEnv = source.nodeEnv;
+    if (
+        nodeEnv !== undefined &&
+        nodeEnv !== "development" &&
+        nodeEnv !== "test" &&
+        nodeEnv !== "production"
+    ) {
+        throw new ConfigurationError("nodeEnv", "must be a known environment");
+    }
     return {
         host: "127.0.0.1",
         port: typeof source.port === "number" ? source.port : 0,
         logLevel: "info",
-        nodeEnv:
-            nodeEnv === "development" || nodeEnv === "test" || nodeEnv === "production"
-                ? nodeEnv
-                : "test",
-        // The runtime rebuilds resources only when these fingerprint fields change,
-        // so a test drives replacement by rewriting one of them.
-        databaseUrl:
-            typeof source.databaseUrl === "string"
-                ? source.databaseUrl
-                : "postgres://fixture@127.0.0.1:1/fixture",
-        databaseTls: source.databaseTls === true,
-        allowInsecureLocal: source.allowInsecureLocal !== false,
-        dependencyTimeoutMs:
-            typeof source.dependencyTimeoutMs === "number" ? source.dependencyTimeoutMs : 2_000,
         shutdownTimeoutMs:
             typeof source.shutdownTimeoutMs === "number" ? source.shutdownTimeoutMs : 5_000,
         marker: source.marker,
         holdMs: typeof source.holdMs === "number" ? source.holdMs : 0,
+        streamChunks: typeof source.streamChunks === "number" ? source.streamChunks : 0,
+        streamDelayMs: typeof source.streamDelayMs === "number" ? source.streamDelayMs : 0,
     };
 }
 
@@ -77,6 +77,23 @@ async function createResources(): Promise<FixtureResources> {
     };
 }
 
+/** Emits the configured number of chunks so a test can observe a live response body. */
+function streamBody(config: FixtureConfig): ReadableStream<Uint8Array> {
+    let sent = 0;
+    return new ReadableStream<Uint8Array>({
+        async pull(controller) {
+            if (sent === config.streamChunks) {
+                controller.close();
+                return;
+            }
+            sent += 1;
+            getLogger("control-api").info("fixture stream chunk", { sent });
+            controller.enqueue(new TextEncoder().encode(`chunk-${sent}\n`));
+            await Bun.sleep(config.streamDelayMs);
+        },
+    });
+}
+
 await runService<FixtureConfig, FixtureResources>({
     name: "control-api",
     loadConfig,
@@ -91,6 +108,12 @@ await runService<FixtureConfig, FixtureResources>({
             getLogger("control-api").info("fixture hold started");
             await Bun.sleep(config.holdMs);
             return Response.json({ held: config.holdMs });
+        }
+        if (url.pathname === "/stream") {
+            getLogger("control-api").info("fixture stream started");
+            return new Response(streamBody(config), {
+                headers: { "content-type": "text/plain" },
+            });
         }
         return Response.json({ code: "not_found" }, { status: 404 });
     },

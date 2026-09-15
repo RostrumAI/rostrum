@@ -1,4 +1,4 @@
-/** @fileoverview Service configuration and reload candidate tests. */
+/** @fileoverview Service configuration parsing and validation tests. */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
@@ -175,7 +175,7 @@ describe("configuration candidates", () => {
         expect(proxy.behindReverseProxy).toBe(true);
     });
 
-    test("validates TLS identity before accepting a certificate reload", () => {
+    test("validates TLS identity before the configuration is accepted", () => {
         const cwd = workspace();
         const generated = spawnSync(
             "openssl",
@@ -216,7 +216,7 @@ describe("configuration candidates", () => {
         expect(() => source.load()).toThrow(ConfigurationError);
     });
 
-    test("failed reload cannot partially replace credentials or policy in the admitted configuration", () => {
+    test("a failed parse cannot partially replace credentials or policy in an accepted configuration", () => {
         const cwd = workspace();
         writeFileSync(join(cwd, "tokens"), `${oldest}\n`);
         writeFileSync(join(cwd, "config.yaml"), "daemonTokenFile: tokens\nlogLevel: warning\n");

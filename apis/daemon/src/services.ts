@@ -22,10 +22,17 @@ export interface Services {
 /** Resolves services attached to the current Hono request. */
 export type ServiceAccessor = (context: Context<{ Bindings: Services }>) => Services;
 
-/** Resources owned by one active daemon configuration. */
+/** Configuration and resources owned for the daemon's process lifetime. */
 export interface Resources {
-    database: DatabaseHandle;
-    app: DaemonApp;
+    /** Validated settings retained until the process exits. */
+    readonly config: DaemonConfig;
+    /** The database connection owned by this daemon. */
+    readonly database: DatabaseHandle;
+    /** Routes constructed once without acquiring their own resources. */
+    readonly app: DaemonApp;
+    /** Serves an admitted request with this process's settings and resources. */
+    fetch(request: Request, abortSignal: AbortSignal): Response | Promise<Response>;
+    /** Releases this daemon's connection within the remaining shutdown time. */
     close(options: { timeoutMs: number }): Promise<void>;
 }
 
@@ -43,12 +50,21 @@ function databaseOptions(config: DaemonConfig): DatabaseOptions {
 
 /** Creates the daemon application and database handle. */
 export async function createResources(config: DaemonConfig): Promise<Resources> {
+    // Reject invalid connection policy before opening the daemon's resources.
     const options = databaseOptions(config);
     validateDatabaseOptions(options);
     const database = createDatabase(options);
+
+    // Keep every request on the configuration that opened this connection.
     try {
         const app = await DaemonApp.create();
-        return { database, app, close: (options) => database.close(options) };
+        return {
+            config,
+            database,
+            app,
+            fetch: (request, abortSignal) => app.fetch(request, { database, config, abortSignal }),
+            close: (options) => database.close(options),
+        };
     } catch (error) {
         await database.close({ timeoutMs: config.shutdownTimeoutMs });
         throw error;

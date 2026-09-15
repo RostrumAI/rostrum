@@ -5,17 +5,11 @@ import { runService } from "@rostrum/server/lifecycle";
 import { authenticate } from "./auth";
 import { createResources, type Resources } from "./services";
 
-/** Starts the daemon with authenticated admission and reloadable configuration. */
-const config = new ServiceConfigSource("daemon");
+/** Starts one daemon configuration with authenticated admission and owned resources. */
 await runService<DaemonConfig, Resources>({
     name: "daemon",
-    loadConfig: () => config.load(),
+    loadConfig: () => new ServiceConfigSource("daemon").load(),
     createResources,
     authenticate,
-    fetch: (request, config, resources, signal) =>
-        resources.app.fetch(request, {
-            database: resources.database,
-            config,
-            abortSignal: signal,
-        }),
+    fetch: (request, _config, resources, abortSignal) => resources.fetch(request, abortSignal),
 });

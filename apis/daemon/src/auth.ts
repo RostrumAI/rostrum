@@ -19,7 +19,7 @@ export function authenticate(
     const authorization = request.headers.get("authorization");
     const match = authorization === null ? null : /^Bearer ([a-fA-F0-9]+)$/i.exec(authorization);
     if (match && isTokenSyntax(match[1] ?? "")) {
-        // Encode the accepted set once per configured token list, so a reload pays for it once.
+        // Reuse the accepted digests for this process's immutable token set.
         let accepted = acceptedDigests.get(config.tokens);
         if (accepted === undefined) {
             accepted = config.tokens.map(digest);
