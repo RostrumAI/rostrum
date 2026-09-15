@@ -1,11 +1,12 @@
 import type { Revision } from "@rostrum/database";
+import { defineSchema } from "@rostrum/server/schema";
 import { type Static, Type } from "typebox";
 
 /**
- * Request and response schemas shared by the workflow feature slices.
- * Every slice re-exports the ones it documents under the same component
- * name; the loader keeps one component per distinct schema object, so the
- * generated contract carries a single definition.
+ * Request and response schemas shared by the workflow area. Each shared shape
+ * is named once here with `defineSchema`, and the services that document it
+ * reference that value, so the generated contract carries one definition per
+ * shape.
  */
 
 /**
@@ -42,6 +43,14 @@ export const FindingSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/**
+ * The `Finding` component. No operation body references it: findings travel
+ * inside the response bodies that carry them, and this value declares the
+ * shape at application level so a client generated from the document still
+ * has the `Finding` type by name.
+ */
+export const Finding = defineSchema("Finding", FindingSchema);
 
 /** The UUID shape every workflow and revision id carries. */
 export const UUID_PATTERN =
@@ -90,6 +99,9 @@ export const WorkflowRevisionSchema = Type.Object(
     { additionalProperties: false },
 );
 
+/** The `WorkflowRevision` component: the revision body every draft operation returns. */
+export const WorkflowRevision = defineSchema("WorkflowRevision", WorkflowRevisionSchema);
+
 /** The body of POST /workflows/validate: findings without saving. */
 export const ValidateResponseSchema = Type.Object(
     {
@@ -100,6 +112,9 @@ export const ValidateResponseSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/** The `ValidateResponse` component: the findings a validation-only request answers with. */
+export const ValidateResponse = defineSchema("ValidateResponse", ValidateResponseSchema);
 
 /** The body of POST /workflows/:workflowId/publish, identical for first publish and idempotent re-publish. */
 export const PublishResponseSchema = Type.Object(
@@ -116,6 +131,9 @@ export const PublishResponseSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/** The `PublishResponse` component: the outcome of a first or repeated publish. */
+export const PublishResponse = defineSchema("PublishResponse", PublishResponseSchema);
 
 /** The body of GET /workflows/:workflowId/publications/:publicationNumber. */
 export const PublicationResponseSchema = Type.Object(
@@ -134,17 +152,26 @@ export const PublicationResponseSchema = Type.Object(
     { additionalProperties: false },
 );
 
+/** The `PublicationResponse` component: one retrieved publication with its canonical text. */
+export const PublicationResponse = defineSchema("PublicationResponse", PublicationResponseSchema);
+
 /** The request body of POST /workflows/:workflowId/rewind. */
 export const RewindRequestSchema = Type.Object(
     { targetRevisionId: Type.String({ description: "The revision to rewind the draft to." }) },
     { additionalProperties: false },
 );
 
+/** The `RewindRequest` component: the target revision a rewind names. */
+export const RewindRequest = defineSchema("RewindRequest", RewindRequestSchema);
+
 /** The permissive document member of the request bodies. */
 export const PermissiveWorkflowDocumentSchema = Type.Unknown({
     description:
         "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract.",
 });
+
+/** The `WorkflowDocument` component: the permissive document every workflow body carries. */
+export const WorkflowDocument = defineSchema("WorkflowDocument", PermissiveWorkflowDocumentSchema);
 
 /**
  * Maps one stored revision onto the WorkflowRevision response shape, the

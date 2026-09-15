@@ -2,9 +2,9 @@
 
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import type { ControlApiConfig } from "@rostrum/server/config";
 import { DaemonReadinessSchema, type ReadinessCheckResult } from "@rostrum/server/protocol";
 import { Value } from "typebox/value";
+import type { ControlApiConfig } from "../config";
 
 /**
  * A readiness body is a small JSON document, so an unexpectedly large body is

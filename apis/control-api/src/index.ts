@@ -1,18 +1,9 @@
 /** @fileoverview Control API process entry point. */
 
-import { type ControlApiConfig, ServiceConfigSource } from "@rostrum/server/config";
-import { runService } from "@rostrum/server/lifecycle";
-import { createResources, type Resources, readiness } from "./services";
+import { join } from "node:path";
+import { boot } from "@rostrum/server/lifecycle";
+import { controlApiConfig } from "./config";
+import { ControlApi } from "./control-api";
 
-/** Starts the Control API with reloadable configuration and owned resources. */
-const config = new ServiceConfigSource("control-api");
-await runService<ControlApiConfig, Resources>({
-    name: "control-api",
-    loadConfig: () => config.load(),
-    createResources,
-    fetch: (request, config, resources) =>
-        resources.app.fetch(request, {
-            workflows: resources.workflows,
-            readiness: (signal) => readiness(config, resources, signal),
-        }),
-});
+/** Starts the Control API from its configuration file and the process environment. */
+await boot(join(import.meta.dir, ".."), controlApiConfig, ControlApi.open);

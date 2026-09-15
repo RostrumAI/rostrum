@@ -122,9 +122,9 @@ export const LENSES: Lens[] = [
                 if (!isSource(file) && !file.path.endsWith("package.json")) {
                     return false;
                 }
-                // A feature slice is a request handler: it takes caller input by
+                // A service module is a request handler: it takes caller input by
                 // definition, whatever its file is named.
-                if (/(?:^|\/)(?:apps|apis)\/[^/]+\/src\/features\//.test(file.path)) {
+                if (/(?:^|\/)(?:apps|apis)\/[^/]+\/src\/(?:features|services)\//.test(file.path)) {
                     return true;
                 }
                 const parts = segments(file);

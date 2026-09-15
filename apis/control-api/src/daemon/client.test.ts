@@ -1,7 +1,7 @@
 /** @fileoverview Daemon readiness transport and response classification tests. */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import type { ControlApiConfig } from "@rostrum/server/config";
+import type { ControlApiConfig } from "../config";
 import { checkDaemonReadiness } from "./client";
 
 /** A daemon-shaped configuration; only the daemon link fields matter here. */

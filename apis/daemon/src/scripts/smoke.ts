@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { DaemonApp } from "../app";
+import { createDaemonApp } from "../app";
 import { DaemonProcess } from "./process";
 
 const daemon = await DaemonProcess.spawn();
@@ -17,7 +17,7 @@ try {
     const response = await fetch(`${origin}/openapi.json`, { headers });
     assert.equal(response.status, 200);
     const served = await response.json();
-    const app = await DaemonApp.create();
+    const app = createDaemonApp();
     assert.deepEqual(
         served,
         await app.generateOpenApiDocument(),

@@ -1,8 +1,8 @@
 /** @fileoverview Daemon bearer-token authentication. */
 
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { DaemonConfig } from "@rostrum/server/config";
 import { isTokenSyntax } from "@rostrum/server/tokens";
+import type { DaemonConfig } from "./config";
 
 const acceptedDigests = new WeakMap<readonly string[], readonly Buffer[]>();
 
@@ -19,10 +19,10 @@ export function authenticate(
     const authorization = request.headers.get("authorization");
     const match = authorization === null ? null : /^Bearer ([a-fA-F0-9]+)$/i.exec(authorization);
     if (match && isTokenSyntax(match[1] ?? "")) {
-        // Encode the accepted set once per configured token list, so a reload pays for it once.
-        let accepted = acceptedDigests.get(config.tokens);
-        if (accepted === undefined) {
-            accepted = config.tokens.map(digest);
+        // Reuse the accepted digests for this process's immutable token set.
+        const existing = acceptedDigests.get(config.tokens);
+        const accepted = existing ?? config.tokens.map(digest);
+        if (existing === undefined) {
             acceptedDigests.set(config.tokens, accepted);
         }
 

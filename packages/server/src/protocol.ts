@@ -1,6 +1,7 @@
 /** @fileoverview Shared health, readiness, and boundary error schemas. */
 
 import { type Static, Type } from "typebox";
+import { defineSchema } from "./schema";
 
 /** Wire shape of the liveness response. */
 export const HealthSchema = Type.Object(
@@ -9,6 +10,8 @@ export const HealthSchema = Type.Object(
 );
 /** The liveness response a service returns while it is up. */
 export type Health = Static<typeof HealthSchema>;
+/** The `Health` component: the liveness body a service documents at its health operation. */
+export const Health = defineSchema("Health", HealthSchema);
 
 /** Wire shape of the boundary failure body every service returns. */
 export const BoundaryErrorSchema = Type.Object(
@@ -23,6 +26,8 @@ export const BoundaryErrorSchema = Type.Object(
 );
 /** The boundary failure body carrying a stable code and a caller-readable message. */
 export type BoundaryError = Static<typeof BoundaryErrorSchema>;
+/** The `BoundaryError` component: the failure body a boundary response documents. */
+export const BoundaryError = defineSchema("BoundaryError", BoundaryErrorSchema);
 
 // Readiness checks: each dependency answers ok or a failure carrying a stable code.
 const OkSchema = Type.Object({ status: Type.Literal("ok") }, { additionalProperties: false });
@@ -88,6 +93,8 @@ export const DaemonReadinessSchema = Type.Union([
 ]);
 /** The daemon's readiness document. */
 export type DaemonReadiness = Static<typeof DaemonReadinessSchema>;
+/** The `DaemonReadiness` component: the daemon's readiness document, ready or not. */
+export const DaemonReadiness = defineSchema("DaemonReadiness", DaemonReadinessSchema);
 
 /**
  * Wire shape of the Control API's readiness document. The failing dependency is
@@ -123,3 +130,5 @@ export const ControlApiReadinessSchema = Type.Union([
 ]);
 /** The Control API's readiness document. */
 export type ControlApiReadiness = Static<typeof ControlApiReadinessSchema>;
+/** The `ControlApiReadiness` component: the Control API's aggregated readiness document. */
+export const ControlApiReadiness = defineSchema("ControlApiReadiness", ControlApiReadinessSchema);

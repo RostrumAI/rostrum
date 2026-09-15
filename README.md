@@ -100,13 +100,15 @@ bun run --filter @rostrum/daemon dev
 ```
 
 Both processes stop on SIGINT or SIGTERM: they stop accepting connections,
-finish outstanding requests within `SHUTDOWN_TIMEOUT_MS`, log
-`shutdown started` and `shutdown complete`, then exit 0. If work outlives the
-deadline the process aborts outstanding work, force-closes connections, logs
-`shutdown deadline exceeded`, and exits nonzero; if closing the owned resources
-then outlives a second deadline, it logs `forced shutdown` and exits
-immediately. Send SIGHUP to reload configuration and tokens; SIGHUP is not
-shutdown.
+finish outstanding requests and response bodies within `SHUTDOWN_TIMEOUT_MS`,
+close their owned resources inside that same deadline, log `shutdown started`
+and `shutdown complete`, then exit 0. Work that outlives the deadline is
+aborted, connections and owned resources are closed forcibly, and the process
+logs `shutdown deadline exceeded` and `forced shutdown` before exiting nonzero.
+
+Configuration is read once at startup and cannot change while the process runs.
+SIGHUP logs that a restart is required and changes nothing; restart the process
+to apply a configuration, token, or certificate change. SIGHUP is not shutdown.
 
 Daemon exit loses in-memory run state, and M2 makes no recovery promise: a
 restart does not resume anything. Durable runs belong to M3.
@@ -140,7 +142,7 @@ port: 8080
 | `DATABASE_TLS` / `databaseTls` | Both | `true` | Verifies the certificate chain and hostname when `true`. `false` is allowed only with `ALLOW_INSECURE_LOCAL=true`, a development or test `NODE_ENV`, and a literal loopback target |
 | `ALLOW_INSECURE_LOCAL` / `allowInsecureLocal` | Both | `false` | Development and test only. Permits a plaintext daemon listener and a loopback `DAEMON_URL`; it never disables token authentication |
 | `DAEMON_URL` / `daemonUrl` | Control API | — (required) | The daemon origin. HTTPS unless the local exception applies. Credentials, query, fragment, and non-root paths are rejected |
-| `DAEMON_TOKEN_FILE` / `daemonTokenFile` | Both | — | One token per line, oldest first, newest last. Reread on SIGHUP |
+| `DAEMON_TOKEN_FILE` / `daemonTokenFile` | Both | — | One token per line, oldest first, newest last. Read once at startup |
 | `DAEMON_TOKEN` | Both | — | Comma-separated tokens, oldest first. An alternative to the file, not an additional source; configuring both is an error |
 | `TLS_CERT_FILE` / `tlsCertFile` | Daemon | — | PEM server certificate chain for direct TLS |
 | `TLS_KEY_FILE` / `tlsKeyFile` | Daemon | — | The matching private key. A partial or invalid pair is a startup error, never a fallback to HTTP |
@@ -150,8 +152,7 @@ port: 8080
 
 Additional trust roots come only from `NODE_EXTRA_CA_CERTS`, which must be set
 before launching Bun; there is no `DAEMON_CA_FILE` or `DATABASE_CA_FILE`. Trust
-is startup-scoped, so changing it requires a restart and SIGHUP does not
-reload it.
+is startup-scoped, so changing it requires a restart.
 
 Logging uses [LogTape](https://logtape.org/). Records are one JSON object
 per line on the console with `time`, `level`, `msg`, and any extra fields.
@@ -199,12 +200,38 @@ Routes live under the `/api` path prefix. The prefix carries no
 API version: a future deliberate stabilization may introduce a versioned
 prefix, but until then routes stay unversioned.
 
-Each route is one feature slice under
-`apis/control-api/src/features/`: a slice exports `route`, `schema`, and
-`createHandler`, and the folder layout decides the bound path. For example,
-`src/features/system/health.ts` serves `GET /api/system/health`. The
-server startup validates every slice against this contract; a slice that
-misses it fails startup.
+Each route is one service module under `apis/control-api/src/services/`, or
+under `apis/daemon/src/services/` for the daemon's private routes. A service
+module declares its method, its complete `/api` path, the TypeBox schemas for
+its body and path parameters, its OpenAPI metadata and documented responses,
+and a `handler(request, response, context)` that answers with the response
+view. `src/routes.ts` imports every service of that application and registers
+it, so registration is static: no directory scan, no dynamic import, and no
+folder-derived path. A conflicting declaration — a duplicate route or operation
+id, an undeclared tag, a body on a method that cannot carry one, a path
+parameter without a schema, or one component name carrying two different
+schemas — fails startup.
+
+A shared shape is declared once with `defineSchema`, which pairs the schema
+with the component name the document references, and the services that
+document it use that value:
+
+```ts
+export const WorkflowRevision = defineSchema("WorkflowRevision", WorkflowRevisionSchema);
+```
+
+Every named schema a service references becomes one component, so several
+services can share it without restating it. A body left as a plain schema is
+documented inline at that operation and contributes no component. An
+application whose document must carry a component that no operation body
+references declares it in the application's own `components` list, because
+nothing else can contribute it.
+
+The framework installs the mandatory middleware (request ids and access
+logging) before any route, and an application may add its own middleware
+before registering routes. `@rostrum/server` owns that stack, the typed
+service builder, the registrar, the generated contract, the strict JSON body
+and path-parameter validation, and the startup and shutdown runtime.
 
 Every error response uses one shape: `{"code","message","findings"}`.
 
@@ -235,17 +262,18 @@ The daemon accepts every token in its configured set.
   API may use a loopback `DAEMON_URL`. This never disables authentication.
 
 Tokens are hexadecimal encodings of at least 32 random bytes, ordered oldest
-first; the Control API always sends the last. Rotate without downtime:
+first; the Control API always sends the last. Rotate by restarting each process
+in this order:
 
-1. append the new token to the daemon's file and send SIGHUP to the daemon;
-2. append it to the Control API's file and send SIGHUP to the Control API;
+1. append the new token to the daemon's token file and restart the daemon;
+2. append it to the Control API's token file and restart the Control API;
 3. confirm the new token works;
-4. remove the retired token from the daemon's file and send SIGHUP again.
+4. remove the retired token from the daemon's file and restart it again.
 
-During the overlap the daemon accepts both. A SIGHUP that fails validation
-changes nothing: the last valid configuration and token set stay active. Use
-this order rather than restarting either process, and give token and key files
-mode `0600` outside the checkout.
+During the overlap the daemon accepts both tokens, so the daemon link stays
+authenticated across the rotation. Each restart loses the daemon's in-memory
+state, so rotate while no work is in flight. Give token and key files mode
+`0600` outside the checkout.
 
 Each service owns one pool of at most ten connections plus one dedicated
 readiness connection, so a deployment of both services uses at most 22
@@ -278,7 +306,7 @@ its checked-in copy.
 | --- | --- |
 | `apis/` | Backend services; `control-api/` is the caller-facing process and `daemon/` executes workflows |
 | `apps/` | User-facing applications |
-| `packages/server/` | Shared service mechanics: configuration, loopback and token validation, route parameter validation, protocol schemas, logging, feature loading, readiness, and lifecycle |
+| `packages/server/` | Shared service framework: configuration loading, loopback and token validation, logging, the branded application, typed service registration and OpenAPI translation, request validation, protocol schemas, readiness, and the startup and shutdown runtime |
 | `packages/database/` | Postgres persistence: schema, migrations, repositories, and connection handles |
 | `packages/workflow/` | The shared workflow library and validator |
 | `dev-docs/` | Ignored checkout of the independent development-documentation repository |

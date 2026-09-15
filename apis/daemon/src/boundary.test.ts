@@ -2,8 +2,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { connect, createServer } from "node:net";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { authenticate } from "./auth";
 import { DaemonProcess } from "./scripts/process";
@@ -210,50 +211,63 @@ describe("daemon executable boundary", () => {
         }
     }, 15000);
 
-    test("SIGHUP overlaps and retires tokens without restarting, and rejects the entire invalid candidate", async () => {
-        const daemon = await DaemonProcess.spawn();
+    test("applies token configuration at startup and reloads nothing on SIGHUP", async () => {
+        // Both processes in this test read the same operator-provisioned token file.
+        const directory = await mkdtemp(join(tmpdir(), "rostrum-daemon-tokens-"));
+        const tokenFile = join(directory, "tokens");
+        const [oldest, newest] = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex")];
+        await writeFile(tokenFile, `${oldest}\n${newest}\n`, { mode: 0o600 });
+        const shareTokenFile = (): Promise<Record<string, unknown>> =>
+            Promise.resolve({ daemonTokenFile: tokenFile });
+
+        const status = async (origin: string, token: string): Promise<number> => {
+            const response = await fetch(`${origin}/api/system/health`, {
+                headers: credential(token),
+            });
+            await response.arrayBuffer();
+            return response.status;
+        };
+
+        const first = await DaemonProcess.spawn({ prepare: shareTokenFile });
         try {
-            const origin = await daemon.listening();
-            const old = daemon.tokens[0]!;
-            const newest = randomBytes(32).toString("hex");
-            const status = async (token: string) => {
-                const response = await fetch(`${origin}/api/system/health`, {
-                    headers: credential(token),
-                });
-                await response.arrayBuffer();
-                return response.status;
-            };
-            expect(await status(newest)).toBe(401);
-            await writeFile(daemon.tokenFile, `${old}\n${newest}\n`);
-            daemon.child.kill("SIGHUP");
-            await daemon.waitFor(() => daemon.logs.includes("reload applied"));
-            expect(await status(old)).toBe(200);
-            expect(await status(newest)).toBe(200);
-            let offset = daemon.logs.length;
-            await writeFile(daemon.tokenFile, `${newest}\n`);
-            daemon.child.kill("SIGHUP");
-            await daemon.waitFor(() => daemon.logs.slice(offset).includes("reload applied"));
-            expect(await status(old)).toBe(401);
-            expect(await status(newest)).toBe(200);
-            offset = daemon.logs.length;
-            const rejected = randomBytes(32).toString("hex");
-            await writeFile(daemon.tokenFile, `${rejected}\n`);
-            await writeFile(
-                daemon.configFile,
-                JSON.stringify({ ...daemon.config, host: "0.0.0.0" }),
-            );
-            daemon.child.kill("SIGHUP");
-            await daemon.waitFor(() => daemon.logs.slice(offset).includes("reload rejected"));
-            expect(await status(newest)).toBe(200);
-            expect(await status(rejected)).toBe(401);
-            expect(daemon.child.exitCode).toBeNull();
-            for (const token of [old, newest, rejected]) {
-                expect(daemon.logs).not.toContain(token);
+            const origin = await first.listening();
+
+            // Every token in the configured set authenticates.
+            expect(await status(origin, oldest)).toBe(200);
+            expect(await status(origin, newest)).toBe(200);
+
+            // Configuration is read once: rewriting the file and signalling must
+            // change nothing at all.
+            await writeFile(tokenFile, `${newest}\n`, { mode: 0o600 });
+            first.child.kill("SIGHUP");
+            await first.waitFor(() => first.logs.includes("restart required"));
+
+            expect(first.child.exitCode).toBeNull();
+            expect(await status(origin, oldest)).toBe(200);
+            expect(await status(origin, newest)).toBe(200);
+            for (const token of [oldest, newest]) {
+                expect(first.logs).not.toContain(token);
             }
+
+            first.child.kill("SIGTERM");
+            expect(await first.exited()).toBe(0);
         } finally {
-            await daemon.dispose();
+            await first.dispose();
         }
-    }, 20000);
+
+        // A restarted process applies the file it now finds, including revocation.
+        const second = await DaemonProcess.spawn({ prepare: shareTokenFile });
+        try {
+            const origin = await second.listening();
+            expect(await status(origin, newest)).toBe(200);
+            expect(await status(origin, oldest)).toBe(401);
+            second.child.kill("SIGTERM");
+            expect(await second.exited()).toBe(0);
+        } finally {
+            await second.dispose();
+            await rm(directory, { recursive: true, force: true });
+        }
+    }, 30000);
 
     test("direct TLS serves authenticated health with runtime extra trust and rejects an untrusted certificate", async () => {
         const daemon = await DaemonProcess.spawn({
