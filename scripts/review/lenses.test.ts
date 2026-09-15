@@ -59,10 +59,15 @@ describe("lens selection", () => {
     });
 
     test("runs the security lens on every request handler, whatever it is named", () => {
+        expect(selectedFor("apis/control-api/src/services/workflows/create.ts")).toContain(
+            "security",
+        );
+        expect(selectedFor("apis/control-api/src/services/system/health.ts")).toContain("security");
+        // The loader's feature slices are gone; the rule keeps covering the old layout
+        // so a historical diff still reviews the same way.
         expect(selectedFor("apps/control-api/src/features/workflows/create.ts")).toContain(
             "security",
         );
-        expect(selectedFor("apps/control-api/src/features/system/health.ts")).toContain("security");
     });
 
     test("runs the security lens off the trust-boundary paths", () => {

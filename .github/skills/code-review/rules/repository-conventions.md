@@ -62,21 +62,28 @@ centralizes exports, needs a stated purpose or it should not exist.
 **Flag:** A new module whose body is re-exports or a thin wrapper around an existing library helper with no added rule.
 **Evidence:** PR #12 `packages/workflow/src/document/id-splice.ts:1` — "I'm not sure what this file is giving us besides wrapping the parser helper … and some type wrappings"; PR #9 `packages/database/src/schema/database.ts:1` — "Is this just to centralize the exports (and if so, why?)".
 
-## 2. Feature slices, wiring, and dependency injection
+## 2. Service modules, wiring, and dependency injection
 
-### REPO-SLICE-01 — Export `route`, `schema`, and `handler` from every feature slice
-Each slice under `features/` is a boot-time module exporting the route binding, its schemas, and its
-handler; a slice that misses the contract fails startup, so the shape is an invariant.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**` · **Check:** mechanical · **Severity:** medium
-**Flag:** A file under `features/` that does not export `route`, `schema`, and `handler`, or a slice whose folder path and route path disagree.
-**Evidence:** PR #5 `apps/control-api/src/features/system/get-health.handler.ts:1` — "you need to export: route (GET /health), schema (anything), handler"; "any misaligned file will throw an error and prevent booting".
+A service module under `src/services/` is one boot-time value built by the application's
+`createServiceBuilder`. It carries its binding, request schemas, OpenAPI metadata, documented
+responses, the components it contributes, and a `handler(request, response, context)`; the
+application registers it from one static `routes.ts`. The rules below keep that shape.
 
-### REPO-SLICE-02 — Inject services through a `createHandler(services)` factory built at boot
-Dependencies are constructed once at process start and passed into handlers; a handler that reaches
-for a module singleton cannot be tested in isolation and changes behavior with boot order.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**` · **Check:** mechanical · **Severity:** medium
-**Flag:** A handler importing a module-level service, or a handler signature that builds its own dependencies instead of receiving the services object.
-**Evidence:** PR #12 `apps/control-api/src/features/workflows/create.ts:68` reply — "factory form. `createHandler(services)` returns the handler, preserving the base `Handler` type and the loader module contract; a `Services` object builds once at app boot".
+### REPO-SLICE-01 — Declare one service per module through the application's builder
+A route module declares exactly one service value built by the application's shared builder, so its
+inputs, documented responses, and context are typed at the declaration and every service is
+registered explicitly rather than discovered.
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** judgment · **Severity:** medium
+**Flag:** A route module that constructs its own builder instead of importing the application's, binds a route outside `routes.ts`, or declares a handler whose inputs are read by hand rather than through the declared schemas.
+**Evidence:** PR #5 `apps/control-api/src/features/system/get-health.handler.ts:1` — "you need to export: route (GET /health), schema (anything), handler"; "any misaligned file will throw an error and prevent booting". Superseded by the framework in `packages/server/src/service.ts`: the loader's three-export contract is gone, and the value it described is now declared once per module.
+
+### REPO-SLICE-02 — Inject services through the handler's context built at boot
+Dependencies are constructed once at process start and reach handlers through the context they are
+given; a handler that reaches for a module singleton cannot be tested in isolation and changes
+behavior with boot order.
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** judgment · **Severity:** medium
+**Flag:** A handler importing a module-level service, or a handler that builds its own dependencies instead of reading them from its context.
+**Evidence:** PR #12 `apps/control-api/src/features/workflows/create.ts:68` reply — "factory form. `createHandler(services)` returns the handler, preserving the base `Handler` type and the loader module contract; a `Services` object builds once at app boot". The framework replaced the per-module factory with a context every handler receives.
 
 ### REPO-SLICE-03 — No module-level singletons or `setX` test seams
 Stateful services are classes or static members; a lazy process-wide build and a setter that exists
@@ -112,7 +119,7 @@ route rather than being promoted to a shared module "for later".
 ### REPO-SCHEMA-03 — Validate at the schema boundary, not inside handlers or repositories
 Input is checked by the schema that describes it; a handler or repository must not re-check what the
 schema already proved, and repositories must not defend against inputs their callers cannot produce.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**`, `packages/**/repositories/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**`, `packages/**/repositories/**` · **Check:** judgment · **Severity:** medium
 **Flag:** Manual shape checks, JSON.parse guards, or re-validation inside a handler body or repository method that the route schema already covers.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/retrieve-version.ts:63` — "these can be tested with a schema validator instead of within the handler"; PR #12 `apps/control-api/src/features/workflows/rewind.ts:73` — "JSON validation can also be handled in the schema validator"; PR #12 `packages/database/src/repositories/workflow-repository.ts:73` — "This check seems like it's redundant to have here, and could be validated via a schema validator (in the upstream caller)".
 
@@ -126,7 +133,7 @@ addresses an entity must verify existence and return not-found.
 ### REPO-SCHEMA-05 — One shared validation path across entry points
 When validate, save, and publish must agree because they are the same behavior, that validation is
 implemented once and shared; do not re-derive it per route.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**`, `packages/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**`, `packages/**` · **Check:** judgment · **Severity:** medium
 **Flag:** Two routes each assembling their own validation of the same document/body instead of calling one shared validator or request-body helper.
 **Evidence:** PR #12 `packages/database/src/repositories/workflow-repository.ts:73` — validation belongs "in the upstream caller"; PR #12 `apps/control-api/src/features/workflows/create.ts:41` reply — `FindingSchema` and the document/revision schemas move to one workflows area rather than per-route copies.
 
@@ -142,7 +149,7 @@ defaults), and defaults are defined in the config loader exactly once.
 ### REPO-TYPE-01 — Give each operation a strict, feature-local return type
 A function's return type enumerates exactly what it can return, including failure outcomes; a
 handler that can answer several ways must not declare that it answers one.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**`, `packages/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**`, `packages/**` · **Check:** judgment · **Severity:** medium
 **Flag:** `Promise<Response>`, a bag of optional fields, or a widened union where the outcome discriminant is lost.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/retrieve-version.ts:80` — "I want per-feature return types to be much stricter than they are currently".
 
@@ -179,28 +186,28 @@ lets a caller misaddress or collide with an entity.
 ### REPO-CONTRACT-03 — Use the HTTP verb that matches the operation
 A full-document replacement is `PUT`; using `POST` for an idempotent addressable update is a contract
 defect.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**` · **Check:** mechanical · **Severity:** high
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** mechanical · **Severity:** high
 **Flag:** `POST` on a route that replaces an existing resource at a stable path.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/save.ts:25` — "PUT not POST".
 
 ### REPO-CONTRACT-04 — Carry request parameters in the body, not in headers
 Inputs that are part of the resource representation (revision name, document bytes) travel in the
 request body; headers describe the request itself.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**` · **Check:** mechanical · **Severity:** medium
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** mechanical · **Severity:** medium
 **Flag:** `c.req.header(...)` read for a body-shaped value, or an OpenAPI `parameters` entry for a field the body should carry.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/save.ts:89` — "Nope - this is a body param not a header"; `save.ts:101` — "Revision name belongs in the body not as a header"; `create.ts:29` — "This should be in the POST request instead".
 
 ### REPO-CONTRACT-05 — Give distinct outcomes distinct status codes
 A created publication answers `201`; a replayed, already-existing outcome answers `200`. Returning the
 same status for both makes the outcome indistinguishable to a caller.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**` · **Check:** mechanical · **Severity:** high
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** mechanical · **Severity:** high
 **Flag:** Two different outcome discriminants mapping to the same status in the route response table.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/publish.ts:69` — "Should `already-published` share the same response code as `published`? I'm thinking a `201` is good for `published` and a `200` for `already-published`".
 
 ### REPO-CONTRACT-06 — Response shapes carry only what the caller cannot already know
 Do not echo values the caller supplied in the path or body, and give every response member a
 caller-facing job; an unexplained field is a finding.
-**Applies to:** `apps/**/src/features/**`, `apis/**/src/features/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** judgment · **Severity:** medium
 **Flag:** A response member equal to a path parameter, or a member whose purpose no caller can state.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/publish.ts:35` — "I don't get the purpose of the response shape"; reply concedes `workflowId` "is the one echo — it is already in the path".
 

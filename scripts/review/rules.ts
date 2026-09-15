@@ -49,13 +49,7 @@ interface RuleCheck {
 }
 
 /** Paths that are allowed to write directly to the console. */
-const CONSOLE_ALLOWED = [
-    "scripts/",
-    "src/scripts/",
-    ".test.ts",
-    "src/logger.ts",
-    "src/features/system/log",
-];
+const CONSOLE_ALLOWED = ["scripts/", "src/scripts/", ".test.ts", "src/logger.ts"];
 
 /** Files where a dependency or configuration change is expected. */
 function isDependencyManifest(path: string): boolean {
