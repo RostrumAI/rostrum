@@ -75,3 +75,21 @@ test("answers readiness when the caller's signal is already aborted", async () =
     expect(await response.json()).toMatchObject({ status: "not_ready" });
     expect(performance.now() - started).toBeLessThan(500);
 });
+
+test("answers 400 when the storage layer rejects the addressed id", async () => {
+    // A UUID of the wrong version passes the path-parameter pattern, so the repository
+    // rejects it before any query runs. Without the service's translation of the
+    // storage error, this would leave the app's mapping and answer 500 instead.
+    const wrongVersion = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+    const response = await api.fetch(
+        new Request(`http://127.0.0.1/api/workflows/${wrongVersion}`),
+        new AbortController().signal,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+        code: "invalid_workflow_input",
+        message: `'${wrongVersion}' is not a valid workflow id`,
+        findings: [],
+    });
+});
