@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { UUID_PATTERN, WorkflowDocumentSchema } from "../../workflows/schemas";
+import { PermissiveWorkflowDocumentSchema, UUID_PATTERN } from "../../workflows/schemas";
 
 /**
  * The body of PUT /workflows/:workflowId/revisions: the optimistic base
@@ -17,7 +17,7 @@ export const SaveRevisionRequestSchema = Type.Object(
                 description: "Optional display label for the new revision.",
             }),
         ),
-        document: WorkflowDocumentSchema,
+        document: PermissiveWorkflowDocumentSchema,
     },
     { additionalProperties: false },
 );

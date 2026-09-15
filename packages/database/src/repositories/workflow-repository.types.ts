@@ -10,7 +10,7 @@ import type { RevisionType } from "../schema/revisions";
  */
 
 /** A stored revision as applications consume it. */
-export interface StoredRevision {
+export interface Revision {
     /** The revision's id. */
     revisionId: string;
     /** The owning draft's id. */
@@ -50,7 +50,7 @@ export interface CreatedDraft {
     /** The new draft's id. */
     workflowId: string;
     /** The first revision, identical to what a save returns. */
-    revision: StoredRevision;
+    revision: Revision;
 }
 
 /** Input to `WorkflowRepository.saveRevision`. */
@@ -70,19 +70,19 @@ export interface SaveRevisionInput {
  * revision so a caller can answer 409 without a second query.
  */
 export type SaveRevisionResult =
-    | { outcome: "saved"; revision: StoredRevision }
-    | { outcome: "conflict"; currentRevision: StoredRevision }
-    | { outcome: "not-found" };
+    | { outcome: "saved"; revision: Revision }
+    | { outcome: "conflict"; currentRevision: Revision }
+    | { outcome: "workflow-not-found" };
 
 /** The result of one rewind attempt. */
 export type RewindResult =
-    | { outcome: "rewound"; revision: StoredRevision }
+    | { outcome: "rewound"; revision: Revision }
     | { outcome: "no-op" }
     | { outcome: "target-not-found" }
-    | { outcome: "not-found" };
+    | { outcome: "workflow-not-found" };
 
-/** Input to `WorkflowRepository.publish`; produced by PublicationPreparer. */
-export interface PublishInput {
+/** Input to `WorkflowRepository.publish`; produced by PublicationCanonicalizer. */
+export interface PublicationInsertInput {
     /** The publishing draft's id. */
     workflowId: string;
     /** The source revision inside that draft. */
@@ -97,14 +97,14 @@ export interface PublishInput {
 
 /**
  * The result of one publish attempt. `published` and `already-published`
- * return the same publication number; `not-found` reports an unknown workflow
- * and `revision-not-found` a revision that does not belong to it, the two
- * 404 cases of the publish contract, typed instead of thrown.
+ * return the same publication number; `workflow-not-found` reports an unknown
+ * workflow and `revision-not-found` a revision that does not belong to it, the
+ * two 404 cases of the publish contract, typed instead of thrown.
  */
 export type PublishResult =
     | { outcome: "published"; publicationNumber: number }
     | { outcome: "already-published"; publicationNumber: number }
-    | { outcome: "not-found" }
+    | { outcome: "workflow-not-found" }
     | { outcome: "revision-not-found" };
 
 /** One retrieved publication with its verified digest. */

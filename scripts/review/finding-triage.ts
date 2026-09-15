@@ -1,5 +1,5 @@
 /**
- * Finding suppression, deduplication, and ordering.
+ * ReviewFinding suppression, deduplication, and ordering.
  *
  * @remarks
  * This module is what makes a rescan useful instead of annoying. A finding that
@@ -11,7 +11,7 @@
 
 import { hunkIndexOf } from "./diff.ts";
 import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
-import type { Finding, ReviewContext, Severity } from "./types.ts";
+import type { ReviewContext, ReviewFinding, Severity } from "./types.ts";
 import { isWithdrawn, parseVerdict } from "./verdicts.ts";
 
 /** Repository-relative distance within which an open comment suppresses a repeat. */
@@ -33,7 +33,7 @@ const SEVERITY_ORDER: Record<Severity, number> = {
 };
 
 /** A finding already posted and answered, keyed by the rule and path it cited. */
-interface AnsweredFinding {
+interface PostedFinding {
     /** Rule id extracted from the comment body. */
     ruleId: string;
     /** Path the comment was anchored to. */
@@ -69,11 +69,11 @@ export function ruleIdFromComment(body: string): string | null {
  * @returns Open and answered pipeline findings.
  */
 export function partitionThreads(threads: ReviewThread[]): {
-    open: AnsweredFinding[];
-    resolved: AnsweredFinding[];
+    open: PostedFinding[];
+    resolved: PostedFinding[];
 } {
-    const open: AnsweredFinding[] = [];
-    const resolved: AnsweredFinding[] = [];
+    const open: PostedFinding[] = [];
+    const resolved: PostedFinding[] = [];
     for (const thread of threads) {
         const pipelineIndex = thread.comments.findIndex((comment) =>
             comment.body.includes(COMMENT_MARKER),
@@ -85,7 +85,7 @@ export function partitionThreads(threads: ReviewThread[]): {
         if (ruleId === null) {
             continue;
         }
-        const entry: AnsweredFinding = { ruleId, path: thread.path, line: thread.line };
+        const entry: PostedFinding = { ruleId, path: thread.path, line: thread.line };
         if (thread.isResolved || threadVerdictWithdraws(thread)) {
             resolved.push(entry);
         } else {
@@ -120,10 +120,10 @@ function threadVerdictWithdraws(thread: ReviewThread): boolean {
  * @param threads - Review threads read from GitHub.
  * @returns Findings that should still be reported, and the count suppressed.
  */
-export function suppressAnswered(
-    findings: Finding[],
+export function suppressPostedFindings(
+    findings: ReviewFinding[],
     threads: ReviewThread[],
-): { kept: Finding[]; suppressed: number } {
+): { kept: ReviewFinding[]; suppressed: number } {
     const { open, resolved } = partitionThreads(threads);
     const kept = findings.filter((finding) => {
         const answered = resolved.some(
@@ -160,15 +160,15 @@ export function suppressAnswered(
  * @returns Deduplicated findings, with a count of what was dropped.
  */
 export function deduplicate(
-    findings: Finding[],
+    findings: ReviewFinding[],
     context: ReviewContext,
 ): {
-    kept: Finding[];
+    kept: ReviewFinding[];
     duplicates: number;
 } {
     // First collapse everything that landed on the same line, whatever produced
     // it, so a model finding that restates a mechanical one disappears.
-    const byLine = new Map<string, Finding>();
+    const byLine = new Map<string, ReviewFinding>();
     for (const finding of findings) {
         const key = `${finding.ruleId}@${finding.path}:${finding.line}`;
         const existing = byLine.get(key);
@@ -179,8 +179,8 @@ export function deduplicate(
 
     // Then collapse the surviving model findings within a hunk. A deterministic
     // finding is exact, so it keeps its own line and is never merged into one.
-    const byRegion = new Map<string, Finding>();
-    const deterministic: Finding[] = [];
+    const byRegion = new Map<string, ReviewFinding>();
+    const deterministic: ReviewFinding[] = [];
     for (const finding of sortFindings([...byLine.values()])) {
         if (finding.lens === "rules") {
             deterministic.push(finding);
@@ -211,9 +211,12 @@ export function deduplicate(
  * @param findings - Findings that survived suppression, in report order.
  * @returns The findings to post, with the count dropped for exceeding the cap.
  */
-export function applyPerRuleCap(findings: Finding[]): { kept: Finding[]; capped: number } {
+export function applyPerRuleCap(findings: ReviewFinding[]): {
+    kept: ReviewFinding[];
+    capped: number;
+} {
     const perRulePath = new Map<string, number>();
-    const kept: Finding[] = [];
+    const kept: ReviewFinding[] = [];
     let capped = 0;
     for (const finding of findings) {
         const key = `${finding.ruleId}@${finding.path}`;
@@ -231,11 +234,11 @@ export function applyPerRuleCap(findings: Finding[]): { kept: Finding[]; capped:
 /**
  * Resolves a finding to the hunk it sits in, for grouping model findings.
  *
- * @param finding - Finding whose line is resolved.
+ * @param finding - ReviewFinding whose line is resolved.
  * @param context - Review context holding the parsed files.
  * @returns The hunk index as a string, or the line number when no hunk matches.
  */
-function regionKey(finding: Finding, context: ReviewContext): string {
+function regionKey(finding: ReviewFinding, context: ReviewContext): string {
     const file = context.files.find((candidate) => candidate.path === finding.path);
     if (file === undefined) {
         return String(finding.line);
@@ -248,10 +251,10 @@ function regionKey(finding: Finding, context: ReviewContext): string {
  * Decides which of two findings for the same location to keep.
  *
  * @param candidate - Newly considered finding.
- * @param current - Finding already held for the location.
+ * @param current - ReviewFinding already held for the location.
  * @returns True when the candidate should replace the current one.
  */
-function preferredOver(candidate: Finding, current: Finding): boolean {
+function preferredOver(candidate: ReviewFinding, current: ReviewFinding): boolean {
     if (candidate.lens === "rules" && current.lens !== "rules") {
         return true;
     }
@@ -274,7 +277,7 @@ function preferredOver(candidate: Finding, current: Finding): boolean {
  * @param floor - Minimum confidence to report.
  * @returns Findings at or above the floor.
  */
-export function applyConfidenceFloor(findings: Finding[], floor: number): Finding[] {
+export function applyConfidenceFloor(findings: ReviewFinding[], floor: number): ReviewFinding[] {
     return findings.filter((finding) => finding.lens === "rules" || finding.confidence >= floor);
 }
 
@@ -284,7 +287,7 @@ export function applyConfidenceFloor(findings: Finding[], floor: number): Findin
  * @param findings - Findings to order.
  * @returns A new array in report order.
  */
-export function sortFindings(findings: Finding[]): Finding[] {
+export function sortFindings(findings: ReviewFinding[]): ReviewFinding[] {
     return [...findings].sort((left, right) => {
         const severity = SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity];
         if (severity !== 0) {
@@ -306,7 +309,7 @@ export function sortFindings(findings: Finding[]): Finding[] {
  * @param findings - Findings to summarise.
  * @returns Counts keyed by severity.
  */
-export function countBySeverity(findings: Finding[]): Record<Severity, number> {
+export function countBySeverity(findings: ReviewFinding[]): Record<Severity, number> {
     const counts: Record<Severity, number> = {
         critical: 0,
         high: 0,

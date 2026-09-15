@@ -16,20 +16,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { findFile, parseUnifiedDiff, snapToDiff, visibleLines } from "./diff.ts";
-import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
 import {
     applyConfidenceFloor,
     applyPerRuleCap,
     deduplicate,
     partitionThreads,
     ruleIdFromComment,
-    suppressAnswered,
-} from "./merge.ts";
+    suppressPostedFindings,
+} from "./finding-triage.ts";
+import { COMMENT_MARKER, type ReviewThread } from "./github.ts";
 import { renderComment } from "./report.ts";
 import { buildLensPrompt, extractJsonObject, normalizeFindings } from "./reviewer.ts";
 import { findUncoveredSourceFiles, runRuleChecks } from "./rules.ts";
 import { blankInlineCode, newScanState, scanSourceLine } from "./source-text.ts";
-import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
+import type { FileDiff, Lens, ReviewContext, ReviewFinding } from "./types.ts";
 import { renderVerdictMarker } from "./verdicts.ts";
 
 /** Returns the single parsed file of a patch, failing loudly when parsing dropped it. */
@@ -83,7 +83,7 @@ function contextFor(
 }
 
 /** Builds a finding with sensible defaults for the field under test. */
-function findingFor(overrides: Partial<Finding> = {}): Finding {
+function findingFor(overrides: Partial<ReviewFinding> = {}): ReviewFinding {
     return {
         ruleId: "REPO-TEST-02",
         path: "apps/control-api/src/thing.ts",
@@ -792,19 +792,19 @@ describe("suppression", () => {
 
     test("never repeats a finding whose thread is resolved", () => {
         const threads = [threadFor(pipelineComment("REPO-TEST-02"), { resolved: true, line: 99 })];
-        const result = suppressAnswered([findingFor()], threads);
+        const result = suppressPostedFindings([findingFor()], threads);
         expect(result.kept).toHaveLength(0);
         expect(result.suppressed).toBe(1);
     });
 
     test("stays silent about an open finding on the same line", () => {
         const threads = [threadFor(pipelineComment("REPO-TEST-02"), { line: 3 })];
-        expect(suppressAnswered([findingFor({ line: 4 })], threads).kept).toHaveLength(0);
+        expect(suppressPostedFindings([findingFor({ line: 4 })], threads).kept).toHaveLength(0);
     });
 
     test("reports a new occurrence elsewhere in the same file", () => {
         const threads = [threadFor(pipelineComment("REPO-TEST-02"), { line: 2 })];
-        expect(suppressAnswered([findingFor({ line: 40 })], threads).kept).toHaveLength(1);
+        expect(suppressPostedFindings([findingFor({ line: 40 })], threads).kept).toHaveLength(1);
     });
 
     test("does not let a bare human reply suppress the rule across the file", () => {
@@ -820,8 +820,8 @@ describe("suppression", () => {
             line: null,
         });
         expect(partitionThreads([thread]).open).toHaveLength(1);
-        expect(suppressAnswered([findingFor({ line: 2 })], [thread]).kept).toHaveLength(0);
-        expect(suppressAnswered([findingFor({ line: 60 })], [thread]).kept).toHaveLength(1);
+        expect(suppressPostedFindings([findingFor({ line: 2 })], [thread]).kept).toHaveLength(0);
+        expect(suppressPostedFindings([findingFor({ line: 60 })], [thread]).kept).toHaveLength(1);
     });
 
     test("treats a withdrawn finding as answered, without the thread being resolved", () => {
@@ -829,7 +829,7 @@ describe("suppression", () => {
         expect(partitionThreads([thread]).resolved).toHaveLength(1);
         // Withdrawn means the rule no longer applies at this path, wherever the
         // line has moved to.
-        expect(suppressAnswered([findingFor({ line: 60 })], [thread]).kept).toHaveLength(0);
+        expect(suppressPostedFindings([findingFor({ line: 60 })], [thread]).kept).toHaveLength(0);
     });
 
     test("leaves the thread open when the adjudication stands behind the finding", () => {
@@ -838,7 +838,7 @@ describe("suppression", () => {
         expect(partitionThreads([thread]).resolved).toHaveLength(0);
         // The original comment still suppresses a duplicate of itself, so the
         // author keeps one open finding rather than two.
-        expect(suppressAnswered([findingFor({ line: 2 })], [thread]).kept).toHaveLength(0);
+        expect(suppressPostedFindings([findingFor({ line: 2 })], [thread]).kept).toHaveLength(0);
     });
 
     test("records an intentional tradeoff as withdrawn", () => {
@@ -848,7 +848,7 @@ describe("suppression", () => {
 
     test("ignores human discussion about the same code", () => {
         const threads = [threadFor("I already looked at this line", { resolved: true, line: 2 })];
-        expect(suppressAnswered([findingFor()], threads).kept).toHaveLength(1);
+        expect(suppressPostedFindings([findingFor()], threads).kept).toHaveLength(1);
     });
 
     test("partitions pipeline threads by resolution state", () => {
@@ -863,7 +863,7 @@ describe("suppression", () => {
     });
 });
 
-describe("merge", () => {
+describe("finding triage", () => {
     test("collapses the same finding from two lenses, preferring the deterministic pass", () => {
         const result = deduplicate(
             [
@@ -889,7 +889,7 @@ describe("merge", () => {
         const threads = [10, 20, 30, 40].map((line) =>
             threadFor(pipelineComment("REPO-TS-01"), { line }),
         );
-        const { kept: unanswered, suppressed } = suppressAnswered(findings, threads);
+        const { kept: unanswered, suppressed } = suppressPostedFindings(findings, threads);
         expect(suppressed).toBe(4);
         expect(unanswered.map((finding) => finding.line)).toEqual([50, 60]);
         const capped = applyPerRuleCap(unanswered);
@@ -1074,7 +1074,7 @@ describe("severity scale", () => {
         // A model may still name a retired level. Posting it verbatim would leave
         // the report with a severity the scale does not define, so it is graded
         // as the convention-level problem it could not be ranked as.
-        const normalize = (severity: string): Finding["severity"] | undefined =>
+        const normalize = (severity: string): ReviewFinding["severity"] | undefined =>
             normalizeFindings(
                 {
                     findings: [

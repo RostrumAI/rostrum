@@ -13,7 +13,7 @@ import type { ValidationStage } from "../validation-stage";
  * stage is gated on this one, so an unknown version never falls back to
  * another rule set.
  */
-export class FormatStage implements ValidationStage {
+export class FormatVersionStage implements ValidationStage {
     readonly id = "format";
     readonly prerequisites: readonly string[] = [];
 

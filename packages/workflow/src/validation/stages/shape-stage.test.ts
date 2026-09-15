@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { V1_RULE_SET } from "../../rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import { buildDocument, resultStep, taskStep } from "../../testing/documents";
 import { ValidationContext } from "../validation-context";
 import { ShapeStage } from "./shape-stage";
 
-const stage = new ShapeStage(V1_RULE_SET.documentSchema);
+const stage = new ShapeStage(V1_WORKFLOW_FORMAT_RULE_SET.documentSchema);
 
 function run(document: unknown) {
     return stage.run(new ValidationContext(document, null));

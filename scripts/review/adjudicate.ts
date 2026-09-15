@@ -39,7 +39,7 @@ import {
     agentTimeoutSeconds,
     DEFAULT_MODEL,
     extractJsonObject,
-    resolveOmpInvocation,
+    resolveReviewerCommand,
     runAgent,
 } from "./reviewer.ts";
 import type { PullRequestRef } from "./types.ts";
@@ -72,7 +72,7 @@ const NON_WITHDRAWING: readonly Verdict[] = ["stands", "needs_human"];
 /** What happened to a reply, for the caller's log. */
 export interface AdjudicationOutcome {
     /** What the pipeline did, or why it did nothing. */
-    action: "withdrawn" | "stood" | "needs_human" | "ignored" | "skipped";
+    action: "withdrawn" | "stands" | "needs_human" | "ignored" | "skipped";
     /** Human-readable explanation for the run log. */
     detail: string;
 }
@@ -149,7 +149,7 @@ export async function adjudicateReply(
         (await createReviewReply(ref, findingComment.id, renderAdjudicatingReply()));
     const metadata = await fetchPullRequest(ref);
     const scratch = await mkdtemp(join(tmpdir(), "rostrum-adjudicate-"));
-    const invocation = await resolveOmpInvocation(
+    const invocation = await resolveReviewerCommand(
         reviewRootOrCwd(options, cwd),
         process.env.REVIEW_MODEL ?? DEFAULT_MODEL,
         "high",
@@ -206,7 +206,7 @@ export async function adjudicateReply(
     await editReviewComment(ref, placeholderId, renderAdjudicationReply(verdict, reason));
     if (NON_WITHDRAWING.includes(verdict)) {
         return {
-            action: verdict === "needs_human" ? "needs_human" : "stood",
+            action: verdict === "needs_human" ? "needs_human" : "stands",
             detail: reason,
         };
     }

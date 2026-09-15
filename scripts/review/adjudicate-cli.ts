@@ -29,7 +29,7 @@ async function main(): Promise<number> {
             association: { type: "string" },
             author: { type: "string" },
             "body-file": { type: "string" },
-            "repo-root": { type: "string" },
+            "review-checkout": { type: "string" },
         },
         allowPositionals: false,
     });
@@ -46,7 +46,7 @@ async function main(): Promise<number> {
     }
 
     const cwd = join(import.meta.dir, "..", "..");
-    const reviewRoot = values["repo-root"] ?? cwd;
+    const reviewRoot = values["review-checkout"] ?? cwd;
 
     if (values.sweep === true) {
         const outcomes = await adjudicateUnansweredThreads({ pullRequest, reviewRoot }, cwd);

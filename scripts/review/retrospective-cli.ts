@@ -7,14 +7,14 @@
  * corpus for a human to accept.
  *
  * Usage:
- *   bun run review:retro --since 2026-09-01T00:00:00Z
- *   bun run review:retro --days 7 --open-pr
+ *   bun run review:retrospective --since 2026-09-01T00:00:00Z
+ *   bun run review:retrospective --days 7 --open-pr
  */
 
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
-import { runRetrospective } from "./retro.ts";
+import { runRetrospective } from "./retrospective.ts";
 
 /**
  * Resolves the start of the window from an explicit timestamp or a day count.

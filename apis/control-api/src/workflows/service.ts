@@ -5,18 +5,18 @@ import type {
     DatabaseHandle,
     Publication,
     PublishResult,
+    Revision,
     SaveRevisionResult,
-    StoredRevision,
 } from "@rostrum/database";
 import { WorkflowRepository } from "@rostrum/database";
 import {
+    type CanonicalPublication,
     type Finding,
     insertWorkflowId,
-    type PublicationPreparation,
-    PublicationPreparer,
+    PublicationCanonicalizer,
     parseWorkflow,
     replaceWorkflowId,
-    V1_RULE_SET,
+    V1_WORKFLOW_FORMAT_RULE_SET,
     type ValidationResult,
     type WorkflowFormatRegistry,
     type WorkflowFormatRuleSet,
@@ -24,7 +24,7 @@ import {
 } from "@rostrum/workflow";
 import { v7 as mintUuidV7 } from "uuid";
 import { WorkflowApiError, workflowIdentityConflict, workflowParseFailure } from "./errors";
-import { RULE_SET_REGISTRY, WORKFLOW_VALIDATOR } from "./rule-sets";
+import { WORKFLOW_FORMAT_REGISTRY, WORKFLOW_VALIDATOR } from "./rule-sets";
 
 /** Database operations and ownership used by workflow authoring. */
 interface WorkflowDatabase {
@@ -53,7 +53,7 @@ export type PublishWorkflowResult =
           digest: string;
       }
     | { outcome: "blocking-findings"; findings: readonly Finding[] }
-    | { outcome: "not-found" }
+    | { outcome: "workflow-not-found" }
     | { outcome: "revision-not-found" };
 
 /**
@@ -83,12 +83,12 @@ export class WorkflowService {
             {
                 workflows: new WorkflowRepository(
                     database.db,
-                    new PublicationPreparer(V1_RULE_SET),
+                    new PublicationCanonicalizer(V1_WORKFLOW_FORMAT_RULE_SET),
                 ),
                 close: (options) => database.close(options),
             },
             WORKFLOW_VALIDATOR,
-            RULE_SET_REGISTRY,
+            WORKFLOW_FORMAT_REGISTRY,
         );
     }
 
@@ -146,7 +146,9 @@ export class WorkflowService {
                 // exist the save is 404, and the embedded-id disagreement
                 // only matters against a workflow that exists.
                 const current = await this.database.workflows.getCurrentRevision(workflowId);
-                if (!current) return { outcome: "not-found" };
+                if (!current) {
+                    return { outcome: "workflow-not-found" };
+                }
                 throw new WorkflowApiError(
                     workflowIdentityConflict(
                         `The document's embedded id ${JSON.stringify(embeddedId)} does not match the addressed workflow ${workflowId}`,
@@ -164,12 +166,12 @@ export class WorkflowService {
     }
 
     /** Returns the draft's current revision, or null when the workflow does not exist. */
-    async getCurrentRevision(workflowId: string): Promise<StoredRevision | null> {
+    async getCurrentRevision(workflowId: string): Promise<Revision | null> {
         return this.database.workflows.getCurrentRevision(workflowId);
     }
 
     /** Returns one stored revision byte-exact, or null when it does not exist. */
-    async getRevision(workflowId: string, revisionId: string): Promise<StoredRevision | null> {
+    async getRevision(workflowId: string, revisionId: string): Promise<Revision | null> {
         return this.database.workflows.getRevision(workflowId, revisionId);
     }
 
@@ -182,9 +184,9 @@ export class WorkflowService {
         workflowId: string,
         targetRevisionId: string,
     ): Promise<
-        | { outcome: "rewound" | "no-op"; revision: StoredRevision }
+        | { outcome: "rewound" | "no-op"; revision: Revision }
         | { outcome: "target-not-found" }
-        | { outcome: "not-found" }
+        | { outcome: "workflow-not-found" }
     > {
         const result = await this.database.workflows.rewind(workflowId, targetRevisionId);
         switch (result.outcome) {
@@ -208,7 +210,9 @@ export class WorkflowService {
      */
     async publish(workflowId: string): Promise<PublishWorkflowResult> {
         const current = await this.database.workflows.getCurrentRevision(workflowId);
-        if (!current) return { outcome: "not-found" };
+        if (!current) {
+            return { outcome: "workflow-not-found" };
+        }
         const result = this.validator.validate(current.content);
         if (!result.validForPublication) {
             return { outcome: "blocking-findings", findings: result.findings };
@@ -219,16 +223,20 @@ export class WorkflowService {
         if (!parsed.ok || !isJsonObject(parsed.document)) {
             throw new Error(`stored revision ${current.revisionId} is not a JSON object`);
         }
-        const { ruleSet, workflowFormatVersion } = this.selectRuleSet(parsed.document);
-        const prepared = await new PublicationPreparer(ruleSet).prepare(parsed.document);
+        const { ruleSet, workflowFormatVersion } = this.selectRuleSetForFormatVersion(
+            parsed.document,
+        );
+        const canonicalized = await new PublicationCanonicalizer(ruleSet).canonicalize(
+            parsed.document,
+        );
         const stored = await this.database.workflows.publish({
             workflowId,
             revisionId: current.revisionId,
-            canonicalText: prepared.canonicalText,
-            digest: prepared.digest,
+            canonicalText: canonicalized.canonicalText,
+            digest: canonicalized.digest,
             workflowFormatVersion,
         });
-        return this.publishResult(stored, workflowFormatVersion, prepared);
+        return this.publishResult(stored, workflowFormatVersion, canonicalized);
     }
 
     /** Returns one publication after storage-side digest verification, or null. */
@@ -254,7 +262,7 @@ export class WorkflowService {
     }
 
     /** Selects the declared format version's rule set by exact match. */
-    private selectRuleSet(document: Record<string, unknown>): {
+    private selectRuleSetForFormatVersion(document: Record<string, unknown>): {
         ruleSet: WorkflowFormatRuleSet;
         workflowFormatVersion: string;
     } {
@@ -275,7 +283,7 @@ export class WorkflowService {
     private publishResult(
         stored: PublishResult,
         workflowFormatVersion: string,
-        prepared: PublicationPreparation,
+        canonicalized: CanonicalPublication,
     ): PublishWorkflowResult {
         switch (stored.outcome) {
             case "published":
@@ -284,7 +292,7 @@ export class WorkflowService {
                     outcome: stored.outcome,
                     publicationNumber: stored.publicationNumber,
                     workflowFormatVersion,
-                    digest: prepared.digest,
+                    digest: canonicalized.digest,
                 };
             default:
                 return stored;

@@ -89,7 +89,7 @@ export const createHandler =
                             `Revision ${request.targetRevisionId} of workflow ${workflowId} does not exist`,
                         ),
                     );
-                case "not-found":
+                case "workflow-not-found":
                     throw new WorkflowApiError(
                         workflowNotFound(`Workflow ${workflowId} does not exist`),
                     );

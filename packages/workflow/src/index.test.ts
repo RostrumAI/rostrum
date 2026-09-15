@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Compile } from "typebox/compile";
-import { WorkflowDocument } from "./index.ts";
+import { WorkflowDocumentSchema } from "./index.ts";
 
 describe("package boundary", () => {
     test("the entry exports the format v1 document schema", () => {
-        const schema: unknown = WorkflowDocument;
+        const schema: unknown = WorkflowDocumentSchema;
         if (typeof schema === "object" && schema !== null && "properties" in schema) {
             const properties = schema.properties;
             if (
@@ -19,13 +19,13 @@ describe("package boundary", () => {
                 return;
             }
         }
-        throw new Error("WorkflowDocument.properties.workflowFormatVersion is missing");
+        throw new Error("WorkflowDocumentSchema.properties.workflowFormatVersion is missing");
     });
 });
 
 describe("toolchain seam (TypeBox proof-of-concept)", () => {
     test("TypeBox schemas validate through Compile", () => {
-        const compiled = Compile(WorkflowDocument);
+        const compiled = Compile(WorkflowDocumentSchema);
         expect(compiled.Check({ workflowFormatVersion: "v2" })).toBe(false);
     });
 

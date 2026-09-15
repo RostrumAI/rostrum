@@ -7,7 +7,7 @@
  */
 
 /** Matches `step.<stepId>.<outputName>`; step ids are UUID v7 strings. */
-export const STEP_REF_PATTERN = /^step\.([0-9a-f-]{36})\.(.+)$/;
+export const STEP_OUTPUT_REF_PATTERN = /^step\.([0-9a-f-]{36})\.(.+)$/;
 
 /**
  * The reserved output under which a loop step exposes the array of

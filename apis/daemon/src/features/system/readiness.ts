@@ -23,6 +23,6 @@ export const schema: FeatureSchemas = { DaemonReadiness: DaemonReadinessSchema }
  */
 export const createHandler: FeatureHandlerFactory<ServiceAccessor> = (getServices) => async (c) => {
     const current = getServices(c);
-    const result = await readiness(current.config, current, current.signal);
+    const result = await readiness(current.config, current, current.abortSignal);
     return c.json(result, result.status === "ready" ? 200 : 503);
 };

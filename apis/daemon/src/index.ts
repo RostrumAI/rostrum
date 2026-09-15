@@ -3,19 +3,19 @@
 import { type DaemonConfig, ServiceConfigSource } from "@rostrum/server/config";
 import { runService } from "@rostrum/server/lifecycle";
 import { authenticate } from "./auth";
-import { createDependencies, type Dependencies } from "./services";
+import { createResources, type Resources } from "./services";
 
 /** Starts the daemon with authenticated admission and reloadable configuration. */
 const config = new ServiceConfigSource("daemon");
-await runService<DaemonConfig, Dependencies>({
+await runService<DaemonConfig, Resources>({
     name: "daemon",
     loadConfig: () => config.load(),
-    createDependencies,
+    createResources,
     authenticate,
-    fetch: (request, config, dependencies, signal) =>
-        dependencies.app.fetch(request, {
-            database: dependencies.database,
+    fetch: (request, config, resources, signal) =>
+        resources.app.fetch(request, {
+            database: resources.database,
             config,
-            signal,
+            abortSignal: signal,
         }),
 });

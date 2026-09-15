@@ -4,7 +4,7 @@
  * @remarks
  * These types are the contract between the GitHub layer, the deterministic rule
  * pass, the model-backed lens reviewers, and the poster. A lens reviewer returns
- * the subset of `Finding` a model can be trusted to produce; the pipeline adds
+ * the subset of `ReviewFinding` a model can be trusted to produce; the pipeline adds
  * the `lens` attribution and validates the location before anything is posted.
  */
 
@@ -33,7 +33,7 @@ export function isBlocking(severity: Severity): boolean {
 }
 
 /** A single review finding, located on the pull request's changed lines. */
-export interface Finding {
+export interface ReviewFinding {
     /** Rule the finding cites, such as `REPO-TEST-02`, or `BUG` / `SEC` for uncovered defects. */
     ruleId: string;
     /** Repository-relative path of the file the finding is anchored to. */
@@ -119,7 +119,7 @@ export interface ReviewContext {
     /** Parsed changed files. */
     files: FileDiff[];
     /** Findings the deterministic pass already produced. */
-    ruleFindings: Finding[];
+    ruleFindings: ReviewFinding[];
     /** Repository root of the checkout under review, used to check for sibling test files. */
     workingDirectory: string;
     /** Path to the unified diff written for the reviewers to read. */

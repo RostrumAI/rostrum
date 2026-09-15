@@ -1,9 +1,9 @@
 import { type Finding, sortFindings } from "./findings";
+import type { JsonSourceMap } from "./json-source-map";
 import { JsonSourceParser } from "./parse/json-source-parser";
-import { V1_RULE_SET } from "./rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "./rules/v1";
 import { WorkflowFormatRegistry } from "./rules/workflow-format-rule-set";
-import type { SourceMap } from "./source-map";
-import { FormatStage } from "./validation/stages/format-stage";
+import { FormatVersionStage } from "./validation/stages/format-version-stage";
 import { ValidationContext } from "./validation/validation-context";
 import { ValidationPipeline, type ValidationStage } from "./validation/validation-stage";
 
@@ -68,10 +68,10 @@ export class WorkflowValidator {
      * rule set's stages. An unknown version runs the format stage alone,
      * so its finding is the only output.
      */
-    private validateParsed(document: unknown, sourceMap: SourceMap | null): ValidationResult {
+    private validateParsed(document: unknown, sourceMap: JsonSourceMap | null): ValidationResult {
         const context = new ValidationContext(document, sourceMap);
         const declared = declaredWorkflowFormatVersion(document);
-        const stages: ValidationStage[] = [new FormatStage(this.registry)];
+        const stages: ValidationStage[] = [new FormatVersionStage(this.registry)];
         const selected = typeof declared === "string" ? this.registry.select(declared) : undefined;
         if (selected) {
             stages.push(...selected.stages);
@@ -98,5 +98,5 @@ function declaredWorkflowFormatVersion(document: unknown): unknown {
 
 /** Creates a validator that supports workflow format v1. */
 export function createWorkflowValidator(): WorkflowValidator {
-    return new WorkflowValidator(new WorkflowFormatRegistry([V1_RULE_SET]));
+    return new WorkflowValidator(new WorkflowFormatRegistry([V1_WORKFLOW_FORMAT_RULE_SET]));
 }

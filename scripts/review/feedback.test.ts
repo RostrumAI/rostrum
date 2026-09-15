@@ -25,7 +25,7 @@ import {
     type FindingOutcome,
     proposeRuleChanges,
     type RuleRecord,
-} from "./retro.ts";
+} from "./retrospective.ts";
 import type { Severity } from "./types.ts";
 import { isWithdrawn, parseVerdict, renderDecisionTitle, renderVerdictMarker } from "./verdicts.ts";
 
@@ -199,7 +199,9 @@ describe("outcome aggregation", () => {
     });
 
     test("counts a thread with no verdict as unadjudicated, not as agreement", () => {
-        const records = aggregateByRule(outcomesFor("REPO-A-01", ["open", "open"]));
+        const records = aggregateByRule(
+            outcomesFor("REPO-A-01", ["unadjudicated", "unadjudicated"]),
+        );
         expect(records[0]?.unadjudicated).toBe(2);
         expect(records[0]?.refuted).toBe(0);
     });

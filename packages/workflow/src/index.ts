@@ -11,7 +11,7 @@
  * - findings carry stable codes, JSON Pointers, line and column when
  *   text is available, related locations, and structured details,
  *   ordered by pointer then code;
- * - `PublicationPreparer` canonicalizes a valid document (RFC 8785) and
+ * - `PublicationCanonicalizer` canonicalizes a valid document (RFC 8785) and
  *   computes its SHA-256 digest over the definitional content, with the
  *   metadata members removed.
  *
@@ -26,27 +26,35 @@ export {
     FindingFactory,
     sortFindings,
 } from "./findings";
+export type {
+    JsonSourceMap,
+    JsonSourcePointer,
+    SourceLocation,
+} from "./json-source-map";
+export { escapePointerToken } from "./json-source-map";
 export type { JsonParseIssue, JsonParseResult, ParseErrorCode } from "./parse/json-source-parser";
 export { JsonSourceParser } from "./parse/json-source-parser";
 export type { ParsedWorkflow } from "./parse/parse-workflow";
 export { parseWorkflow } from "./parse/parse-workflow";
 export { CanonicalizationError, canonicalize } from "./publish/canonical-json";
-export type { PublicationPreparation } from "./publish/publication-preparer";
-export { PublicationPreparer } from "./publish/publication-preparer";
+export type { CanonicalPublication } from "./publish/publication-canonicalizer";
+export { PublicationCanonicalizer } from "./publish/publication-canonicalizer";
 export type { StepTypeRegistration } from "./rules/step-type-registry";
 export { StepTypeRegistry } from "./rules/step-type-registry";
-export { V1_RULE_SET } from "./rules/v1";
+export { V1_WORKFLOW_FORMAT_RULE_SET } from "./rules/v1";
 export type { WorkflowFormatRuleSet } from "./rules/workflow-format-rule-set";
 export { WorkflowFormatRegistry } from "./rules/workflow-format-rule-set";
 export type {
     WorkflowConditional,
-    WorkflowDocument as WorkflowDocumentType,
+    WorkflowDocument,
     WorkflowStep,
 } from "./schema";
-export { WorkflowDocument } from "./schema";
-export type { SourceLocation, SourceMap, SourcePointer } from "./source-map";
-export { escapePointerToken } from "./source-map";
-export { isReferenceObject, LOOP_RESULTS_OUTPUT, STEP_REF_PATTERN } from "./validation/refs";
+export { WorkflowDocumentSchema } from "./schema";
+export {
+    isReferenceObject,
+    LOOP_RESULTS_OUTPUT,
+    STEP_OUTPUT_REF_PATTERN,
+} from "./validation/data-references";
 export type { ValidationStage } from "./validation/validation-stage";
 export { ValidationPipeline } from "./validation/validation-stage";
 export type { ConditionalNode, StepNode } from "./validation/workflow-graph";

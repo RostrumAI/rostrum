@@ -2,11 +2,11 @@
 
 import { readFileSync } from "node:fs";
 import { getLogger } from "@logtape/logtape";
-import { type RuntimeConfig, runService, type ServiceDependencies } from "./lifecycle";
+import { type ReloadableServiceConfig, runService, type ServiceResources } from "./lifecycle";
 import { ConfigurationError } from "./network";
 
 /** Runs the real lifecycle with controlled configuration and handlers. */
-interface FixtureConfig extends RuntimeConfig {
+interface FixtureConfig extends ReloadableServiceConfig {
     /** Served by `/marker`, so a test can prove which configuration answered. */
     marker: string;
     /** How long `/hold` stays outstanding. */
@@ -42,7 +42,7 @@ function loadConfig(): FixtureConfig {
             nodeEnv === "development" || nodeEnv === "test" || nodeEnv === "production"
                 ? nodeEnv
                 : "test",
-        // The runtime rebuilds dependencies only when these identity fields change,
+        // The runtime rebuilds resources only when these fingerprint fields change,
         // so a test drives replacement by rewriting one of them.
         databaseUrl:
             typeof source.databaseUrl === "string"
@@ -59,14 +59,14 @@ function loadConfig(): FixtureConfig {
     };
 }
 
-interface FixtureDependencies extends ServiceDependencies {
+interface FixtureResources extends ServiceResources {
     readonly id: number;
 }
 
 let created = 0;
 
 /** Creates an identified resource so tests can observe closure order. */
-async function createDependencies(): Promise<FixtureDependencies> {
+async function createResources(): Promise<FixtureResources> {
     created += 1;
     const id = created;
     return {
@@ -77,14 +77,14 @@ async function createDependencies(): Promise<FixtureDependencies> {
     };
 }
 
-await runService<FixtureConfig, FixtureDependencies>({
+await runService<FixtureConfig, FixtureResources>({
     name: "control-api",
     loadConfig,
-    createDependencies,
-    fetch: async (request, config, dependencies) => {
+    createResources,
+    fetch: async (request, config, resources) => {
         const url = new URL(request.url);
         if (url.pathname === "/marker") {
-            return Response.json({ marker: config.marker, dependency: dependencies.id });
+            return Response.json({ marker: config.marker, dependency: resources.id });
         }
         if (url.pathname === "/hold") {
             // Let tests synchronize after the request reaches the handler.

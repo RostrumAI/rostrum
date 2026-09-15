@@ -17,7 +17,7 @@ on:
         type: string
 
 concurrency:
-  group: code-review-retro
+  group: code-review-retrospective
   cancel-in-progress: false
 
 permissions:
@@ -54,5 +54,5 @@ jobs:
       - name: Retrospective
         env:
           DAYS: ${{ github.event.inputs.days || '7' }}
-        run: bun run review:retro --days "${DAYS}" --open-pr
+        run: bun run review:retrospective --days "${DAYS}" --open-pr
         timeout-minutes: 30

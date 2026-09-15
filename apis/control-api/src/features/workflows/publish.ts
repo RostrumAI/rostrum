@@ -80,7 +80,7 @@ export const createHandler =
                 }
                 case "blocking-findings":
                     throw new WorkflowApiError(workflowNotValid(result.findings));
-                case "not-found":
+                case "workflow-not-found":
                     throw new WorkflowApiError(
                         workflowNotFound(`Workflow ${workflowId} does not exist`),
                     );

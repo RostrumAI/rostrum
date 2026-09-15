@@ -1,6 +1,6 @@
 import type { Finding } from "../../findings";
 import type { WorkflowConditional } from "../../schema";
-import { STEP_REF_PATTERN } from "../refs";
+import { STEP_OUTPUT_REF_PATTERN } from "../data-references";
 import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 import type { WorkflowGraph } from "../workflow-graph";
@@ -96,7 +96,7 @@ export class ConditionalStage implements ValidationStage {
      * findings, not as missing dependencies.
      */
     private declaredStep(ref: string, declaredDependencies: Set<string>): boolean {
-        const match = STEP_REF_PATTERN.exec(ref);
+        const match = STEP_OUTPUT_REF_PATTERN.exec(ref);
         const stepId = match?.[1];
         if (!stepId) {
             return false;
@@ -111,7 +111,7 @@ export class ConditionalStage implements ValidationStage {
         conditionalIndex: number,
         ref: string,
     ): Finding {
-        const match = STEP_REF_PATTERN.exec(ref);
+        const match = STEP_OUTPUT_REF_PATTERN.exec(ref);
         const referencedStepId = match?.[1] ?? "";
         return context.findings.create({
             code: "workflow.conditional.missing-dependency",
@@ -224,7 +224,7 @@ export class ConditionalStage implements ValidationStage {
 
         // A well-shaped ref must name a step the graph knows; a malformed
         // one is reported once here and skipped in the dependency pass.
-        const match = STEP_REF_PATTERN.exec(leafRef);
+        const match = STEP_OUTPUT_REF_PATTERN.exec(leafRef);
         const stepId = match?.[1];
         if (!stepId) {
             findings.push(

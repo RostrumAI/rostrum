@@ -11,10 +11,16 @@
 
 import { visibleLines } from "./diff.ts";
 import { runProcessOrThrow } from "./process.ts";
-import type { FileDiff, Finding, Lens, ReviewContext } from "./types.ts";
+import type { FileDiff, Lens, ReviewContext, ReviewFinding } from "./types.ts";
 
-/** Environment variable naming the reviewer executable. */
-export const OMP_BINARY_ENV = "REVIEW_OMP_BIN";
+/**
+ * Environment variable naming the reviewer executable.
+ *
+ * The stored name keeps the runtime's own `REVIEW_OMP_BIN` spelling: it is an
+ * operator-facing setting, and renaming it would silently ignore a pinned
+ * binary. The constant is named for what it holds rather than for the acronym.
+ */
+export const REVIEW_BINARY_ENV = "REVIEW_OMP_BIN";
 
 /**
  * Environment variable holding the reviewer provider's API key.
@@ -103,7 +109,7 @@ export interface LensResult {
     /** The lens that ran. */
     lens: Lens;
     /** Findings the lens reported and the pipeline could parse. */
-    findings: Finding[];
+    findings: ReviewFinding[];
     /** Failure note when the lens did not complete, empty on success. */
     error: string;
 }
@@ -140,7 +146,7 @@ export interface AgentInvocation {
  * @param timeoutSeconds - Wall-clock ceiling passed to the agent itself.
  * @returns The invocation, or a reason it could not be built.
  */
-export async function resolveOmpInvocation(
+export async function resolveReviewerCommand(
     workingDirectory: string,
     model: string,
     thinking: string,
@@ -150,7 +156,7 @@ export async function resolveOmpInvocation(
     userPrompt: string,
     timeoutSeconds: number,
 ): Promise<AgentInvocation> {
-    const binary = process.env[OMP_BINARY_ENV] ?? "omp";
+    const binary = process.env[REVIEW_BINARY_ENV] ?? "omp";
     const available = await pathExists(binary);
     if (!available) {
         return {
@@ -203,7 +209,7 @@ export async function resolveOmpInvocation(
  * gets the chance to stop itself and report why, and the kill only catches a run
  * that has stopped responding altogether.
  *
- * @param invocation - Invocation produced by {@link resolveOmpInvocation}.
+ * @param invocation - Invocation produced by {@link resolveReviewerCommand}.
  * @param timeoutSeconds - The same ceiling the command was built with.
  * @returns Exit code and captured output; a killed run reports code 124.
  */
@@ -239,7 +245,7 @@ export function agentTimeoutSeconds(): number {
 /**
  * Reads the working directory out of a prepared command.
  *
- * @param command - Command produced by {@link resolveOmpInvocation}.
+ * @param command - Command produced by {@link resolveReviewerCommand}.
  * @returns The `--cwd` value, or the process directory when absent.
  */
 function workingDirectoryOf(command: string[]): string {
@@ -279,7 +285,7 @@ export async function runLens(
         promptDirectory: string;
     },
 ): Promise<LensResult> {
-    const invocation = await resolveOmpInvocation(
+    const invocation = await resolveReviewerCommand(
         context.workingDirectory,
         options.model,
         THINKING_BY_LENS[lens.id] ?? DEFAULT_THINKING,
@@ -542,7 +548,11 @@ function normalizeSuggestion(value: unknown, file: FileDiff, line: number): stri
  * @param context - Review context holding the parsed files.
  * @returns Well-formed findings anchored to lines the diff shows.
  */
-export function normalizeFindings(payload: unknown, lens: Lens, context: ReviewContext): Finding[] {
+export function normalizeFindings(
+    payload: unknown,
+    lens: Lens,
+    context: ReviewContext,
+): ReviewFinding[] {
     if (typeof payload !== "object" || payload === null || !("findings" in payload)) {
         return [];
     }
@@ -550,7 +560,7 @@ export function normalizeFindings(payload: unknown, lens: Lens, context: ReviewC
     if (!Array.isArray(raw)) {
         return [];
     }
-    const findings: Finding[] = [];
+    const findings: ReviewFinding[] = [];
     for (const item of raw) {
         if (typeof item !== "object" || item === null) {
             continue;
@@ -591,7 +601,7 @@ export function normalizeFindings(payload: unknown, lens: Lens, context: ReviewC
  * @param value - Severity as returned by the reviewer.
  * @returns A valid severity, defaulting to `medium`.
  */
-function normalizeSeverity(value: unknown): Finding["severity"] {
+function normalizeSeverity(value: unknown): ReviewFinding["severity"] {
     if (
         value === "critical" ||
         value === "high" ||

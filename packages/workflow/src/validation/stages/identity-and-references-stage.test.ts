@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { V1_RULE_SET } from "../../rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import { buildDocument, conditional, resultStep, taskStep } from "../../testing/documents";
 import { ValidationContext } from "../validation-context";
-import { IdentityStage } from "./identity-stage";
+import { IdentityAndReferencesStage } from "./identity-and-references-stage";
 
-const stage = new IdentityStage(V1_RULE_SET.stepTypes);
+const stage = new IdentityAndReferencesStage(V1_WORKFLOW_FORMAT_RULE_SET.stepTypes);
 
 function run(document: unknown) {
     return stage.run(new ValidationContext(document, null));
 }
 
-describe("IdentityStage", () => {
+describe("IdentityAndReferencesStage", () => {
     test("accepts a well-referenced document", () => {
         const task = taskStep({ successors: [] });
         const end = resultStep();

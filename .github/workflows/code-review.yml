@@ -115,7 +115,7 @@ jobs:
           --pull-request "${PR_NUMBER}"
           --author "${COMMENT_AUTHOR}"
           --body-file "${RUNNER_TEMP}/comment.md"
-          --repo-root "${GITHUB_WORKSPACE}/pr"
+          --review-checkout "${GITHUB_WORKSPACE}/pr"
         timeout-minutes: 20
 
   answer:
@@ -194,7 +194,7 @@ jobs:
           bun run review:adjudicate
           --sweep
           --pull-request "${PR_NUMBER}"
-          --repo-root "${GITHUB_WORKSPACE}/pr"
+          --review-checkout "${GITHUB_WORKSPACE}/pr"
         timeout-minutes: 30
 
   review:
@@ -231,7 +231,7 @@ jobs:
           echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
           if [ "${head_repo}" != "${REPOSITORY}" ]; then
             echo "fork=true" >> "$GITHUB_OUTPUT"
-            echo "Pull requests from forks are not reviewed automatically. Run 'bun run review --pr ${PR_NUMBER} --repo-root <head checkout>' locally instead."
+            echo "Pull requests from forks are not reviewed automatically. Run 'bun run review --pr ${PR_NUMBER} --review-checkout <head checkout>' locally instead."
           else
             echo "fork=false" >> "$GITHUB_OUTPUT"
           fi
@@ -264,5 +264,5 @@ jobs:
         env:
           COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
           REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
-        run: bun run review --pr "${PR_NUMBER}" --repo-root "${GITHUB_WORKSPACE}/pr" --post
+        run: bun run review --pr "${PR_NUMBER}" --review-checkout "${GITHUB_WORKSPACE}/pr" --post
         timeout-minutes: 45

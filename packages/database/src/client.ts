@@ -23,7 +23,7 @@ export interface DatabaseOptions {
 }
 
 /** Stable outcomes returned by a database readiness probe. */
-export type DatabaseCheck =
+export type DatabaseProbeResult =
     | { status: "ok" }
     | {
           status: "failed";
@@ -33,7 +33,7 @@ export type DatabaseCheck =
 /** A service-owned query interface, readiness probe, and bounded close operation. */
 export interface DatabaseHandle {
     readonly db: Kysely<Database>;
-    probe(options: { signal?: AbortSignal; timeoutMs: number }): Promise<DatabaseCheck>;
+    probe(options: { signal?: AbortSignal; timeoutMs: number }): Promise<DatabaseProbeResult>;
     close(options: { timeoutMs: number }): Promise<void>;
 }
 
@@ -154,10 +154,10 @@ select workflow_id, publication_number, revision_id, workflow_format_version,
        canonical_text, digest, created_at from publications where false`;
 
 /** One shared in-flight probe plus the subscribers waiting on it. */
-interface Flight {
+interface InFlightProbe {
     controller: AbortController;
     subscribers: number;
-    result: Promise<DatabaseCheck>;
+    result: Promise<DatabaseProbeResult>;
 }
 
 /**
@@ -210,10 +210,10 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
         plugins: [new CamelCasePlugin()],
     });
     let closing: Promise<void> | undefined;
-    let flight: Flight | undefined;
+    let flight: InFlightProbe | undefined;
 
     /** Runs one isolated probe connection under the caller's deadline. */
-    async function runProbe(signal: AbortSignal, timeoutMs: number): Promise<DatabaseCheck> {
+    async function runProbe(signal: AbortSignal, timeoutMs: number): Promise<DatabaseProbeResult> {
         let socket: Socket | undefined;
         let ended: Promise<void> | undefined;
         let abort: (() => void) | undefined;
@@ -222,7 +222,7 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
         // postgres.js's own error path when the socket is supplied: the driver
         // retries instead of failing the pending query, which would surface as a
         // deadline timeout. Settle the probe on the transport failure itself.
-        const transportFailure = Promise.withResolvers<DatabaseCheck>();
+        const transportFailure = Promise.withResolvers<DatabaseProbeResult>();
         // A server-side timeout also bounds abandoned server work after a lost
         // transport. Caller deadlines and aborts still retire the socket sooner.
         const serverTimeoutMs = Math.min(
@@ -331,7 +331,7 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
             // using the caller's own deadline. Treat it as no live flight.
             if (flight === undefined || flight.controller.signal.aborted) {
                 const controller = new AbortController();
-                const current: Flight = {
+                const current: InFlightProbe = {
                     controller,
                     subscribers: 0,
                     result: runProbe(controller.signal, timeoutMs),
@@ -347,9 +347,9 @@ export function createDatabase(options: DatabaseOptions): DatabaseHandle {
             current.subscribers++;
 
             // Give this subscriber its own deadline and settle it once.
-            const { promise, resolve } = Promise.withResolvers<DatabaseCheck>();
+            const { promise, resolve } = Promise.withResolvers<DatabaseProbeResult>();
             let settled = false;
-            const finish = (result: DatabaseCheck) => {
+            const finish = (result: DatabaseProbeResult) => {
                 if (settled) {
                     return;
                 }

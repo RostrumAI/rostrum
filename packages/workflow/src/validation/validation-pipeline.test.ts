@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { sortFindings } from "../findings";
-import { V1_RULE_SET } from "../rules/v1";
+import { V1_WORKFLOW_FORMAT_RULE_SET } from "../rules/v1";
 import { WorkflowFormatRegistry } from "../rules/workflow-format-rule-set";
 import { buildDocument, resultStep, taskStep } from "../testing/documents";
-import { CompatibilityStage } from "./stages/compatibility-stage";
-import { FormatStage } from "./stages/format-stage";
+import { FormatVersionStage } from "./stages/format-version-stage";
+import { InputOutputCompatibilityStage } from "./stages/input-output-compatibility-stage";
 import { ValidationContext } from "./validation-context";
 import { ValidationPipeline } from "./validation-stage";
 
 function pipeline(): ValidationPipeline {
     return new ValidationPipeline([
-        new FormatStage(new WorkflowFormatRegistry([V1_RULE_SET])),
-        ...V1_RULE_SET.stages,
+        new FormatVersionStage(new WorkflowFormatRegistry([V1_WORKFLOW_FORMAT_RULE_SET])),
+        ...V1_WORKFLOW_FORMAT_RULE_SET.stages,
     ]);
 }
 
@@ -66,7 +66,7 @@ describe("ValidationPipeline", () => {
     });
 
     test("compatibility stage emits nothing in v1", () => {
-        const stage = new CompatibilityStage();
+        const stage = new InputOutputCompatibilityStage();
         expect(stage.run(new ValidationContext(buildDocument(), null))).toEqual([]);
     });
 });

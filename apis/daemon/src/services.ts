@@ -12,18 +12,18 @@ import { checkReadiness } from "@rostrum/server/readiness";
 import type { Context } from "hono";
 import { DaemonApp } from "./app";
 
-/** Dependencies available to an authenticated daemon request. */
+/** Resources available to an authenticated daemon request. */
 export interface Services {
     database: DatabaseHandle;
     config: DaemonConfig;
-    signal: AbortSignal;
+    abortSignal: AbortSignal;
 }
 
 /** Resolves services attached to the current Hono request. */
 export type ServiceAccessor = (context: Context<{ Bindings: Services }>) => Services;
 
 /** Resources owned by one active daemon configuration. */
-export interface Dependencies {
+export interface Resources {
     database: DatabaseHandle;
     app: DaemonApp;
     close(options: { timeoutMs: number }): Promise<void>;
@@ -42,7 +42,7 @@ function databaseOptions(config: DaemonConfig): DatabaseOptions {
 }
 
 /** Creates the daemon application and database handle. */
-export async function createDependencies(config: DaemonConfig): Promise<Dependencies> {
+export async function createResources(config: DaemonConfig): Promise<Resources> {
     const options = databaseOptions(config);
     validateDatabaseOptions(options);
     const database = createDatabase(options);
@@ -58,14 +58,14 @@ export async function createDependencies(config: DaemonConfig): Promise<Dependen
 /** Checks whether the daemon database is ready within the configured deadline. */
 export function readiness(
     config: DaemonConfig,
-    dependencies: Pick<Dependencies, "database">,
+    resources: Pick<Resources, "database">,
     signal: AbortSignal,
 ): Promise<Readiness> {
     return checkReadiness(
         {
             database: {
                 check: (probeSignal) =>
-                    dependencies.database.probe({
+                    resources.database.probe({
                         signal: probeSignal,
                         timeoutMs: config.dependencyTimeoutMs,
                     }),

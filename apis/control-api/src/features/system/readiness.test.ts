@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ControlApiConfig } from "@rostrum/server/config";
 import type { Readiness } from "@rostrum/server/protocol";
-import { createDependencies, type Dependencies } from "../../services";
+import { createResources, type Resources } from "../../services";
 
 const config: ControlApiConfig = {
     host: "127.0.0.1",
@@ -19,26 +19,26 @@ const config: ControlApiConfig = {
     daemonUrl: "http://127.0.0.1:1",
 };
 
-let dependencies: Dependencies;
+let resources: Resources;
 
 beforeAll(async () => {
-    dependencies = await createDependencies(config);
+    resources = await createResources(config);
 });
 
 afterAll(async () => {
-    await dependencies.close({ timeoutMs: 1_000 });
+    await resources.close({ timeoutMs: 1_000 });
 });
 
 /** Requests readiness with a controlled aggregate result. */
 async function requestReadiness(result: Readiness): Promise<Response> {
-    return dependencies.app.fetch(new Request("http://localhost/api/system/readiness"), {
-        workflows: dependencies.workflows,
+    return resources.app.fetch(new Request("http://localhost/api/system/readiness"), {
+        workflows: resources.workflows,
         readiness: async () => result,
     });
 }
 
 describe("Control API readiness route", () => {
-    test("maps ready dependencies to 200", async () => {
+    test("maps ready resources to 200", async () => {
         const body: Readiness = {
             status: "ready",
             checks: { database: { status: "ok" }, daemon: { status: "ok" } },
