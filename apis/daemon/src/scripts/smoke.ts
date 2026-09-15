@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createDaemonApp } from "../app";
+import { createDaemonApp } from "../http/app";
 import { DaemonProcess } from "./process";
 
 const daemon = await DaemonProcess.spawn();

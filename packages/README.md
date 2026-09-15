@@ -3,9 +3,9 @@
 Shared libraries (Bun workspaces). Consumed by applications without a build
 step.
 
-- `server/` — the service framework both backend services are built on:
+- `server/` — the server framework both backend services are built on:
   one-shot configuration loading, the branded application with its mandatory
-  middleware, the typed service builder and registrar, OpenAPI translation,
+  middleware, the typed controller builder and registrar, OpenAPI translation,
   strict request validation, structured logging, protocol schemas, readiness
   aggregation, and the startup and shutdown runtime.
 

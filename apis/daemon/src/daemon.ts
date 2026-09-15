@@ -6,19 +6,25 @@ import {
     type DatabaseOptions,
     validateDatabaseOptions,
 } from "@rostrum/database";
+import type { ServerApp } from "@rostrum/server/app";
 import type { OpenedService } from "@rostrum/server/lifecycle";
-import type { Readiness } from "@rostrum/server/protocol";
-import { checkReadiness } from "@rostrum/server/readiness";
-import { createDaemonApp } from "./app";
 import { authenticate } from "./auth";
 import type { DaemonConfig } from "./config";
+import { createDaemonApp } from "./http/app";
+import { createSystemService, type SystemService } from "./services/system/system-service";
 
-/** What a daemon request handler may use. */
+/** The business services a daemon controller reaches through its context. */
+export interface DaemonServices {
+    /** Readiness over the database this process owns. */
+    readonly system: SystemService;
+}
+
+/** What a daemon controller may use. */
 export interface DaemonContext {
     /** The configuration this process started with. */
     readonly config: DaemonConfig;
-    /** The database handle this process owns. */
-    readonly database: DatabaseHandle;
+    /** The services this process built once at startup and injects per request. */
+    readonly services: DaemonServices;
     /** Aborted when this request is no longer worth finishing. */
     readonly abortSignal: AbortSignal;
 }
@@ -35,26 +41,6 @@ function databaseOptions(config: DaemonConfig): DatabaseOptions {
     };
 }
 
-/** Checks whether the daemon's database is ready within the configured deadline. */
-export function checkDaemonReadiness(
-    config: DaemonConfig,
-    database: DatabaseHandle,
-    signal: AbortSignal,
-): Promise<Readiness> {
-    return checkReadiness(
-        {
-            database: {
-                check: (probeSignal) =>
-                    database.probe({ signal: probeSignal, timeoutMs: config.dependencyTimeoutMs }),
-                timeoutCode: "database_timeout",
-                failureCode: "database_unavailable",
-            },
-        },
-        config.dependencyTimeoutMs,
-        signal,
-    );
-}
-
 /**
  * The daemon process: one configuration, one database handle, and one
  * application. `open` acquires everything the process owns; the runtime
@@ -63,16 +49,19 @@ export function checkDaemonReadiness(
 export class Daemon implements OpenedService<DaemonConfig> {
     private readonly config: DaemonConfig;
     private readonly database: DatabaseHandle;
-    private readonly app: ReturnType<typeof createDaemonApp>;
+    private readonly app: ServerApp<DaemonContext>;
+    private readonly services: DaemonServices;
 
     private constructor(
         config: DaemonConfig,
         database: DatabaseHandle,
-        app: ReturnType<typeof createDaemonApp>,
+        app: ServerApp<DaemonContext>,
+        services: DaemonServices,
     ) {
         this.config = config;
         this.database = database;
         this.app = app;
+        this.services = services;
     }
 
     /** Opens the daemon's database and builds its application from one configuration. */
@@ -81,7 +70,10 @@ export class Daemon implements OpenedService<DaemonConfig> {
         validateDatabaseOptions(options);
         const database = createDatabase(options);
         try {
-            return new Daemon(config, database, createDaemonApp());
+            // Every service borrows this process's handle; none of them closes it.
+            return new Daemon(config, database, createDaemonApp(), {
+                system: createSystemService(config, database),
+            });
         } catch (error) {
             // A failure after the pool opened must not leak it.
             await database.close({ timeoutMs: config.shutdownTimeoutMs });
@@ -89,11 +81,11 @@ export class Daemon implements OpenedService<DaemonConfig> {
         }
     }
 
-    /** Serves one admitted request with this process's configuration and database. */
+    /** Serves one admitted request with this process's configuration and services. */
     fetch(request: Request, signal: AbortSignal): Response | Promise<Response> {
         return this.app.fetch(request, {
             config: this.config,
-            database: this.database,
+            services: this.services,
             abortSignal: signal,
         });
     }

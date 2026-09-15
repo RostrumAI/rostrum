@@ -2,9 +2,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
-import { createServerApp, createServiceRegistrar, type ServerApp, serveOpenApi } from "./app";
+import { createControllerRegistrar, createServerApp, type ServerApp, serveOpenApi } from "./app";
+import { type ControllerBinding, createControllerBuilder } from "./controller";
 import { defineSchema } from "./schema";
-import { createServiceBuilder, type ServiceBinding } from "./service";
 
 /** The application context the tests serve requests with. */
 interface TestContext {
@@ -12,7 +12,7 @@ interface TestContext {
     readonly greeting: string;
 }
 
-const defineService = createServiceBuilder<TestContext, "system">();
+const defineController = createControllerBuilder<TestContext, "system">();
 
 const itemSchema = Type.Object({ value: Type.String() });
 const item = defineSchema("Item", itemSchema);
@@ -34,8 +34,8 @@ function buildApp(trace: string[], handlerRuns: { count: number }) {
         await next();
     });
 
-    const register = createServiceRegistrar(app);
-    const createItem = defineService({
+    const register = createControllerRegistrar(app);
+    const createItem = defineController({
         method: "POST",
         path: "/api/items/:itemId",
         request: { body: item, params: paramsSchema },
@@ -123,7 +123,7 @@ describe("server application", () => {
         expect(runs.count).toBe(0);
     });
 
-    test("documents every registered service once", async () => {
+    test("documents every registered controller once", async () => {
         const app = buildApp([], { count: 0 });
 
         const document = await app.generateOpenApiDocument();
@@ -141,10 +141,10 @@ describe("server application", () => {
     });
 });
 
-describe("service registration", () => {
+describe("controller registration", () => {
     /** Registers one binding on a fresh application and reports what it rejects. */
     function register(
-        service: ServiceBinding<TestContext, string>,
+        controller: ControllerBinding<TestContext, string>,
         prepare?: (app: ServerApp<TestContext>) => void,
     ): void {
         const app = createServerApp<TestContext>({
@@ -155,11 +155,11 @@ describe("service registration", () => {
             version: "1.2.3",
         });
         prepare?.(app);
-        createServiceRegistrar(app)(service);
+        createControllerRegistrar(app)(controller);
     }
 
     /** A valid binding; each rejection case changes exactly one part of it. */
-    const base: ServiceBinding<TestContext, string> = {
+    const base: ControllerBinding<TestContext, string> = {
         method: "GET",
         path: "/api/things",
         request: {},
@@ -171,11 +171,13 @@ describe("service registration", () => {
     test("rejects a duplicate route, operation id, or undeclared tag", () => {
         expect(() =>
             register({ ...base, openapi: { ...base.openapi, operationId: "listOther" } }, (app) =>
-                createServiceRegistrar(app)(base),
+                createControllerRegistrar(app)(base),
             ),
         ).toThrow(/already registered/);
         expect(() =>
-            register({ ...base, path: "/api/other" }, (app) => createServiceRegistrar(app)(base)),
+            register({ ...base, path: "/api/other" }, (app) =>
+                createControllerRegistrar(app)(base),
+            ),
         ).toThrow(/operation id/);
         expect(() =>
             register({ ...base, openapi: { ...base.openapi, tags: ["unknown"] } }),
@@ -218,12 +220,12 @@ describe("service registration", () => {
     test("rejects one component name carrying two different schemas", () => {
         const other = defineSchema("Item", Type.Object({ other: Type.String() }));
 
-        // Two services on different paths, each naming its own "Item" shape.
+        // Two controllers on different paths, each naming its own "Item" shape.
         expect(() =>
             register(
                 { ...base, responses: { 200: { description: "The things", body: other } } },
                 (app) =>
-                    createServiceRegistrar(app)({
+                    createControllerRegistrar(app)({
                         ...base,
                         path: "/api/others",
                         openapi: { ...base.openapi, operationId: "listOthers" },
@@ -241,7 +243,7 @@ describe("service registration", () => {
             description: "Test document.",
             version: "1.2.3",
         });
-        createServiceRegistrar(app)({
+        createControllerRegistrar(app)({
             ...base,
             responses: { 200: { description: "The things", body: itemSchema } },
         });

@@ -18,7 +18,8 @@
         "@embedded-postgres/windows-x64"
     ],
     "scripts": {
-        "check": "bun run --filter \"*\" typecheck && tsc --noEmit -p tsconfig.scripts.json",
+        "check": "bun run --filter \"*\" typecheck && tsc --noEmit -p tsconfig.scripts.json && bun run check:boundaries",
+        "check:boundaries": "bun scripts/check-controller-boundaries.ts",
         "test": "bun test",
         "prepare": "husky",
         "lint": "biome check .",

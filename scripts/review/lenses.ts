@@ -17,8 +17,8 @@ const DOCUMENTATION_SUFFIXES = [".md", ".mdx"];
  * Path segments that mark a change as touching an external trust boundary.
  *
  * The list is deliberately about *where input enters or leaves*, not about which
- * subsystem the code belongs to. A request handler is covered by the feature-slice
- * rule below rather than by a fragment here, because a handler's file name says
+ * subsystem the code belongs to. A controller is covered by the route-module
+ * rule below rather than by a fragment here, because its file name says
  * nothing about what it does.
  */
 const SECURITY_PATH_FRAGMENTS = [
@@ -122,9 +122,13 @@ export const LENSES: Lens[] = [
                 if (!isSource(file) && !file.path.endsWith("package.json")) {
                     return false;
                 }
-                // A service module is a request handler: it takes caller input by
-                // definition, whatever its file is named.
-                if (/(?:^|\/)(?:apps|apis)\/[^/]+\/src\/(?:features|services)\//.test(file.path)) {
+                // Controllers accept caller input regardless of their file names.
+                // Retain former layouts so historical diffs keep the same coverage.
+                if (
+                    /(?:^|\/)(?:apps|apis)\/[^/]+\/src\/(?:controllers|features|services)\//.test(
+                        file.path,
+                    )
+                ) {
                     return true;
                 }
                 const parts = segments(file);

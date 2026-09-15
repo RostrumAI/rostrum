@@ -2,7 +2,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createControlApiApp } from "../app";
+import { createControlApiApp } from "../http/app";
 
 /** Writes the same OpenAPI document the served Control API returns. */
 await writeFile(

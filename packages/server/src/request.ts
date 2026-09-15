@@ -16,7 +16,7 @@ export interface DecodedBody {
  * response the caller receives, so the application that owns the error shape
  * decides the wording.
  */
-export type ServiceBodyResult =
+export type ControllerBodyResult =
     | {
           /** The body decoded and validated. */
           readonly ok: true;
@@ -35,10 +35,13 @@ export type ServiceBodyResult =
  * documents need stricter decoding than JSON supplies its own decoder and
  * keeps its own error contract; the framework owns the read-once sequencing.
  */
-export type ServiceBodyDecoder = (request: Request, schema: TSchema) => Promise<ServiceBodyResult>;
+export type ControllerBodyDecoder = (
+    request: Request,
+    schema: TSchema,
+) => Promise<ControllerBodyResult>;
 
 /** Builds the standard 400 body: `{ code, message, findings }`. */
-export function serviceErrorBody(code: string, message: string): Record<string, unknown> {
+export function controllerErrorBody(code: string, message: string): Record<string, unknown> {
     return { code, message, findings: [] };
 }
 
@@ -48,7 +51,7 @@ export function serviceErrorBody(code: string, message: string): Record<string, 
  * must reject duplicate keys or retain byte-exact member text supply their own
  * decoder instead.
  */
-export const decodeJsonBody: ServiceBodyDecoder = async (request, schema) => {
+export const decodeJsonBody: ControllerBodyDecoder = async (request, schema) => {
     const text = await request.text();
 
     let value: unknown;
@@ -58,7 +61,7 @@ export const decodeJsonBody: ServiceBodyDecoder = async (request, schema) => {
         return {
             ok: false,
             response: Response.json(
-                serviceErrorBody("invalid_request_body", "The request body is not valid JSON"),
+                controllerErrorBody("invalid_request_body", "The request body is not valid JSON"),
                 { status: 400 },
             ),
         };
@@ -68,7 +71,7 @@ export const decodeJsonBody: ServiceBodyDecoder = async (request, schema) => {
         return {
             ok: false,
             response: Response.json(
-                serviceErrorBody("invalid_request_body", bodySchemaMessage(schema, value)),
+                controllerErrorBody("invalid_request_body", bodySchemaMessage(schema, value)),
                 { status: 400 },
             ),
         };
@@ -95,7 +98,10 @@ export function validatePathParameters<Params extends TObject>(
             return {
                 ok: false,
                 response: Response.json(
-                    serviceErrorBody("invalid_parameter", `the path parameter ${name} is required`),
+                    controllerErrorBody(
+                        "invalid_parameter",
+                        `the path parameter ${name} is required`,
+                    ),
                     { status: 400 },
                 ),
             };
@@ -106,7 +112,7 @@ export function validatePathParameters<Params extends TObject>(
             return {
                 ok: false,
                 response: Response.json(
-                    serviceErrorBody(
+                    controllerErrorBody(
                         "invalid_parameter",
                         `'${supplied}' is not a valid ${name}: ${detail}`,
                     ),
