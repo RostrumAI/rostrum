@@ -13,8 +13,8 @@ export interface DecodedBody {
 
 /**
  * The outcome of decoding a declared request body. A failure carries the
- * response the caller receives, so the application that owns the error
- * envelope decides the wording.
+ * response the caller receives, so the application that owns the error shape
+ * decides the wording.
  */
 export type ServiceBodyResult =
     | {

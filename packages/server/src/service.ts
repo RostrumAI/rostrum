@@ -170,9 +170,16 @@ interface ServiceDefinitionInput<
     /** The complete route path, starting with `/`. */
     path: string;
     /** The schemas that derive this service's handler inputs. */
-    request: Omit<ServiceRequestDefinition, "body" | "params"> &
-        (Body extends TSchema ? { body: Body } : { body?: undefined }) &
-        (Params extends TSchema ? { params: Params } : { params?: undefined });
+    request: {
+        /** JSON body schema; declaring it makes `request.body` available. */
+        body?: Body;
+        /** Path-parameter schema; declaring it makes `request.params` available. */
+        params?: Params;
+        /** Path-parameter descriptions for the generated contract, keyed by token name. */
+        paramsDescriptions?: Record<string, string>;
+        /** Request-body description surfaced in the generated contract. */
+        bodyDescription?: string;
+    };
     /** The operation's OpenAPI metadata. */
     openapi: ServiceOpenApiDefinition<Tag>;
     /** Documented responses keyed by status code. */

@@ -10,7 +10,7 @@
         "typecheck": "tsc --noEmit",
         "test": "bun test",
         "generate-openapi": "bun src/scripts/generate-openapi.ts",
-        "smoke": "bun test src/app.test.ts"
+        "smoke": "bun test src/boundary.test.ts"
     },
     "dependencies": {
         "@humanwhocodes/momoa": "^3.3.12",
