@@ -6,9 +6,13 @@ import { requestId } from "hono/request-id";
 import type { DescribeRouteOptions } from "hono-openapi";
 import { describeRoute, generateSpecs } from "hono-openapi";
 import type { TSchema } from "typebox";
-import { decodeJsonBody, type ServiceBodyDecoder } from "./request";
+import {
+    BODY_METHODS,
+    type ControllerBinding,
+    type ControllerResponseDefinition,
+} from "./controller";
+import { type ControllerBodyDecoder, decodeJsonBody } from "./request";
 import { type DefinedSchema, isDefinedSchema } from "./schema";
-import { BODY_METHODS, type ServiceBinding, type ServiceResponseDefinition } from "./service";
 
 /** Methods answered by 405 handlers: the HTTP standard set plus QUERY (RFC 9213). */
 export const CANDIDATE_METHODS = [
@@ -44,7 +48,7 @@ export interface BearerSecurityScheme {
 export interface ServerAppOptions<Tag extends string = string> {
     /** Log category for this application's records. */
     readonly serviceName: string;
-    /** The application's tag vocabulary; a service may only declare these tags. */
+    /** The application's tag vocabulary; a controller may only declare these tags. */
     readonly tags: readonly Tag[];
     /** Title of the generated OpenAPI document. */
     readonly title: string;
@@ -52,8 +56,8 @@ export interface ServerAppOptions<Tag extends string = string> {
     readonly description: string;
     /** Version of the generated OpenAPI document. */
     readonly version: string;
-    /** Responses every operation documents, folded under the service's own. */
-    readonly defaultResponses?: Record<string, ServiceResponseDefinition>;
+    /** Responses every operation documents, folded under the controller's own. */
+    readonly defaultResponses?: Record<string, ControllerResponseDefinition>;
     /**
      * Components this application documents even though no operation body
      * references them, such as a shape a generated client still needs a type for.
@@ -64,7 +68,7 @@ export interface ServerAppOptions<Tag extends string = string> {
     /** Document-level security requirement, repeated on every operation. */
     readonly security?: readonly Record<string, readonly string[]>[];
     /** Decodes declared request bodies; defaults to the shared JSON decoder. */
-    readonly decodeBody?: ServiceBodyDecoder;
+    readonly decodeBody?: ControllerBodyDecoder;
 }
 
 /** One route's allowed methods, as the 405 handlers need them. */
@@ -81,7 +85,7 @@ export interface RouteTableEntry {
  * value a registrar or a production service accepts.
  */
 export class ServerApp<Context extends object> {
-    /** The Hono instance application middleware and services are bound to. */
+    /** The Hono instance application middleware and controllers are bound to. */
     readonly hono: Hono<{ Bindings: Context }>;
 
     /** The private brand that keeps a bare Hono instance out of this position. */
@@ -89,7 +93,7 @@ export class ServerApp<Context extends object> {
 
     private readonly tags: readonly string[];
     private readonly options: ServerAppOptions<string>;
-    private readonly decodeBody: ServiceBodyDecoder;
+    private readonly decodeBody: ControllerBodyDecoder;
     private readonly logger: Logger;
     private readonly componentOwners = new Map<string, TSchema>();
     private readonly operationIds = new Set<string>();
@@ -105,7 +109,7 @@ export class ServerApp<Context extends object> {
         this.hono = new Hono<{ Bindings: Context }>();
 
         // Components the application documents itself: the bodies it answers on
-        // every operation, and any component no service references.
+        // every operation, and any component no controller references.
         for (const response of Object.values(options.defaultResponses ?? {})) {
             this.contribute(response.body);
         }
@@ -134,81 +138,85 @@ export class ServerApp<Context extends object> {
     }
 
     /**
-     * Binds one declared service. Every conflict is a startup failure, so a
+     * Binds one declared controller. Every conflict is a startup failure, so a
      * mistaken declaration never reaches a caller.
      */
-    registerService(service: ServiceBinding<Context, string>): void {
-        const route = `${service.method} ${service.path}`;
+    registerController(controller: ControllerBinding<Context, string>): void {
+        const route = `${controller.method} ${controller.path}`;
         if (this.operationPaths.has(route)) {
-            throw new Error(`service conflict on ${route}: the route is already registered`);
+            throw new Error(`controller conflict on ${route}: the route is already registered`);
         }
-        if (this.operationIds.has(service.openapi.operationId)) {
+        if (this.operationIds.has(controller.openapi.operationId)) {
             throw new Error(
-                `service conflict on ${route}: operation id "${service.openapi.operationId}" is already used`,
+                `controller conflict on ${route}: operation id "${controller.openapi.operationId}" is already used`,
             );
         }
-        for (const tag of service.openapi.tags) {
+        for (const tag of controller.openapi.tags) {
             if (!this.tags.includes(tag)) {
                 throw new Error(
-                    `service conflict on ${route}: the application does not declare the tag "${tag}"`,
+                    `controller conflict on ${route}: the application does not declare the tag "${tag}"`,
                 );
             }
         }
-        if (service.request.body !== undefined && !BODY_METHODS.includes(service.method)) {
-            throw new Error(`service conflict on ${route}: ${service.method} cannot carry a body`);
+        if (controller.request.body !== undefined && !BODY_METHODS.includes(controller.method)) {
+            throw new Error(
+                `controller conflict on ${route}: ${controller.method} cannot carry a body`,
+            );
         }
-        this.checkParameters(service);
+        this.checkParameters(controller);
 
-        // Documented bodies are the components this service contributes.
-        this.contribute(service.request.body);
-        for (const [status, response] of Object.entries(service.responses)) {
+        // Documented bodies are the components this controller contributes.
+        this.contribute(controller.request.body);
+        for (const [status, response] of Object.entries(controller.responses)) {
             if (!/^[1-5][0-9][0-9]$/.test(status)) {
-                throw new Error(`service conflict on ${route}: "${status}" is not a status code`);
+                throw new Error(
+                    `controller conflict on ${route}: "${status}" is not a status code`,
+                );
             }
             if (response.description.trim() === "") {
                 throw new Error(
-                    `service conflict on ${route}: response ${status} needs a description`,
+                    `controller conflict on ${route}: response ${status} needs a description`,
                 );
             }
             this.contribute(response.body);
         }
 
-        this.operationIds.add(service.openapi.operationId);
+        this.operationIds.add(controller.openapi.operationId);
         this.operationPaths.add(route);
         this.hono.on(
-            service.method,
-            service.path,
-            describeRoute(this.describe(service)),
+            controller.method,
+            controller.path,
+            describeRoute(this.describe(controller)),
             (context: HonoContext<{ Bindings: Context }>) =>
-                service.serve(context, context.env, this.decodeBody),
+                controller.serve(context, context.env, this.decodeBody),
         );
     }
 
     /** Rejects a path whose tokens and declared parameter schema disagree. */
-    private checkParameters(service: ServiceBinding<Context, string>): void {
-        const route = `${service.method} ${service.path}`;
-        const tokens = [...service.path.matchAll(/:([A-Za-z0-9_]+)/g)].map(
+    private checkParameters(controller: ControllerBinding<Context, string>): void {
+        const route = `${controller.method} ${controller.path}`;
+        const tokens = [...controller.path.matchAll(/:([A-Za-z0-9_]+)/g)].map(
             (match) => match[1] ?? "",
         );
-        const declared = Object.keys(service.request.params?.properties ?? {});
+        const declared = Object.keys(controller.request.params?.properties ?? {});
         for (const token of tokens) {
             if (!declared.includes(token)) {
                 throw new Error(
-                    `service conflict on ${route}: path parameter "${token}" is undeclared`,
+                    `controller conflict on ${route}: path parameter "${token}" is undeclared`,
                 );
             }
         }
         for (const name of declared) {
             if (!tokens.includes(name)) {
                 throw new Error(
-                    `service conflict on ${route}: declared path parameter "${name}" is not in the path`,
+                    `controller conflict on ${route}: declared path parameter "${name}" is not in the path`,
                 );
             }
         }
-        for (const name of Object.keys(service.request.paramsDescriptions ?? {})) {
+        for (const name of Object.keys(controller.request.paramsDescriptions ?? {})) {
             if (!declared.includes(name)) {
                 throw new Error(
-                    `service conflict on ${route}: described path parameter "${name}" is undeclared`,
+                    `controller conflict on ${route}: described path parameter "${name}" is undeclared`,
                 );
             }
         }
@@ -216,20 +224,20 @@ export class ServerApp<Context extends object> {
 
     /**
      * Registers one referenced component. The same name and the same schema may
-     * arrive from several services; the same name with a different schema is a
-     * conflict, so two services cannot silently disagree about a shared shape.
+     * arrive from several controllers; the same name with a different schema is a
+     * conflict, so two controllers cannot silently disagree about a shared shape.
      */
     private contribute(reference: TSchema | DefinedSchema | undefined): void {
         if (reference === undefined || !isDefinedSchema(reference)) {
             return;
         }
         if (reference.name.trim() === "") {
-            throw new Error("service conflict: a documented component needs a name");
+            throw new Error("controller conflict: a documented component needs a name");
         }
         const owner = this.componentOwners.get(reference.name);
         if (owner !== undefined && owner !== reference.schema) {
             throw new Error(
-                `service conflict: component "${reference.name}" is already contributed`,
+                `controller conflict: component "${reference.name}" is already contributed`,
             );
         }
         this.componentOwners.set(reference.name, reference.schema);
@@ -245,35 +253,35 @@ export class ServerApp<Context extends object> {
         return reference as unknown as Record<string, unknown>;
     }
 
-    /** Translates one service into the operation the contract documents. */
-    private describe(service: ServiceBinding<Context, string>): DescribeRouteOptions {
+    /** Translates one controller into the operation the contract documents. */
+    private describe(controller: ControllerBinding<Context, string>): DescribeRouteOptions {
         const responses: NonNullable<DescribeRouteOptions["responses"]> = {};
         for (const [status, response] of Object.entries({
             ...this.options.defaultResponses,
-            ...service.responses,
+            ...controller.responses,
         })) {
             responses[status] = this.describeResponse(response);
         }
 
         const description: DescribeRouteOptions = {
-            operationId: service.openapi.operationId,
-            summary: service.openapi.summary,
-            tags: [...service.openapi.tags],
+            operationId: controller.openapi.operationId,
+            summary: controller.openapi.summary,
+            tags: [...controller.openapi.tags],
             responses,
         };
         if (this.options.security !== undefined) {
             description.security = this.securityRequirements();
         }
-        const parameters = this.describeParameters(service);
+        const parameters = this.describeParameters(controller);
         if (parameters.length > 0) {
             description.parameters = parameters;
         }
-        if (service.request.body !== undefined) {
+        if (controller.request.body !== undefined) {
             description.requestBody = {
                 required: true,
-                description: service.request.bodyDescription ?? "The request body.",
+                description: controller.request.bodyDescription ?? "The request body.",
                 content: {
-                    "application/json": { schema: this.documentSchema(service.request.body) },
+                    "application/json": { schema: this.documentSchema(controller.request.body) },
                 },
             };
         }
@@ -281,7 +289,7 @@ export class ServerApp<Context extends object> {
     }
 
     /** Builds one documented response from its referenced or inline body schema. */
-    private describeResponse(response: ServiceResponseDefinition): DocumentedResponse {
+    private describeResponse(response: ControllerResponseDefinition): DocumentedResponse {
         if (response.body === undefined) {
             return { description: response.description };
         }
@@ -293,9 +301,9 @@ export class ServerApp<Context extends object> {
 
     /** Builds the documented path parameters from the declared schema. */
     private describeParameters(
-        service: ServiceBinding<Context, string>,
+        controller: ControllerBinding<Context, string>,
     ): NonNullable<DescribeRouteOptions["parameters"]> {
-        const schema = service.request.params;
+        const schema = controller.request.params;
         if (schema === undefined) {
             return [];
         }
@@ -303,7 +311,7 @@ export class ServerApp<Context extends object> {
             name,
             in: "path" as const,
             required: true,
-            description: service.request.paramsDescriptions?.[name] ?? name,
+            description: controller.request.paramsDescriptions?.[name] ?? name,
             schema: property as TSchema,
         }));
     }
@@ -337,7 +345,7 @@ export class ServerApp<Context extends object> {
         );
     }
 
-    /** Generates the OpenAPI document from the registered services. */
+    /** Generates the OpenAPI document from the registered controllers. */
     generateOpenApiDocument(): Promise<Record<string, unknown>> {
         return generateSpecs(this.hono, {
             documentation: {
@@ -394,17 +402,17 @@ export function createServerApp<Context extends object>(
 }
 
 /**
- * Returns the registrar one application uses to bind its services. The
+ * Returns the registrar one application uses to bind its controllers. The
  * registrar refuses conflicting declarations at startup.
  */
-export function createServiceRegistrar<Context extends object>(
+export function createControllerRegistrar<Context extends object>(
     app: ServerApp<Context>,
-): (service: ServiceBinding<Context, string>) => void {
-    return (service) => app.registerService(service);
+): (controller: ControllerBinding<Context, string>) => void {
+    return (controller) => app.registerController(controller);
 }
 
 /**
- * Serves the generated contract. Call it after every service is registered.
+ * Serves the generated contract. Call it after every controller is registered.
  */
 export function serveOpenApi<Context extends object>(app: ServerApp<Context>): void {
     app.hono.get("/openapi.json", async (c) => c.json(await app.getOpenApiDocument()));

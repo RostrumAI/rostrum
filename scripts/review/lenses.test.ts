@@ -70,6 +70,14 @@ describe("lens selection", () => {
         );
     });
 
+    // A controller's area and verb need not name a known trust-boundary fragment.
+    test("runs the security lens on declared controllers", () => {
+        expect(selectedFor("apis/control-api/src/controllers/workflows/create.ts")).toContain(
+            "security",
+        );
+        expect(selectedFor("apis/daemon/src/controllers/system/health.ts")).toContain("security");
+    });
+
     test("runs the security lens off the trust-boundary paths", () => {
         expect(selectedFor("apps/control-api/src/loader.ts")).toContain("security");
         expect(selectedFor("packages/database/src/repositories/workflow-repository.ts")).toContain(

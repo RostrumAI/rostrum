@@ -3,58 +3,27 @@
 import { createDatabase, type DatabaseHandle, validateDatabaseOptions } from "@rostrum/database";
 import type { ServerApp } from "@rostrum/server/app";
 import type { OpenedService } from "@rostrum/server/lifecycle";
-import type { Readiness } from "@rostrum/server/protocol";
-import { checkReadiness } from "@rostrum/server/readiness";
-import { createControlApiApp } from "./app";
 import type { ControlApiConfig } from "./config";
-import { checkDaemonReadiness } from "./daemon/client";
-import { WorkflowService } from "./workflows/service";
+import { createControlApiApp } from "./http/app";
+import { createSystemService, type SystemService } from "./services/system/system-service";
+import { WorkflowService } from "./services/workflows/workflow-service";
 
-/** What a Control API request handler may use. */
+/** The business services a Control API controller reaches through its context. */
+export interface ControlApiServices {
+    /** Workflow authoring and publication operations. */
+    readonly workflows: WorkflowService;
+    /** Readiness over this process's database and the daemon it calls. */
+    readonly system: SystemService;
+}
+
+/** What a Control API controller may use. */
 export interface ControlApiContext {
     /** The configuration this process started with. */
     readonly config: ControlApiConfig;
-    /** The owned connection and the operators that borrow it. */
-    readonly database: {
-        /** Workflow authoring operations over the owned connection. */
-        readonly workflows: WorkflowService;
-    };
-    /** Aggregated dependency readiness within its deadline. */
-    readonly readiness: (signal: AbortSignal) => Promise<Readiness>;
+    /** The services this process built once at startup and injects per request. */
+    readonly services: ControlApiServices;
     /** Aborted when this request is no longer worth finishing. */
     readonly abortSignal: AbortSignal;
-}
-
-/**
- * Aggregates this service's readiness: its own database and the
- * authenticated daemon. Both run concurrently under one deadline, and the
- * first failure returns without waiting for the sibling's timeout.
- */
-export function checkControlApiReadiness(
-    config: ControlApiConfig,
-    database: DatabaseHandle,
-    signal: AbortSignal,
-): Promise<Readiness> {
-    return checkReadiness(
-        {
-            database: {
-                check: (probeSignal) =>
-                    database.probe({
-                        signal: probeSignal,
-                        timeoutMs: config.dependencyTimeoutMs,
-                    }),
-                timeoutCode: "database_timeout",
-                failureCode: "database_unavailable",
-            },
-            daemon: {
-                check: (probeSignal) => checkDaemonReadiness(config, probeSignal),
-                timeoutCode: "daemon_timeout",
-                failureCode: "daemon_unavailable",
-            },
-        },
-        config.dependencyTimeoutMs,
-        signal,
-    );
 }
 
 /**
@@ -66,18 +35,18 @@ export class ControlApi implements OpenedService<ControlApiConfig> {
     private readonly config: ControlApiConfig;
     private readonly database: DatabaseHandle;
     private readonly app: ServerApp<ControlApiContext>;
-    private readonly workflows: WorkflowService;
+    private readonly services: ControlApiServices;
 
     private constructor(
         config: ControlApiConfig,
         database: DatabaseHandle,
         app: ServerApp<ControlApiContext>,
-        workflows: WorkflowService,
+        services: ControlApiServices,
     ) {
         this.config = config;
         this.database = database;
         this.app = app;
-        this.workflows = workflows;
+        this.services = services;
     }
 
     /** Opens the Control API's database and builds its application from one configuration. */
@@ -94,12 +63,11 @@ export class ControlApi implements OpenedService<ControlApiConfig> {
         validateDatabaseOptions(options);
         const database = createDatabase(options);
         try {
-            return new ControlApi(
-                config,
-                database,
-                createControlApiApp(),
-                WorkflowService.create(database),
-            );
+            // Every service borrows this process's handle; none of them closes it.
+            return new ControlApi(config, database, createControlApiApp(), {
+                workflows: WorkflowService.create(database),
+                system: createSystemService(config, database),
+            });
         } catch (error) {
             // A failure after the pool opened must not leak it.
             await database.close({ timeoutMs: config.shutdownTimeoutMs });
@@ -108,26 +76,20 @@ export class ControlApi implements OpenedService<ControlApiConfig> {
     }
 
     /**
-     * Serves one admitted request with this process's configuration and
-     * resources. Readiness runs on the caller's signal, so a request that is
+     * Serves one admitted request with this process's configuration, services,
+     * and database. Readiness runs on the caller's signal, so a request that is
      * no longer worth finishing also ends the probes it started.
      */
     fetch(request: Request, signal: AbortSignal): Response | Promise<Response> {
         return this.app.fetch(request, {
             config: this.config,
-            database: { workflows: this.workflows },
-            readiness: (probeSignal) =>
-                checkControlApiReadiness(
-                    this.config,
-                    this.database,
-                    AbortSignal.any([signal, probeSignal]),
-                ),
+            services: this.services,
             abortSignal: signal,
         });
     }
 
     /** Releases the owned database handle within the remaining shutdown time. */
     close(options: { timeoutMs: number }): Promise<void> {
-        return this.workflows.close(options);
+        return this.database.close(options);
     }
 }

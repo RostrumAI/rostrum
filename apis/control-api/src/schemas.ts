@@ -1,6 +1,6 @@
 import { defineSchema } from "@rostrum/server/schema";
 import { Type } from "typebox";
-import { FindingSchema } from "./workflows/schemas";
+import { FindingSchema } from "./services/workflows/schemas";
 
 /** The single error shape for every Control API error response. */
 export const ErrorResponseSchema = Type.Object(

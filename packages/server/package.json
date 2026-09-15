@@ -8,7 +8,7 @@
         "./network": "./src/network.ts",
         "./tokens": "./src/tokens.ts",
         "./logger": "./src/logger.ts",
-        "./service": "./src/service.ts",
+        "./controller": "./src/controller.ts",
         "./schema": "./src/schema.ts",
         "./request": "./src/request.ts",
         "./app": "./src/app.ts",

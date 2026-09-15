@@ -2,7 +2,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createDaemonApp } from "../app";
+import { createDaemonApp } from "../http/app";
 
 const app = createDaemonApp();
 await writeFile(

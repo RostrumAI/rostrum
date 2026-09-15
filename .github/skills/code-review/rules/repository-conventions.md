@@ -1,6 +1,6 @@
 ---
 name: repository-conventions
-description: Rostrum conventions from the repository's review history and direct maintainer guidance. Use when reviewing a pull request for module placement, feature-slice and dependency-injection wiring, schema and validation placement, HTTP contracts, naming, comments and TSDoc, tests and fixtures, database migrations, library reuse, and dead-code removal. Every rule carries an id, the paths it applies to, a mechanical/judgment classification, a severity, the pattern to flag, and the evidence or direction that established it.
+description: Rostrum conventions from the repository's review history and direct maintainer guidance. Use when reviewing a pull request for module placement, controller/service boundaries and dependency-injection wiring, schema and validation placement, HTTP contracts, naming, comments and TSDoc, tests and fixtures, database migrations, library reuse, and dead-code removal. Every rule carries an id, the paths it applies to, a mechanical/judgment classification, a severity, the pattern to flag, and the evidence or direction that established it.
 ---
 
 # Repository conventions
@@ -62,28 +62,41 @@ centralizes exports, needs a stated purpose or it should not exist.
 **Flag:** A new module whose body is re-exports or a thin wrapper around an existing library helper with no added rule.
 **Evidence:** PR #12 `packages/workflow/src/document/id-splice.ts:1` — "I'm not sure what this file is giving us besides wrapping the parser helper … and some type wrappings"; PR #9 `packages/database/src/schema/database.ts:1` — "Is this just to centralize the exports (and if so, why?)".
 
-## 2. Service modules, wiring, and dependency injection
+## 2. Controllers, services, and dependency injection
 
-A service module under `src/services/` is one boot-time value built by the application's
-`createServiceBuilder`. It carries its binding, request schemas, OpenAPI metadata, documented
-responses, and a `handler(request, response, context)`; the application registers it from one static
-`routes.ts`. A body it documents with a named schema contributes that component, while a body left as
-a plain schema is documented inline at that operation. The rules below keep that shape.
+A controller module under `src/controllers/` is one boot-time value built by the application's
+shared builder, defined with `createControllerBuilder`. It carries its binding, request schemas,
+OpenAPI metadata, documented responses, and a `handler(request, response, context)` callback.
+Transport wiring lives under `src/http/`: the application, static `routes.ts`, builder, and tags.
+A named response schema contributes a component; a plain schema is documented inline.
 
-### REPO-SLICE-01 — Declare one service per module through the application's builder
-A route module declares exactly one service value built by the application's shared builder, so its
-inputs, documented responses, and context are typed at the declaration and every service is
+Controllers orchestrate requests and responses. Business logic and database operations belong to
+`src/services/` and are reached through `context.services`. Controllers have no direct or indirect
+database access: no connection, repository, query facade, or database-capable transport helper may
+be exposed through their context or imports. Calling a business service operation is the boundary,
+not permission to expose its database collaborator. Schema and domain-error value imports are
+allowed when they carry domain data rather than runtime service instances.
+
+In lifecycle and deployment language, a service still means a running backend process:
+`ServiceRuntimeConfig` and `OpenedService` retain that meaning. The process composes dependencies
+and owns pool closure; controllers neither acquire nor close those resources.
+
+### REPO-SLICE-01 — Declare one controller per module through the application's builder
+A route module declares exactly one controller value built by the application's shared builder, so
+its inputs, documented responses, and context are typed at the declaration and every controller is
 registered explicitly rather than discovered.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** judgment · **Severity:** medium
-**Flag:** A route module that constructs its own builder instead of importing the application's, binds a route outside `routes.ts`, or declares a handler whose inputs are read by hand rather than through the declared schemas.
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** judgment · **Severity:** medium
+**Flag:** A controller module that constructs its own builder instead of importing the application's, binds a route outside `http/routes.ts`, or reads inputs by hand rather than through its declared schemas.
 **Evidence:** PR #5 `apps/control-api/src/features/system/get-health.handler.ts:1` — "you need to export: route (GET /health), schema (anything), handler"; "any misaligned file will throw an error and prevent booting". Superseded by the framework in `packages/server/src/service.ts`: the loader's three-export contract is gone, and the value it described is now declared once per module.
 
-### REPO-SLICE-02 — Inject services through the handler's context built at boot
-Dependencies are constructed once at process start and reach handlers through the context they are
-given; a handler that reaches for a module singleton cannot be tested in isolation and changes
-behavior with boot order.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** judgment · **Severity:** medium
-**Flag:** A handler importing a module-level service, or a handler that builds its own dependencies instead of reading them from its context.
+### REPO-SLICE-02 — Inject services through the controller's context built at boot
+Dependencies are constructed once at process start and reach controllers through `context.services`;
+a controller that reaches for a module singleton cannot be tested in isolation and changes behavior
+with boot order. The controller context exposes business operations, not database access, even
+through a nested facade or helper. Request cancellation and framework transport capabilities remain
+available without exposing process-owned resources.
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** judgment · **Severity:** medium
+**Flag:** A controller importing or constructing a runtime service instance instead of using `context.services`; direct database access, an injected repository/query facade, or a helper that gives a controller indirect database access.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/create.ts:68` reply — "factory form. `createHandler(services)` returns the handler, preserving the base `Handler` type and the loader module contract; a `Services` object builds once at app boot". The framework replaced the per-module factory with a context every handler receives.
 
 ### REPO-SLICE-03 — No module-level singletons or `setX` test seams
@@ -93,11 +106,11 @@ only so a test can swap a collaborator are both forbidden.
 **Flag:** A module-scope mutable service instance, a lazy `getService()`, or an exported `setService()` used by tests.
 **Evidence:** PR #12 `apps/control-api/src/workflows/service.ts:317` — "Any reason to implement this like this vs a static member of the WorkflowService class?"; reply — "The lazy `workflowService()` singleton and the `setWorkflowService` test seam go away; per-slice tests inject a stub".
 
-### REPO-SLICE-04 — Prefer the object-oriented form for services and route modules
+### REPO-SLICE-04 — Prefer the object-oriented form for services and controllers
 A class or static member that a call site names explicitly reads better than a free function or a
-module-level closure; a route binding defined as a plain object/function pair is the exception.
+module-level closure; a declared controller with its `handler` callback is the exception.
 **Applies to:** `apps/**/src/**`, `apis/**/src/**` · **Check:** judgment · **Severity:** low
-**Flag:** A service or route module written as module-level functions where the surrounding code uses classes.
+**Flag:** A service or controller written as module-level functions where the surrounding code uses classes, except the framework's declared-controller form.
 **Evidence:** PR #5 `apps/control-api/src/routes/system.ts:9` — "Let's swap the pattern here to be more object oriented vs functional - just personal preference for code legibility"; PR #12 `apps/control-api/src/workflows/service.ts:317` — "vs a static member of the WorkflowService class".
 
 ## 3. Schema scoping and validation placement
@@ -105,9 +118,11 @@ module-level closure; a route binding defined as a plain object/function pair is
 ### REPO-SCHEMA-01 — Scope schemas to the smallest consumer
 A schema used by one route lives in a colocated `*.schema.ts` beside that route; a schema shared
 across the whole app lives at the application root (`src/schemas.ts`); a domain-wide schema lives in
-the domain area, not at the root.
+the service area, not at the root. Workflow findings belong in `services/workflows/schemas.ts`;
+workflow HTTP shapes belong in `controllers/workflows/schemas.ts`. Workflow rule-set selection and
+business validation belong to `services/workflows/`, not to controllers or transport helpers.
 **Applies to:** `apps/**/src/**`, `apis/**/src/**` · **Check:** mechanical · **Severity:** medium
-**Flag:** A route-specific schema declared at the app root or in another feature's module; no `create.schema.ts`/`save.schema.ts` beside the slice that uses it.
+**Flag:** A route-specific schema declared at the app root or in another controller area's module; no `create.schema.ts`/`save.schema.ts` beside the controller that uses it; domain schemas or rule-set selection placed in the transport tier.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/create.ts:41` — "move schemas to the smallest scope possible … we could have a create.schema.ts file defined here … generic ErrorResponse … live at the top of src/ … a workflow document lives in a workflows-level schemas.ts".
 
 ### REPO-SCHEMA-02 — Scope helpers to the smallest consumer too
@@ -120,7 +135,7 @@ route rather than being promoted to a shared module "for later".
 ### REPO-SCHEMA-03 — Validate at the schema boundary, not inside handlers or repositories
 Input is checked by the schema that describes it; a handler or repository must not re-check what the
 schema already proved, and repositories must not defend against inputs their callers cannot produce.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**`, `packages/**/repositories/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**`, `packages/**/repositories/**` · **Check:** judgment · **Severity:** medium
 **Flag:** Manual shape checks, JSON.parse guards, or re-validation inside a handler body or repository method that the route schema already covers.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/retrieve-version.ts:63` — "these can be tested with a schema validator instead of within the handler"; PR #12 `apps/control-api/src/features/workflows/rewind.ts:73` — "JSON validation can also be handled in the schema validator"; PR #12 `packages/database/src/repositories/workflow-repository.ts:73` — "This check seems like it's redundant to have here, and could be validated via a schema validator (in the upstream caller)".
 
@@ -134,7 +149,7 @@ addresses an entity must verify existence and return not-found.
 ### REPO-SCHEMA-05 — One shared validation path across entry points
 When validate, save, and publish must agree because they are the same behavior, that validation is
 implemented once and shared; do not re-derive it per route.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**`, `packages/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**`, `packages/**` · **Check:** judgment · **Severity:** medium
 **Flag:** Two routes each assembling their own validation of the same document/body instead of calling one shared validator or request-body helper.
 **Evidence:** PR #12 `packages/database/src/repositories/workflow-repository.ts:73` — validation belongs "in the upstream caller"; PR #12 `apps/control-api/src/features/workflows/create.ts:41` reply — `FindingSchema` and the document/revision schemas move to one workflows area rather than per-route copies.
 
@@ -147,10 +162,10 @@ defaults), and defaults are defined in the config loader exactly once.
 
 ## 4. Types and return shapes
 
-### REPO-TYPE-01 — Give each operation a strict, feature-local return type
+### REPO-TYPE-01 — Give each operation a strict, area-local return type
 A function's return type enumerates exactly what it can return, including failure outcomes; a
 handler that can answer several ways must not declare that it answers one.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**`, `packages/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**`, `packages/**` · **Check:** judgment · **Severity:** medium
 **Flag:** `Promise<Response>`, a bag of optional fields, or a widened union where the outcome discriminant is lost.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/retrieve-version.ts:80` — "I want per-feature return types to be much stricter than they are currently".
 
@@ -187,28 +202,28 @@ lets a caller misaddress or collide with an entity.
 ### REPO-CONTRACT-03 — Use the HTTP verb that matches the operation
 A full-document replacement is `PUT`; using `POST` for an idempotent addressable update is a contract
 defect.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** mechanical · **Severity:** high
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** mechanical · **Severity:** high
 **Flag:** `POST` on a route that replaces an existing resource at a stable path.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/save.ts:25` — "PUT not POST".
 
 ### REPO-CONTRACT-04 — Carry request parameters in the body, not in headers
 Inputs that are part of the resource representation (revision name, document bytes) travel in the
 request body; headers describe the request itself.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** mechanical · **Severity:** medium
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** mechanical · **Severity:** medium
 **Flag:** `c.req.header(...)` read for a body-shaped value, or an OpenAPI `parameters` entry for a field the body should carry.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/save.ts:89` — "Nope - this is a body param not a header"; `save.ts:101` — "Revision name belongs in the body not as a header"; `create.ts:29` — "This should be in the POST request instead".
 
 ### REPO-CONTRACT-05 — Give distinct outcomes distinct status codes
 A created publication answers `201`; a replayed, already-existing outcome answers `200`. Returning the
 same status for both makes the outcome indistinguishable to a caller.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** mechanical · **Severity:** high
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** mechanical · **Severity:** high
 **Flag:** Two different outcome discriminants mapping to the same status in the route response table.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/publish.ts:69` — "Should `already-published` share the same response code as `published`? I'm thinking a `201` is good for `published` and a `200` for `already-published`".
 
 ### REPO-CONTRACT-06 — Response shapes carry only what the caller cannot already know
 Do not echo values the caller supplied in the path or body, and give every response member a
 caller-facing job; an unexplained field is a finding.
-**Applies to:** `apps/**/src/services/**`, `apis/**/src/services/**` · **Check:** judgment · **Severity:** medium
+**Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** judgment · **Severity:** medium
 **Flag:** A response member equal to a path parameter, or a member whose purpose no caller can state.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/publish.ts:35` — "I don't get the purpose of the response shape"; reply concedes `workflowId` "is the one echo — it is already in the path".
 
@@ -375,8 +390,8 @@ be able to fail when the implementation is wrong.
 **Flag:** A test that constructs a value, returns it from a mock, and asserts the response equals that value; an assertion that cannot distinguish the handler's mapping from the stub's output.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/publish.test.ts:30` — "I want to make sure it's not just stubbing the response and asserting on it"; reply — the test is valid only because it asserts the handler maps the outcome and builds the body itself.
 
-### REPO-TEST-03 — Cover every new handler and behavior with a test
-A new handler, repository method, route, validation stage, or public function arrives with a test that
+### REPO-TEST-03 — Cover every new controller and behavior with a test
+A new controller, repository method, route, validation stage, or public function arrives with a test that
 exercises it; a new source file with no test beside it is blocking. A file that cannot be imported owes
 no test: a script under a `scripts/` directory, a one-off fix or throwaway probe, and a module that
 exports nothing all run for their effect rather than exposing behavior a test could call. The chain of
@@ -385,7 +400,7 @@ tests, fixtures, and whatever those import — is exercised by the caller that r
 test either. A module the product also reaches, directly or through another module, still owes one, and
 so does a module nothing imports at all.
 **Applies to:** `apps/**`, `apis/**`, `packages/**`, `**/*.test.ts` · **Check:** mechanical · **Severity:** medium
-**Flag:** A new `handler`, `service`, or route module in the diff with no corresponding test file; a handler with only a happy-path test when it has documented failure outcomes.
+**Flag:** A new controller or business-service module in the diff with no corresponding test file; a controller with only a happy-path test when it has documented failure outcomes.
 **Evidence:** PR #12 `apps/control-api/src/features/workflows/create.ts:64` — "Why does this handler have no tests?"; the same question at `publish.ts:56`, `retrieve-draft.ts:40`, `retrieve-revision.ts:48`, `retrieve-version.ts:59`, `rewind.ts:65`, `save.ts:86`, `validate.ts:46`.
 
 ### REPO-TEST-04 — Assert what a delegating handler forwards

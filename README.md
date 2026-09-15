@@ -200,28 +200,42 @@ Routes live under the `/api` path prefix. The prefix carries no
 API version: a future deliberate stabilization may introduce a versioned
 prefix, but until then routes stay unversioned.
 
-Each route is one service module under `apis/control-api/src/services/`, or
-under `apis/daemon/src/services/` for the daemon's private routes. A service
-module declares its method, its complete `/api` path, the TypeBox schemas for
+Each route is one controller module under `apis/control-api/src/controllers/`, or
+under `apis/daemon/src/controllers/` for the daemon's private routes. A controller
+declares its method, its complete `/api` path, the TypeBox schemas for
 its body and path parameters, its OpenAPI metadata and documented responses,
-and a `handler(request, response, context)` that answers with the response
-view. `src/routes.ts` imports every service of that application and registers
+and a `handler(request, response, context)` callback that answers with the response
+view. `src/http/routes.ts` imports every controller of that application and registers
 it, so registration is static: no directory scan, no dynamic import, and no
 folder-derived path. A conflicting declaration — a duplicate route or operation
 id, an undeclared tag, a body on a method that cannot carry one, a path
 parameter without a schema, or one component name carrying two different
 schemas — fails startup.
 
+Controllers orchestrate HTTP input, business-service calls, and responses. Business
+logic and database operations live under `src/services/<area>/` and are injected
+at process startup through `context.services`; controllers never construct or
+import runtime service instances. They have no database access, directly or through
+repositories, query facades, or transport helpers. Domain schema and error values
+may be imported without exposing service instances. The backend process owns its
+database pool and closes it during shutdown.
+
+`src/http/` holds the application, static route table, controller builder, and tags.
+Workflow rule sets and the shared findings schema belong to `src/services/workflows/`;
+workflow HTTP request and response shapes belong to `src/controllers/workflows/`.
+Here *service* means business logic; in lifecycle and deployment language it still
+means a running backend process.
+
 A shared shape is declared once with `defineSchema`, which pairs the schema
-with the component name the document references, and the services that
+with the component name the document references, and the controllers that
 document it use that value:
 
 ```ts
 export const WorkflowRevision = defineSchema("WorkflowRevision", WorkflowRevisionSchema);
 ```
 
-Every named schema a service references becomes one component, so several
-services can share it without restating it. A body left as a plain schema is
+Every named schema a controller references becomes one component, so several
+controllers can share it without restating it. A body left as a plain schema is
 documented inline at that operation and contributes no component. An
 application whose document must carry a component that no operation body
 references declares it in the application's own `components` list, because
@@ -230,8 +244,9 @@ nothing else can contribute it.
 The framework installs the mandatory middleware (request ids and access
 logging) before any route, and an application may add its own middleware
 before registering routes. `@rostrum/server` owns that stack, the typed
-service builder, the registrar, the generated contract, the strict JSON body
-and path-parameter validation, and the startup and shutdown runtime.
+controller builder (`createControllerBuilder`), the registrar
+(`createControllerRegistrar`), the generated contract, strict JSON body and
+path-parameter validation, and the startup and shutdown runtime.
 
 Every error response uses one shape: `{"code","message","findings"}`.
 
