@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { ControlApiConfig } from "../config";
-import { checkDaemonReadiness } from "./client";
+import { checkDaemonReadiness } from "./daemon";
 
 /** A daemon-shaped configuration; only the daemon link fields matter here. */
 function config(daemonUrl: string, tokens: readonly string[]): ControlApiConfig {

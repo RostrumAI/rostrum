@@ -3,8 +3,8 @@
 import type { DatabaseHandle } from "@rostrum/database";
 import type { Readiness } from "@rostrum/server/protocol";
 import { checkReadiness } from "@rostrum/server/readiness";
+import { checkDaemonReadiness } from "../../clients/daemon";
 import type { ControlApiConfig } from "../../config";
-import { checkDaemonReadiness } from "../../daemon/client";
 
 /** Aggregated dependency readiness for one Control API process. */
 export interface SystemService {
