@@ -44,3 +44,34 @@ test("serves liveness and the checked-in OpenAPI document", async () => {
     const checkedIn = JSON.parse(await readFile(join(import.meta.dir, "../openapi.json"), "utf8"));
     expect(served).toEqual(checkedIn);
 });
+
+test("serves aggregated readiness through the production service", async () => {
+    // The service owns this wiring: it builds the readiness probe from its own
+    // database and the configured daemon, under the caller's signal.
+    const response = await api.fetch(
+        new Request("http://127.0.0.1/api/system/readiness"),
+        new AbortController().signal,
+    );
+
+    expect(response.status).toBe(503);
+    const body = (await response.json()) as {
+        status: string;
+        checks: Record<string, { status: string }>;
+    };
+    expect(body.status).toBe("not_ready");
+    // Either dependency may report first; a not_ready body names at least one failure.
+    expect(Object.values(body.checks).some((check) => check.status === "failed")).toBe(true);
+});
+
+test("answers readiness when the caller's signal is already aborted", async () => {
+    // An aborted caller must still receive an answer, not a rejection or a wait.
+    const started = performance.now();
+    const response = await api.fetch(
+        new Request("http://127.0.0.1/api/system/readiness"),
+        AbortSignal.abort(),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ status: "not_ready" });
+    expect(performance.now() - started).toBeLessThan(500);
+});
