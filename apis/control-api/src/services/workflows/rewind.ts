@@ -52,7 +52,7 @@ export const rewindWorkflow = defineControlService({
     handler: async (request, response, context) => {
         const { workflowId } = request.params;
         const { targetRevisionId } = request.body;
-        const result = await context.workflows.rewind(workflowId, targetRevisionId);
+        const result = await context.database.workflows.rewind(workflowId, targetRevisionId);
 
         // Both successful outcomes answer with the revision the draft now
         // shows; the missing workflow and target are errors the app maps.

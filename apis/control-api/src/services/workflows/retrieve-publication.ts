@@ -51,7 +51,10 @@ export const retrieveWorkflowPublication = defineControlService({
     handler: async (request, response, context) => {
         const { workflowId, publicationNumber: requestedNumber } = request.params;
         const publicationNumber = Number.parseInt(requestedNumber, 10);
-        const publication = await context.workflows.getPublication(workflowId, publicationNumber);
+        const publication = await context.database.workflows.getPublication(
+            workflowId,
+            publicationNumber,
+        );
         if (!publication) {
             throw new WorkflowApiError(
                 workflowNotFound(`Workflow ${workflowId} has no publication ${publicationNumber}`),

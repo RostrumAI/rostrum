@@ -153,13 +153,18 @@ export function loadConfig<C>(
 
     // Reject an incomplete or invalid candidate, naming the property at fault.
     if (!Value.Check(definition.schema, candidate)) {
+        const required: readonly string[] = definition.schema.required;
         // Schema messages may include supplied values: report only the known property name.
         for (const [field, property] of Object.entries(definition.schema.properties)) {
             if (candidate[field] === undefined) {
+                // A required setting that was never supplied is named; an absent optional one is not a fault.
+                if (required.includes(field)) {
+                    throw new ConfigurationError(field, "is missing");
+                }
                 continue;
             }
             if (!Value.Check(property, candidate[field])) {
-                throw new ConfigurationError(field, "is missing or invalid");
+                throw new ConfigurationError(field, "is invalid");
             }
         }
         throw new ConfigurationError("config", "contains invalid settings");

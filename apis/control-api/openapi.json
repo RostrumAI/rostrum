@@ -388,6 +388,64 @@
         },
         "additionalProperties": false
       },
+      "Finding": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "blocking",
+          "path"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "description": "One-based line in the saved text."
+          },
+          "column": {
+            "type": "integer",
+            "description": "One-based column in the saved text."
+          },
+          "relatedLocations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "message"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "details": {
+            "type": "object",
+            "patternProperties": {
+              "^.*$": {}
+            },
+            "description": "Structured context an automated author can repair without parsing the message."
+          }
+        },
+        "additionalProperties": false
+      },
       "Health": {
         "type": "object",
         "required": [

@@ -101,6 +101,18 @@ describe("configuration loading", () => {
         expect(loaded.logLevel).toBe("warning");
     });
 
+    test("names a required setting that the sources never supplied", () => {
+        const root = workspace();
+        // This definition documents a default for its host but not for its port, so a
+        // candidate the file and environment leave incomplete must name the missing field.
+        const partial = defineConfig({
+            ...demoConfig,
+            defaults: () => ({ host: "127.0.0.1" }),
+        });
+
+        expect(() => loadConfig(root, partial, {})).toThrow(/\/port is missing/);
+    });
+
     test("derives environment-specific defaults before validation", () => {
         const root = workspace();
 

@@ -44,19 +44,6 @@
         },
         "additionalProperties": false
       },
-      "Health": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "const": "ok"
-          }
-        },
-        "additionalProperties": false
-      },
       "DaemonReadiness": {
         "anyOf": [
           {
@@ -149,6 +136,19 @@
             "additionalProperties": false
           }
         ]
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {

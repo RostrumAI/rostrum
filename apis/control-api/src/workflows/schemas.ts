@@ -3,10 +3,10 @@ import { defineSchema } from "@rostrum/server/schema";
 import { type Static, Type } from "typebox";
 
 /**
- * Request and response schemas shared by the workflow feature slices.
- * Every slice re-exports the ones it documents under the same component
- * name; the loader keeps one component per distinct schema object, so the
- * generated contract carries a single definition.
+ * Request and response schemas shared by the workflow area. Each shared shape
+ * is named once here with `defineSchema`, and the services that document it
+ * reference that value, so the generated contract carries one definition per
+ * shape.
  */
 
 /**
@@ -43,6 +43,14 @@ export const FindingSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/**
+ * The `Finding` component. No operation body references it: findings travel
+ * inside the response bodies that carry them, and this value declares the
+ * shape at application level so a client generated from the document still
+ * has the `Finding` type by name.
+ */
+export const Finding = defineSchema("Finding", FindingSchema);
 
 /** The UUID shape every workflow and revision id carries. */
 export const UUID_PATTERN =

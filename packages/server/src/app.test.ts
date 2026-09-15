@@ -195,6 +195,15 @@ describe("service registration", () => {
         ).toThrow(/undeclared/);
     });
 
+    test("rejects a response status that is not a status code, and a blank description", () => {
+        expect(() =>
+            register({ ...base, responses: { oops: { description: "The things" } } }),
+        ).toThrow(/is not a status code/);
+        expect(() => register({ ...base, responses: { 200: { description: "  " } } })).toThrow(
+            /needs a description/,
+        );
+    });
+
     test("rejects a component that carries no name", () => {
         expect(() =>
             register({

@@ -1,15 +1,8 @@
 /** @fileoverview Daemon process-liveness service. */
 
 import { Health } from "@rostrum/server/protocol";
-import { createServiceBuilder } from "@rostrum/server/service";
-import type { DaemonContext } from "../../daemon";
+import { defineDaemonService } from "../../define";
 import { DAEMON_TAG } from "../../tags";
-
-/** Declares the daemon's services against the daemon's own context and tags. */
-const defineDaemonService = createServiceBuilder<
-    DaemonContext,
-    (typeof DAEMON_TAG)[keyof typeof DAEMON_TAG]
->();
 
 /** Serves GET /api/system/health without touching a dependency. */
 export const health = defineDaemonService({

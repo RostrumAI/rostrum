@@ -38,7 +38,7 @@ export const createWorkflowDraft = defineControlService({
         },
     },
     handler: async (request, response, context) => {
-        const created = await context.workflows.createDraft(
+        const created = await context.database.workflows.createDraft(
             extractDocumentText(request.bodyText),
             request.body.name ?? null,
         );

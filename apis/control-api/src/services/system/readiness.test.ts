@@ -47,8 +47,7 @@ afterAll(async () => {
 function requestReadiness(result: Readiness): Response | Promise<Response> {
     const context: ControlApiContext = {
         config,
-        database,
-        workflows,
+        database: { workflows },
         readiness: async () => result,
         abortSignal: new AbortController().signal,
     };

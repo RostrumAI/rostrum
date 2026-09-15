@@ -57,7 +57,7 @@ export const publishWorkflow = defineControlService({
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;
-        const result = await context.workflows.publish(workflowId);
+        const result = await context.database.workflows.publish(workflowId);
 
         // A first publication answers 201 and a replay of the same revision
         // 200, so a caller can tell the two outcomes apart.

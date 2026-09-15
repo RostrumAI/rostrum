@@ -14,10 +14,11 @@ import { WorkflowService } from "./workflows/service";
 export interface ControlApiContext {
     /** The configuration this process started with. */
     readonly config: ControlApiConfig;
-    /** The database handle this process owns. */
-    readonly database: DatabaseHandle;
-    /** Workflow operations sharing the owned database connection. */
-    readonly workflows: WorkflowService;
+    /** The owned connection and the operators that borrow it. */
+    readonly database: {
+        /** Workflow authoring operations over the owned connection. */
+        readonly workflows: WorkflowService;
+    };
     /** Aggregated dependency readiness within its deadline. */
     readonly readiness: (signal: AbortSignal) => Promise<Readiness>;
     /** Aborted when this request is no longer worth finishing. */
@@ -114,8 +115,7 @@ export class ControlApi implements OpenedService<ControlApiConfig> {
     fetch(request: Request, signal: AbortSignal): Response | Promise<Response> {
         return this.app.fetch(request, {
             config: this.config,
-            database: this.database,
-            workflows: this.workflows,
+            database: { workflows: this.workflows },
             readiness: (probeSignal) =>
                 checkControlApiReadiness(
                     this.config,

@@ -40,7 +40,7 @@ export const validateWorkflow = defineControlService({
         },
     },
     handler: async (request, response, context) => {
-        const outcome = await context.workflows.validate(request.bodyText);
+        const outcome = await context.database.workflows.validate(request.bodyText);
         const validated: Static<typeof ValidateResponseSchema> = {
             findings: [...outcome.findings],
             validForPublication: outcome.validForPublication,

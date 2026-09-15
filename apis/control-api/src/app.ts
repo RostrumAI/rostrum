@@ -14,6 +14,7 @@ import { registerRoutes } from "./routes";
 import { CONTROL_API_TAG } from "./tags";
 import { errorBody, errorPayloadFor } from "./workflows/errors";
 import { decodeWorkflowBody } from "./workflows/request-body";
+import { Finding } from "./workflows/schemas";
 
 /** The single error shape every Control API boundary failure answers with. */
 function errorJson(code: string, message: string): Record<string, unknown> {
@@ -33,6 +34,7 @@ export function createControlApiApp(): ServerApp<ControlApiContext> {
         title: "Rostrum Control API",
         description: "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
         version: pkg.version,
+        components: [Finding],
         decodeBody: decodeWorkflowBody,
     });
 

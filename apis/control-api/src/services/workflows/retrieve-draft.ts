@@ -33,7 +33,7 @@ export const retrieveWorkflowDraft = defineControlService({
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;
-        const revision = await context.workflows.getCurrentRevision(workflowId);
+        const revision = await context.database.workflows.getCurrentRevision(workflowId);
         if (!revision) {
             throw new WorkflowApiError(workflowNotFound(`Workflow ${workflowId} does not exist`));
         }

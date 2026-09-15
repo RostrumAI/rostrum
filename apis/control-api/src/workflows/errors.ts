@@ -1,7 +1,5 @@
 import { InvalidWorkflowInputError, type Revision } from "@rostrum/database";
 import type { Finding } from "@rostrum/workflow";
-import type { Context } from "hono";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 /**
  * The workflow operations' one mapping module: every storage outcome and
@@ -119,15 +117,4 @@ export function errorBody(payload: ErrorPayload): Record<string, unknown> {
             ? {}
             : { currentRevision: payload.currentRevision }),
     };
-}
-
-/**
- * Answers a handler failure from the mapping table, or rethrows when the
- * error maps to nothing: the rethrow reaches the app's `onError` path,
- * which logs and answers 500 `internal_error`.
- */
-export function workflowErrorResponse(c: Context, error: unknown): Response {
-    const payload = errorPayloadFor(error);
-    if (payload === null) throw error;
-    return c.json(errorBody(payload), payload.status as ContentfulStatusCode);
 }

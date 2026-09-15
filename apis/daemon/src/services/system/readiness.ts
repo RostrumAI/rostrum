@@ -1,15 +1,9 @@
 /** @fileoverview Daemon dependency-readiness service. */
 
 import { DaemonReadiness } from "@rostrum/server/protocol";
-import { createServiceBuilder } from "@rostrum/server/service";
-import { checkDaemonReadiness, type DaemonContext } from "../../daemon";
+import { checkDaemonReadiness } from "../../daemon";
+import { defineDaemonService } from "../../define";
 import { DAEMON_TAG } from "../../tags";
-
-/** Declares the daemon's services against the daemon's own context and tags. */
-const defineDaemonService = createServiceBuilder<
-    DaemonContext,
-    (typeof DAEMON_TAG)[keyof typeof DAEMON_TAG]
->();
 
 /**
  * Serves GET /api/system/readiness: the daemon's own database, checked under

@@ -54,6 +54,11 @@ export interface ServerAppOptions<Tag extends string = string> {
     readonly version: string;
     /** Responses every operation documents, folded under the service's own. */
     readonly defaultResponses?: Record<string, ServiceResponseDefinition>;
+    /**
+     * Components this application documents even though no operation body
+     * references them, such as a shape a generated client still needs a type for.
+     */
+    readonly components?: readonly DefinedSchema[];
     /** Security schemes the document declares. */
     readonly securitySchemes?: Record<string, BearerSecurityScheme>;
     /** Document-level security requirement, repeated on every operation. */
@@ -99,9 +104,13 @@ export class ServerApp<Context extends object> {
         this.logger = getLogger(options.serviceName);
         this.hono = new Hono<{ Bindings: Context }>();
 
-        // Components the application documents on every operation, referenced by name.
+        // Components the application documents itself: the bodies it answers on
+        // every operation, and any component no service references.
         for (const response of Object.values(options.defaultResponses ?? {})) {
             this.contribute(response.body);
+        }
+        for (const component of options.components ?? []) {
+            this.contribute(component);
         }
 
         // Mandatory middleware first, so it wraps routes and application middleware.
@@ -137,9 +146,6 @@ export class ServerApp<Context extends object> {
             throw new Error(
                 `service conflict on ${route}: operation id "${service.openapi.operationId}" is already used`,
             );
-        }
-        if (service.openapi.tags.length === 0) {
-            throw new Error(`service conflict on ${route}: at least one tag is required`);
         }
         for (const tag of service.openapi.tags) {
             if (!this.tags.includes(tag)) {
@@ -246,7 +252,7 @@ export class ServerApp<Context extends object> {
             ...this.options.defaultResponses,
             ...service.responses,
         })) {
-            responses[status] = this.describeResponse(service, response);
+            responses[status] = this.describeResponse(response);
         }
 
         const description: DescribeRouteOptions = {
@@ -275,10 +281,7 @@ export class ServerApp<Context extends object> {
     }
 
     /** Builds one documented response from its referenced or inline body schema. */
-    private describeResponse(
-        _service: ServiceBinding<Context, string>,
-        response: ServiceResponseDefinition,
-    ): DocumentedResponse {
+    private describeResponse(response: ServiceResponseDefinition): DocumentedResponse {
         if (response.body === undefined) {
             return { description: response.description };
         }

@@ -54,7 +54,7 @@ export const saveWorkflowRevision = defineControlService({
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;
-        const result = await context.workflows.saveRevision(
+        const result = await context.database.workflows.saveRevision(
             workflowId,
             extractDocumentText(request.bodyText),
             request.body.baseRevision,
