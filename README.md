@@ -222,7 +222,10 @@ export const WorkflowRevision = defineSchema("WorkflowRevision", WorkflowRevisio
 
 Every named schema a service references becomes one component, so several
 services can share it without restating it. A body left as a plain schema is
-documented inline at that operation and contributes no component.
+documented inline at that operation and contributes no component. An
+application whose document must carry a component that no operation body
+references declares it in the application's own `components` list, because
+nothing else can contribute it.
 
 The framework installs the mandatory middleware (request ids and access
 logging) before any route, and an application may add its own middleware
