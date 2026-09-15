@@ -1,65 +1,43 @@
+/** @fileoverview Strict workflow request-body decoding and document text extraction. */
+
 import { type DocumentNode, parse as parseJsonAst } from "@humanwhocodes/momoa";
+import type { ServiceBodyDecoder } from "@rostrum/server/request";
 import { parseWorkflow } from "@rostrum/workflow";
-import type { Context } from "hono";
-import type { Static, TObject, TSchema } from "typebox";
+import type { TSchema } from "typebox";
 import { Value } from "typebox/value";
-import { invalidWorkflowInput, WorkflowApiError, workflowParseFailure } from "./errors";
-
-/** The strictly parsed JSON request body of a workflow operation. */
-export interface ParsedBody {
-    /** The body's exact text after UTF-8 decoding. */
-    readonly text: string;
-    /** The parsed value. */
-    readonly value: unknown;
-}
+import { errorBody, invalidWorkflowInput, workflowParseFailure } from "./errors";
 
 /**
- * Reads and strictly parses the JSON request body. Duplicate keys,
- * `NaN`/`Infinity` literals, and invalid UTF-8 are parse failures: they
- * answer 400 carrying the parse findings, never a draft.
+ * Decodes one declared workflow request body, preserving its exact source
+ * text. The body is read once and parsed strictly: duplicate keys,
+ * `NaN`/`Infinity` literals, and invalid UTF-8 answer 400 carrying the parse
+ * findings, and a document that does not satisfy the operation's schema
+ * answers 400 `invalid_workflow_input`. A failure never reaches a handler.
  */
-export async function parseWorkflowBody(c: Context): Promise<ParsedBody> {
-    const bytes = new Uint8Array(await c.req.arrayBuffer());
-    const parsed = parseWorkflow(bytes);
-    if (!parsed.ok) throw new WorkflowApiError(workflowParseFailure(parsed.findings));
-    return { text: parsed.text, value: parsed.document };
-}
-
-/**
- * Reads, strictly parses, and validates a request body against the
- * operation's schema, then returns the parsed value plus the exact
- * source text of its `document` member. The document text keeps the
- * author's formatting byte-for-byte, so the stored revision's findings
- * anchor to the text retrieval returns.
- */
-export async function readDocumentRequestBody<T extends TObject>(
-    c: Context,
-    schema: T,
-): Promise<{ request: Static<T>; documentText: string }> {
-    const body = await parseWorkflowBody(c);
-    if (!Value.Check(schema, body.value)) {
-        throw new WorkflowApiError(invalidWorkflowInput(requestBodyError(schema, body.value)));
+export const decodeWorkflowBody: ServiceBodyDecoder = async (request, schema) => {
+    // The framework reads the body once and hands over the bytes it received.
+    const parsed = parseWorkflow(new Uint8Array(await request.arrayBuffer()));
+    if (!parsed.ok) {
+        return {
+            ok: false,
+            response: Response.json(errorBody(workflowParseFailure(parsed.findings)), {
+                status: 400,
+            }),
+        };
     }
-    return {
-        request: body.value as Static<T>,
-        documentText: extractMemberText(body.text, "document"),
-    };
-}
 
-/**
- * Reads, strictly parses, and validates a JSON body against the
- * operation's schema, returning the typed value.
- */
-export async function readValidatedBody<T extends TObject>(
-    c: Context,
-    schema: T,
-): Promise<Static<T>> {
-    const body = await parseWorkflowBody(c);
-    if (!Value.Check(schema, body.value)) {
-        throw new WorkflowApiError(invalidWorkflowInput(requestBodyError(schema, body.value)));
+    // Only the application's own decoder checks the schema, so the wording
+    // stays this module's and never becomes the framework's.
+    if (!Value.Check(schema, parsed.document)) {
+        const message = requestBodyError(schema, parsed.document);
+        return {
+            ok: false,
+            response: Response.json(errorBody(invalidWorkflowInput(message)), { status: 400 }),
+        };
     }
-    return body.value as Static<T>;
-}
+
+    return { ok: true, decoded: { body: parsed.document, text: parsed.text } };
+};
 
 /** Builds the 400 message for a request body that does not satisfy its schema. */
 function requestBodyError(schema: TSchema, value: unknown): string {
@@ -70,8 +48,12 @@ function requestBodyError(schema: TSchema, value: unknown): string {
     return `The request body is not valid: ${location} ${first.message}`;
 }
 
-/** Returns the exact source text of one root member of strictly valid JSON. */
-function extractMemberText(text: string, name: string): string {
+/**
+ * Returns the exact source text of the `document` member of a valid request
+ * body, so the stored revision keeps the author's formatting byte-for-byte
+ * and its findings anchor to the text retrieval returns.
+ */
+export function extractDocumentText(text: string): string {
     let document: DocumentNode;
     try {
         document = parseJsonAst(text, { mode: "json", ranges: true });
@@ -87,11 +69,11 @@ function extractMemberText(text: string, name: string): string {
     const member = root.members.find(
         (candidate) =>
             (candidate.name.type === "String" ? candidate.name.value : candidate.name.name) ===
-            name,
+            "document",
     );
     const range = member?.value.range;
     if (range === undefined) {
-        throw new Error(`request body re-parse produced no ${name} member range`);
+        throw new Error("request body re-parse produced no document member range");
     }
     return text.slice(range[0], range[1]);
 }

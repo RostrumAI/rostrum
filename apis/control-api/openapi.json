@@ -8,6 +8,9 @@
   "tags": [
     {
       "name": "system"
+    },
+    {
+      "name": "workflows"
     }
   ],
   "components": {
@@ -568,76 +571,6 @@
         },
         "additionalProperties": false
       },
-      "PublishResponse": {
-        "type": "object",
-        "required": [
-          "workflowId",
-          "publicationNumber",
-          "workflowFormatVersion",
-          "digest"
-        ],
-        "properties": {
-          "workflowId": {
-            "type": "string"
-          },
-          "publicationNumber": {
-            "type": "integer",
-            "description": "The per-workflow publication number."
-          },
-          "workflowFormatVersion": {
-            "type": "string",
-            "description": "The exact format version token the published content satisfies."
-          },
-          "digest": {
-            "type": "string",
-            "description": "SHA-256 hex over the RFC 8785 canonical form of the document with name and description removed."
-          }
-        },
-        "additionalProperties": false
-      },
-      "PublicationResponse": {
-        "type": "object",
-        "required": [
-          "publicationNumber",
-          "revisionId",
-          "workflowFormatVersion",
-          "digest",
-          "content"
-        ],
-        "properties": {
-          "publicationNumber": {
-            "type": "integer"
-          },
-          "revisionId": {
-            "type": "string",
-            "description": "The source revision the published bytes came from."
-          },
-          "workflowFormatVersion": {
-            "type": "string"
-          },
-          "digest": {
-            "type": "string"
-          },
-          "content": {
-            "type": "string",
-            "description": "The stored canonical text (RFC 8785), full document with metadata members included. Verify by removing name and description, canonicalizing, and hashing SHA-256: the result equals digest."
-          }
-        },
-        "additionalProperties": false
-      },
-      "RewindRequest": {
-        "type": "object",
-        "required": [
-          "targetRevisionId"
-        ],
-        "properties": {
-          "targetRevisionId": {
-            "type": "string",
-            "description": "The revision to rewind the draft to."
-          }
-        },
-        "additionalProperties": false
-      },
       "SaveRevisionRequest": {
         "type": "object",
         "required": [
@@ -663,6 +596,19 @@
           },
           "document": {
             "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
+          }
+        },
+        "additionalProperties": false
+      },
+      "RewindRequest": {
+        "type": "object",
+        "required": [
+          "targetRevisionId"
+        ],
+        "properties": {
+          "targetRevisionId": {
+            "type": "string",
+            "description": "The revision to rewind the draft to."
           }
         },
         "additionalProperties": false
@@ -744,13 +690,71 @@
       },
       "WorkflowDocument": {
         "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
+      },
+      "PublicationResponse": {
+        "type": "object",
+        "required": [
+          "publicationNumber",
+          "revisionId",
+          "workflowFormatVersion",
+          "digest",
+          "content"
+        ],
+        "properties": {
+          "publicationNumber": {
+            "type": "integer"
+          },
+          "revisionId": {
+            "type": "string",
+            "description": "The source revision the published bytes came from."
+          },
+          "workflowFormatVersion": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "description": "The stored canonical text (RFC 8785), full document with metadata members included. Verify by removing name and description, canonicalizing, and hashing SHA-256: the result equals digest."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublishResponse": {
+        "type": "object",
+        "required": [
+          "workflowId",
+          "publicationNumber",
+          "workflowFormatVersion",
+          "digest"
+        ],
+        "properties": {
+          "workflowId": {
+            "type": "string"
+          },
+          "publicationNumber": {
+            "type": "integer",
+            "description": "The per-workflow publication number."
+          },
+          "workflowFormatVersion": {
+            "type": "string",
+            "description": "The exact format version token the published content satisfies."
+          },
+          "digest": {
+            "type": "string",
+            "description": "SHA-256 hex over the RFC 8785 canonical form of the document with name and description removed."
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
   "paths": {
     "/api/system/health": {
       "get": {
-        "operationId": "getApiSystemHealth",
+        "operationId": "getControlApiHealth",
+        "summary": "Report process liveness",
         "tags": [
           "system"
         ],
@@ -770,7 +774,8 @@
     },
     "/api/system/readiness": {
       "get": {
-        "operationId": "getApiSystemReadiness",
+        "operationId": "getControlApiReadiness",
+        "summary": "Report dependency readiness",
         "tags": [
           "system"
         ],
@@ -800,7 +805,8 @@
     },
     "/api/workflows": {
       "post": {
-        "operationId": "postApiWorkflows",
+        "operationId": "createWorkflowDraft",
+        "summary": "Create a workflow draft",
         "tags": [
           "workflows"
         ],
@@ -839,287 +845,10 @@
         }
       }
     },
-    "/api/workflows/{workflowId}/publish": {
-      "post": {
-        "operationId": "postApiWorkflowsByWorkflowIdPublish",
-        "tags": [
-          "workflows"
-        ],
-        "responses": {
-          "200": {
-            "description": "The current revision was already published: the response is identical and idempotent",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "The current revision was published and stored as an immutable publication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The workflow does not exist (code not_found), or its current revision does not (code revision_not_found)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The current revision has blocking validation findings; nothing is created and the body carries the findings",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The workflow id."
-            }
-          }
-        ]
-      }
-    },
-    "/api/workflows/{workflowId}": {
-      "get": {
-        "operationId": "getApiWorkflowsByWorkflowId",
-        "tags": [
-          "workflows"
-        ],
-        "responses": {
-          "200": {
-            "description": "The draft's current revision: stored text plus findings snapshot",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowRevision"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The workflow does not exist",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The workflow id."
-            }
-          }
-        ]
-      }
-    },
-    "/api/workflows/{workflowId}/publications/{publicationNumber}": {
-      "get": {
-        "operationId": "getApiWorkflowsByWorkflowIdPublicationsByPublicationNumber",
-        "tags": [
-          "workflows"
-        ],
-        "responses": {
-          "200": {
-            "description": "The publication: canonical stored text, verified at retrieval by digest recomputation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublicationResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The workflow has no such publication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The workflow id."
-            }
-          },
-          {
-            "name": "publicationNumber",
-            "in": "path",
-            "required": true,
-            "description": "The per-workflow publication number.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$",
-              "description": "The per-workflow publication number."
-            }
-          }
-        ]
-      }
-    },
-    "/api/workflows/{workflowId}/revisions/{revisionId}": {
-      "get": {
-        "operationId": "getApiWorkflowsByWorkflowIdRevisionsByRevisionId",
-        "tags": [
-          "workflows"
-        ],
-        "responses": {
-          "200": {
-            "description": "The stored revision: exact text plus findings snapshot",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowRevision"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The workflow or revision does not exist",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The workflow id."
-            }
-          },
-          {
-            "name": "revisionId",
-            "in": "path",
-            "required": true,
-            "description": "The revision id to retrieve.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The revision id."
-            }
-          }
-        ]
-      }
-    },
-    "/api/workflows/{workflowId}/rewind": {
-      "post": {
-        "operationId": "postApiWorkflowsByWorkflowIdRewind",
-        "tags": [
-          "workflows"
-        ],
-        "responses": {
-          "200": {
-            "description": "The draft now shows the target revision (a rewind to the current revision is a no-op)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowRevision"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The body is not a valid rewind request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The workflow does not exist (code not_found), or the target revision does not (code revision_not_found)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "workflowId",
-            "in": "path",
-            "required": true,
-            "description": "The draft's workflow id.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "description": "The workflow id."
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "The rewind request body, naming the target revision.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RewindRequest"
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/workflows/{workflowId}/revisions": {
       "put": {
-        "operationId": "putApiWorkflowsByWorkflowIdRevisions",
+        "operationId": "saveWorkflowRevision",
+        "summary": "Save a workflow revision",
         "tags": [
           "workflows"
         ],
@@ -1191,9 +920,75 @@
         }
       }
     },
+    "/api/workflows/{workflowId}/rewind": {
+      "post": {
+        "operationId": "rewindWorkflow",
+        "summary": "Rewind a workflow draft",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "The draft now shows the target revision (a rewind to the current revision is a no-op)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRevision"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a valid rewind request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The workflow does not exist (code not_found), or the target revision does not (code revision_not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The rewind request body, naming the target revision.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RewindRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/validate": {
       "post": {
-        "operationId": "postApiWorkflowsValidate",
+        "operationId": "validateWorkflow",
+        "summary": "Validate a workflow document",
         "tags": [
           "workflows"
         ],
@@ -1230,6 +1025,224 @@
             }
           }
         }
+      }
+    },
+    "/api/workflows/{workflowId}": {
+      "get": {
+        "operationId": "retrieveWorkflowDraft",
+        "summary": "Retrieve a workflow draft",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "The draft's current revision: stored text plus findings snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRevision"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The workflow does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          }
+        ]
+      }
+    },
+    "/api/workflows/{workflowId}/revisions/{revisionId}": {
+      "get": {
+        "operationId": "retrieveWorkflowRevision",
+        "summary": "Retrieve a workflow revision",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored revision: exact text plus findings snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRevision"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The workflow or revision does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          },
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "description": "The revision id to retrieve.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The revision id."
+            }
+          }
+        ]
+      }
+    },
+    "/api/workflows/{workflowId}/publications/{publicationNumber}": {
+      "get": {
+        "operationId": "retrieveWorkflowPublication",
+        "summary": "Retrieve a workflow publication",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "The publication: canonical stored text, verified at retrieval by digest recomputation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The workflow has no such publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          },
+          {
+            "name": "publicationNumber",
+            "in": "path",
+            "required": true,
+            "description": "The per-workflow publication number.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$",
+              "description": "The per-workflow publication number."
+            }
+          }
+        ]
+      }
+    },
+    "/api/workflows/{workflowId}/publish": {
+      "post": {
+        "operationId": "publishWorkflow",
+        "summary": "Publish a workflow draft",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "The current revision was already published: the response is identical and idempotent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The current revision was published and stored as an immutable publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The workflow does not exist (code not_found), or its current revision does not (code revision_not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The current revision has blocking validation findings; nothing is created and the body carries the findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The draft's workflow id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "The workflow id."
+            }
+          }
+        ]
       }
     }
   }

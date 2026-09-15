@@ -200,12 +200,23 @@ Routes live under the `/api` path prefix. The prefix carries no
 API version: a future deliberate stabilization may introduce a versioned
 prefix, but until then routes stay unversioned.
 
-Each route is one feature slice under
-`apis/control-api/src/features/`: a slice exports `route`, `schema`, and
-`createHandler`, and the folder layout decides the bound path. For example,
-`src/features/system/health.ts` serves `GET /api/system/health`. The
-server startup validates every slice against this contract; a slice that
-misses it fails startup.
+Each route is one service module under `apis/control-api/src/services/`, or
+under `apis/daemon/src/services/` for the daemon's private routes. A service
+module declares its method, its complete `/api` path, the TypeBox schemas for
+its body and path parameters, its OpenAPI metadata and documented responses,
+the named components it contributes, and a `handler(request, response,
+context)` that answers with the response view. `src/routes.ts` imports every
+service of that application and registers it, so registration is static: no
+directory scan, no dynamic import, and no folder-derived path. A conflicting
+declaration — a duplicate route or operation id, an undeclared tag, a body on
+a method that cannot carry one, a path parameter without a schema — fails
+startup.
+
+The framework installs the mandatory middleware (request ids and access
+logging) before any route, and an application may add its own middleware
+before registering routes. `@rostrum/server` owns that stack, the typed
+service builder, the registrar, the generated contract, the strict JSON body
+and path-parameter validation, and the startup and shutdown runtime.
 
 Every error response uses one shape: `{"code","message","findings"}`.
 
@@ -280,7 +291,7 @@ its checked-in copy.
 | --- | --- |
 | `apis/` | Backend services; `control-api/` is the caller-facing process and `daemon/` executes workflows |
 | `apps/` | User-facing applications |
-| `packages/server/` | Shared service mechanics: configuration, loopback and token validation, route parameter validation, protocol schemas, logging, feature loading, readiness, and lifecycle |
+| `packages/server/` | Shared service framework: configuration loading, loopback and token validation, logging, the branded application, typed service registration and OpenAPI translation, request validation, protocol schemas, readiness, and the startup and shutdown runtime |
 | `packages/database/` | Postgres persistence: schema, migrations, repositories, and connection handles |
 | `packages/workflow/` | The shared workflow library and validator |
 | `dev-docs/` | Ignored checkout of the independent development-documentation repository |

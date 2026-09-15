@@ -161,14 +161,10 @@
   "paths": {
     "/api/system/health": {
       "get": {
-        "operationId": "getApiSystemHealth",
+        "operationId": "getDaemonHealth",
+        "summary": "Report process liveness",
         "tags": [
           "system"
-        ],
-        "security": [
-          {
-            "daemonBearer": []
-          }
         ],
         "responses": {
           "200": {
@@ -191,19 +187,20 @@
               }
             }
           }
-        }
-      }
-    },
-    "/api/system/readiness": {
-      "get": {
-        "operationId": "getApiSystemReadiness",
-        "tags": [
-          "system"
-        ],
+        },
         "security": [
           {
             "daemonBearer": []
           }
+        ]
+      }
+    },
+    "/api/system/readiness": {
+      "get": {
+        "operationId": "getDaemonReadiness",
+        "summary": "Report dependency readiness",
+        "tags": [
+          "system"
         ],
         "responses": {
           "200": {
@@ -236,7 +233,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "daemonBearer": []
+          }
+        ]
       }
     }
   }

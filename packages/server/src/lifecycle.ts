@@ -1,47 +1,44 @@
 /** @fileoverview Shared service startup, authenticated admission, and bounded shutdown. */
 
 import { getLogger, type LogLevel } from "@logtape/logtape";
+import { type ConfigDefinition, loadConfig } from "./config";
 import { configureLogging } from "./logger";
 
-/** The service a runtime hosts; selects the log category. */
-export type ServiceName = "control-api" | "daemon";
-
-/** Configuration read once at startup and fixed for the lifetime of the process. */
+/** Configuration a started service reads once and keeps for its lifetime. */
 export interface ServiceRuntimeConfig {
+    /** Address the listener binds. */
     readonly host: string;
+    /** Port the listener binds; zero selects an available port. */
     readonly port: number;
+    /** Minimum severity this process emits. */
     readonly logLevel: LogLevel;
+    /** Maximum duration of graceful shutdown, in milliseconds. */
     readonly shutdownTimeoutMs: number;
     /** Present when the listener serves TLS directly (direct mode only). */
-    readonly tls?: { readonly cert: string; readonly key: string };
+    readonly tls?: {
+        /** PEM certificate presented by the listener. */
+        readonly cert: string;
+        /** PEM private key matching the certificate. */
+        readonly key: string;
+    };
 }
 
-/** Resources owned by one service process and closed once when it stops. */
-export interface ServiceResources {
-    /** Releases every owned resource within `timeoutMs`; safe to call once. */
-    close(options: { timeoutMs: number }): Promise<void>;
-}
-
-/** Inputs the shared runtime needs from one executable service. */
-export interface RunServiceOptions<C extends ServiceRuntimeConfig, D extends ServiceResources> {
-    readonly name: ServiceName;
-    /** Loads and validates configuration once, before logging or resource acquisition. */
-    loadConfig(): C;
-    /** Acquires the resources owned by this process. */
-    createResources(config: C): Promise<D>;
-    /** Serves a request with the process's fixed configuration and resources. */
-    fetch(
-        request: Request,
-        config: C,
-        resources: D,
-        signal: AbortSignal,
-    ): Response | Promise<Response>;
+/**
+ * A service that has opened its resources and is ready to serve. The
+ * application factory returns this value, so the runtime never learns how
+ * that service acquires a database, a client, or an application.
+ */
+export interface OpenedService<C extends ServiceRuntimeConfig> {
+    /** Serves one admitted request with this process's configuration and resources. */
+    fetch(request: Request, signal: AbortSignal): Response | Promise<Response>;
     /**
      * Returns a rejection response for an unauthenticated request, or
      * undefined to proceed. Runs before the draining gate, route matching,
      * and every other boundary concern.
      */
     authenticate?(request: Request, config: C): Response | undefined;
+    /** Releases every owned resource within `timeoutMs`; safe to call once. */
+    close(options: { timeoutMs: number }): Promise<void>;
 }
 
 /** The bound HTTP listener the runtime serves requests from. */
@@ -63,15 +60,20 @@ function internalErrorResponse(): Response {
     );
 }
 
-/** Runs one service process with authenticated admission and one shutdown deadline. */
-export async function runService<C extends ServiceRuntimeConfig, D extends ServiceResources>(
-    options: RunServiceOptions<C, D>,
+/**
+ * Starts one service process: configuration, logging, the service's own
+ * resources, and the listener, then owns bounded shutdown.
+ */
+export async function boot<C extends ServiceRuntimeConfig>(
+    root: string,
+    definition: ConfigDefinition<C>,
+    open: (config: C) => Promise<OpenedService<C>>,
 ): Promise<void> {
     // Reject invalid configuration before initializing logging or service resources.
-    const config = options.loadConfig();
+    const config = loadConfig(root, definition);
     await configureLogging(config.logLevel);
-    const logger = getLogger(options.name);
-    const resources = await options.createResources(config);
+    const logger = getLogger();
+    const service = await open(config);
 
     // Keep resource ownership independent of how startup or shutdown finishes.
     let closeStarted = false;
@@ -81,7 +83,7 @@ export async function runService<C extends ServiceRuntimeConfig, D extends Servi
         }
         closeStarted = true;
         try {
-            await resources.close({ timeoutMs });
+            await service.close({ timeoutMs });
             return true;
         } catch {
             logger.error("resource close failed");
@@ -103,7 +105,7 @@ export async function runService<C extends ServiceRuntimeConfig, D extends Servi
                     : { tls: { cert: config.tls.cert, key: config.tls.key } }),
                 fetch: async (request: Request) => {
                     // Authenticate before rejecting requests that arrive during shutdown.
-                    const rejection = options.authenticate?.(request, config);
+                    const rejection = service.authenticate?.(request, config);
                     if (rejection !== undefined) {
                         return rejection;
                     }
@@ -129,12 +131,7 @@ export async function runService<C extends ServiceRuntimeConfig, D extends Servi
 
                     // Observe stream completion and cancellation without buffering its contents.
                     try {
-                        const response = await options.fetch(
-                            request,
-                            config,
-                            resources,
-                            controller.signal,
-                        );
+                        const response = await service.fetch(request, controller.signal);
                         if (response.body === null) {
                             finish();
                             return response;

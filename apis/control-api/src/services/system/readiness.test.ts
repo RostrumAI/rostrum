@@ -1,9 +1,12 @@
 /** @fileoverview Control API readiness status and response tests. */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ControlApiConfig } from "@rostrum/server/config";
+import { createDatabase, type DatabaseHandle } from "@rostrum/database";
 import type { Readiness } from "@rostrum/server/protocol";
-import { createResources, type Resources } from "../../services";
+import { createControlApiApp } from "../../app";
+import type { ControlApiConfig } from "../../config";
+import type { ControlApiContext } from "../../control-api";
+import { WorkflowService } from "../../workflows/service";
 
 const config: ControlApiConfig = {
     host: "127.0.0.1",
@@ -19,22 +22,37 @@ const config: ControlApiConfig = {
     daemonUrl: "http://127.0.0.1:1",
 };
 
-let resources: Resources;
+const app = createControlApiApp();
+let database: DatabaseHandle;
+let workflows: WorkflowService;
 
-beforeAll(async () => {
-    resources = await createResources(config);
+beforeAll(() => {
+    // The route answers the aggregate result it is handed, so this handle never connects.
+    database = createDatabase({
+        url: config.databaseUrl,
+        tls: config.databaseTls,
+        allowInsecureLocal: config.allowInsecureLocal,
+        nodeEnv: config.nodeEnv,
+        applicationName: "control-api",
+        connectTimeoutMs: config.dependencyTimeoutMs,
+    });
+    workflows = WorkflowService.create(database);
 });
 
 afterAll(async () => {
-    await resources.close({ timeoutMs: 1_000 });
+    await workflows.close({ timeoutMs: 1_000 });
 });
 
 /** Requests readiness with a controlled aggregate result. */
-async function requestReadiness(result: Readiness): Promise<Response> {
-    return resources.app.fetch(new Request("http://localhost/api/system/readiness"), {
-        workflows: resources.workflows,
+function requestReadiness(result: Readiness): Response | Promise<Response> {
+    const context: ControlApiContext = {
+        config,
+        database,
+        workflows,
         readiness: async () => result,
-    });
+        abortSignal: new AbortController().signal,
+    };
+    return app.fetch(new Request("http://localhost/api/system/readiness"), context);
 }
 
 describe("Control API readiness route", () => {

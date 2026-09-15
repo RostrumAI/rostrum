@@ -3,8 +3,8 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ControlApiConfig } from "@rostrum/server/config";
-import { createResources, type Resources, readiness } from "./services";
+import type { ControlApiConfig } from "./config";
+import { ControlApi } from "./control-api";
 
 const config: ControlApiConfig = {
     host: "127.0.0.1",
@@ -20,33 +20,23 @@ const config: ControlApiConfig = {
     daemonUrl: "http://127.0.0.1:1",
 };
 
-let resources: Resources;
-let server: Bun.Server<undefined>;
+let api: ControlApi;
 
 beforeAll(async () => {
-    resources = await createResources(config);
-    server = Bun.serve({
-        hostname: "127.0.0.1",
-        port: 0,
-        fetch: (request) =>
-            resources.app.fetch(request, {
-                workflows: resources.workflows,
-                readiness: (signal) => readiness(config, resources, signal),
-            }),
-    });
+    api = await ControlApi.open(config);
 });
 
 afterAll(async () => {
-    server.stop(true);
-    await resources.close({ timeoutMs: 1_000 });
+    await api.close({ timeoutMs: 1_000 });
 });
 
 test("serves liveness and the checked-in OpenAPI document", async () => {
-    const health = await fetch(`http://127.0.0.1:${server.port}/api/system/health`);
+    const signal = new AbortController().signal;
+    const health = await api.fetch(new Request("http://127.0.0.1/api/system/health"), signal);
     expect(health.status).toBe(200);
     expect(await health.json()).toEqual({ status: "ok" });
 
-    const openapi = await fetch(`http://127.0.0.1:${server.port}/openapi.json`);
+    const openapi = await api.fetch(new Request("http://127.0.0.1/openapi.json"), signal);
     const served = await openapi.json();
     expect(openapi.status).toBe(200);
     expect(served).toMatchObject({ openapi: "3.1.0" });

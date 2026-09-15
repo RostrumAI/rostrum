@@ -2,9 +2,9 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { DaemonApp } from "../app";
+import { createDaemonApp } from "../app";
 
-const app = await DaemonApp.create();
+const app = createDaemonApp();
 await writeFile(
     join(import.meta.dir, "../../openapi.json"),
     `${JSON.stringify(await app.generateOpenApiDocument(), null, 2)}\n`,

@@ -1,11 +1,11 @@
 /** @fileoverview Child-process fixture for lifecycle integration tests. */
 
-import { readFileSync } from "node:fs";
 import { getLogger } from "@logtape/logtape";
-import { runService, type ServiceResources, type ServiceRuntimeConfig } from "./lifecycle";
-import { ConfigurationError } from "./network";
+import { Type } from "typebox";
+import { defineConfig } from "./config";
+import { boot, type ServiceRuntimeConfig } from "./lifecycle";
 
-/** Runs the real lifecycle with controlled configuration and handlers. */
+/** Runs the real runtime with a controlled configuration and handlers. */
 interface FixtureConfig extends ServiceRuntimeConfig {
     /** Served by `/marker`, so a test can prove which configuration is serving. */
     marker: string;
@@ -17,65 +17,50 @@ interface FixtureConfig extends ServiceRuntimeConfig {
     streamDelayMs: number;
 }
 
-const CONFIG_PATH = process.env.FIXTURE_CONFIG;
-if (CONFIG_PATH === undefined) {
-    throw new Error("FIXTURE_CONFIG is required");
-}
-
-/** Reads the startup configuration; the process reads this file exactly once. */
-function loadConfig(): FixtureConfig {
-    let raw: unknown;
-    try {
-        raw = JSON.parse(readFileSync(CONFIG_PATH as string, "utf8"));
-    } catch {
-        throw new ConfigurationError("fixture", "is not valid JSON");
-    }
-    if (typeof raw !== "object" || raw === null) {
-        throw new ConfigurationError("fixture", "must be an object");
-    }
-    const source = raw as Record<string, unknown>;
-    if (typeof source.marker !== "string" || source.marker.length === 0) {
-        throw new ConfigurationError("marker", "is required");
-    }
-    const nodeEnv = source.nodeEnv;
-    if (
-        nodeEnv !== undefined &&
-        nodeEnv !== "development" &&
-        nodeEnv !== "test" &&
-        nodeEnv !== "production"
-    ) {
-        throw new ConfigurationError("nodeEnv", "must be a known environment");
-    }
-    return {
-        host: "127.0.0.1",
-        port: typeof source.port === "number" ? source.port : 0,
-        logLevel: "info",
-        shutdownTimeoutMs:
-            typeof source.shutdownTimeoutMs === "number" ? source.shutdownTimeoutMs : 5_000,
-        marker: source.marker,
-        holdMs: typeof source.holdMs === "number" ? source.holdMs : 0,
-        streamChunks: typeof source.streamChunks === "number" ? source.streamChunks : 0,
-        streamDelayMs: typeof source.streamDelayMs === "number" ? source.streamDelayMs : 0,
-    };
-}
-
-interface FixtureResources extends ServiceResources {
-    readonly id: number;
-}
-
-let created = 0;
-
-/** Creates an identified resource so tests can observe closure order. */
-async function createResources(): Promise<FixtureResources> {
-    created += 1;
-    const id = created;
-    return {
-        id,
-        async close(): Promise<void> {
-            getLogger("control-api").info("fixture dependency closed", { id });
+const fixtureConfig = defineConfig<FixtureConfig>({
+    schema: Type.Object(
+        {
+            host: Type.String({ minLength: 1 }),
+            port: Type.Integer({ minimum: 0, maximum: 65535 }),
+            logLevel: Type.Union(
+                ["trace", "debug", "info", "warning", "error", "fatal"].map((level) =>
+                    Type.Literal(level),
+                ),
+            ),
+            shutdownTimeoutMs: Type.Integer({ minimum: 1, maximum: 300000 }),
+            marker: Type.String({ minLength: 1 }),
+            holdMs: Type.Integer({ minimum: 0 }),
+            streamChunks: Type.Integer({ minimum: 0 }),
+            streamDelayMs: Type.Integer({ minimum: 0 }),
         },
-    };
-}
+        { additionalProperties: false },
+    ),
+    defaults: () => ({
+        host: "127.0.0.1",
+        port: 0,
+        logLevel: "info",
+        shutdownTimeoutMs: 5000,
+        holdMs: 0,
+        streamChunks: 0,
+        streamDelayMs: 0,
+    }),
+    environment: {
+        host: { name: "FIXTURE_HOST", kind: "string" },
+        port: { name: "FIXTURE_PORT", kind: "integer" },
+    },
+    fileSelector: "FIXTURE_CONFIG",
+    defaultFile: "config.json",
+    finalize: (settings) => ({
+        host: settings.host as string,
+        port: settings.port as number,
+        logLevel: settings.logLevel as FixtureConfig["logLevel"],
+        shutdownTimeoutMs: settings.shutdownTimeoutMs as number,
+        marker: settings.marker as string,
+        holdMs: settings.holdMs as number,
+        streamChunks: settings.streamChunks as number,
+        streamDelayMs: settings.streamDelayMs as number,
+    }),
+});
 
 /** Emits the configured number of chunks so a test can observe a live response body. */
 function streamBody(config: FixtureConfig): ReadableStream<Uint8Array> {
@@ -94,27 +79,35 @@ function streamBody(config: FixtureConfig): ReadableStream<Uint8Array> {
     });
 }
 
-await runService<FixtureConfig, FixtureResources>({
-    name: "control-api",
-    loadConfig,
-    createResources,
-    fetch: async (request, config, resources) => {
-        const url = new URL(request.url);
-        if (url.pathname === "/marker") {
-            return Response.json({ marker: config.marker, dependency: resources.id });
-        }
-        if (url.pathname === "/hold") {
-            // Let tests synchronize after the request reaches the handler.
-            getLogger("control-api").info("fixture hold started");
-            await Bun.sleep(config.holdMs);
-            return Response.json({ held: config.holdMs });
-        }
-        if (url.pathname === "/stream") {
-            getLogger("control-api").info("fixture stream started");
-            return new Response(streamBody(config), {
-                headers: { "content-type": "text/plain" },
-            });
-        }
-        return Response.json({ code: "not_found" }, { status: 404 });
-    },
+let created = 0;
+
+await boot(import.meta.dir, fixtureConfig, async (config) => {
+    // Identify this process's resources so a test can observe their closure.
+    created += 1;
+    const id = created;
+
+    return {
+        fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/marker") {
+                return Response.json({ marker: config.marker, dependency: id });
+            }
+            if (url.pathname === "/hold") {
+                // Let tests synchronize after the request reaches the handler.
+                getLogger("control-api").info("fixture hold started");
+                await Bun.sleep(config.holdMs);
+                return Response.json({ held: config.holdMs });
+            }
+            if (url.pathname === "/stream") {
+                getLogger("control-api").info("fixture stream started");
+                return new Response(streamBody(config), {
+                    headers: { "content-type": "text/plain" },
+                });
+            }
+            return Response.json({ code: "not_found" }, { status: 404 });
+        },
+        close: async () => {
+            getLogger("control-api").info("fixture dependency closed", { id });
+        },
+    };
 });
