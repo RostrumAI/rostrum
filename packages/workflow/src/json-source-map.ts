@@ -15,7 +15,7 @@ export interface SourceLocation {
 }
 
 /** The start and end locations of one JSON value in the source text. */
-export interface JSONSourcePointer {
+export interface JsonSourcePointer {
     /** Location of the first character of the value. */
     value: SourceLocation;
     /** Location just past the last character of the value. */
@@ -23,7 +23,7 @@ export interface JSONSourcePointer {
 }
 
 /** Maps each JSON Pointer (RFC 6901) in a document to its source locations. */
-export type JSONSourceMap = Record<string, JSONSourcePointer>;
+export type JsonSourceMap = Record<string, JsonSourcePointer>;
 
 /** Escapes one JSON Pointer reference token: `~` becomes `~0` and `/` becomes `~1`. */
 export function escapePointerToken(token: string): string {

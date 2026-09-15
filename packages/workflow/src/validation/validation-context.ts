@@ -1,5 +1,5 @@
 import { FindingFactory } from "../findings";
-import type { JSONSourceMap } from "../json-source-map";
+import type { JsonSourceMap } from "../json-source-map";
 import type { WorkflowFormatRuleSet } from "../rules/workflow-format-rule-set";
 import type { WorkflowDocument } from "../schema";
 import { WorkflowGraph } from "./workflow-graph";
@@ -16,7 +16,7 @@ export class ValidationContext {
     /** The parsed document, or the caller-supplied document for `validateDocument`. */
     readonly document: unknown;
     /** Pointer-to-location map from stage 0, or null when validating a parsed document. */
-    readonly sourceMap: JSONSourceMap | null;
+    readonly sourceMap: JsonSourceMap | null;
     /** Finding factory bound to the source map. */
     readonly findings: FindingFactory;
 
@@ -24,7 +24,7 @@ export class ValidationContext {
     private documentGraph: WorkflowGraph | null = null;
 
     /** Constructs a context for one validation run. */
-    constructor(document: unknown, sourceMap: JSONSourceMap | null) {
+    constructor(document: unknown, sourceMap: JsonSourceMap | null) {
         this.document = document;
         this.sourceMap = sourceMap;
         this.findings = new FindingFactory(sourceMap);

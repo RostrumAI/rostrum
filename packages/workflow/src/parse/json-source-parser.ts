@@ -1,8 +1,8 @@
 import { type AnyNode, type MemberNode, parse as parseJsonAst } from "@humanwhocodes/momoa";
 import {
     escapePointerToken,
-    type JSONSourceMap,
-    type JSONSourcePointer,
+    type JsonSourceMap,
+    type JsonSourcePointer,
     type SourceLocation,
 } from "../json-source-map";
 
@@ -40,7 +40,7 @@ export interface JsonParseIssue {
 }
 
 export type JsonParseResult =
-    | { ok: true; value: unknown; sourceMap: JSONSourceMap }
+    | { ok: true; value: unknown; sourceMap: JsonSourceMap }
     | { ok: false; issues: JsonParseIssue[] };
 
 /** JSON Pointer (RFC 6901) of the document root. */
@@ -57,7 +57,7 @@ export class JsonSourceParser {
     private readonly input: string | Uint8Array;
     private text = "";
     private lineStarts: number[] | null = null;
-    private readonly pointers = new Map<string, JSONSourcePointer>();
+    private readonly pointers = new Map<string, JsonSourcePointer>();
     private readonly issues: JsonParseIssue[] = [];
 
     /** Constructs a parser over raw text or UTF-8 bytes; decoding happens in `parse`. */

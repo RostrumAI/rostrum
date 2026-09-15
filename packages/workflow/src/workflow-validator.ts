@@ -1,5 +1,5 @@
 import { type Finding, sortFindings } from "./findings";
-import type { JSONSourceMap } from "./json-source-map";
+import type { JsonSourceMap } from "./json-source-map";
 import { JsonSourceParser } from "./parse/json-source-parser";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "./rules/v1";
 import { WorkflowFormatRegistry } from "./rules/workflow-format-rule-set";
@@ -68,7 +68,7 @@ export class WorkflowValidator {
      * rule set's stages. An unknown version runs the format stage alone,
      * so its finding is the only output.
      */
-    private validateParsed(document: unknown, sourceMap: JSONSourceMap | null): ValidationResult {
+    private validateParsed(document: unknown, sourceMap: JsonSourceMap | null): ValidationResult {
         const context = new ValidationContext(document, sourceMap);
         const declared = declaredWorkflowFormatVersion(document);
         const stages: ValidationStage[] = [new FormatVersionStage(this.registry)];

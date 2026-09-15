@@ -1,4 +1,4 @@
-import type { JSONSourceMap } from "./json-source-map";
+import type { JsonSourceMap } from "./json-source-map";
 
 /**
  * Validation findings, the shared result of draft saves, explicit
@@ -64,10 +64,10 @@ export interface FindingSpec {
  * findings carry no line or column.
  */
 export class FindingFactory {
-    private readonly sourceMap: JSONSourceMap | null;
+    private readonly sourceMap: JsonSourceMap | null;
 
     /** Constructs a factory over the parsed document's source map, or null when absent. */
-    constructor(sourceMap: JSONSourceMap | null = null) {
+    constructor(sourceMap: JsonSourceMap | null = null) {
         this.sourceMap = sourceMap;
     }
 

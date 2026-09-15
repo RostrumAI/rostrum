@@ -27,8 +27,8 @@ export {
     sortFindings,
 } from "./findings";
 export type {
-    JSONSourceMap,
-    JSONSourcePointer,
+    JsonSourceMap,
+    JsonSourcePointer,
     SourceLocation,
 } from "./json-source-map";
 export { escapePointerToken } from "./json-source-map";
