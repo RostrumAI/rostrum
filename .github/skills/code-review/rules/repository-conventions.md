@@ -87,7 +87,7 @@ its inputs, documented responses, and context are typed at the declaration and e
 registered explicitly rather than discovered.
 **Applies to:** `apps/**/src/controllers/**`, `apis/**/src/controllers/**` · **Check:** judgment · **Severity:** medium
 **Flag:** A controller module that constructs its own builder instead of importing the application's, binds a route outside `http/routes.ts`, or reads inputs by hand rather than through its declared schemas.
-**Evidence:** PR #5 `apps/control-api/src/features/system/get-health.handler.ts:1` — "you need to export: route (GET /health), schema (anything), handler"; "any misaligned file will throw an error and prevent booting". Superseded by the framework in `packages/server/src/service.ts`: the loader's three-export contract is gone, and the value it described is now declared once per module.
+**Evidence:** PR #5 `apps/control-api/src/features/system/get-health.handler.ts:1` — "you need to export: route (GET /health), schema (anything), handler"; "any misaligned file will throw an error and prevent booting". Superseded by the framework in `packages/server/src/controller.ts`: the loader's three-export contract is gone, and the value it described is now declared once per module.
 
 ### REPO-SLICE-02 — Inject services through the controller's context built at boot
 Dependencies are constructed once at process start and reach controllers through `context.services`;
