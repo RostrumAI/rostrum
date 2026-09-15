@@ -2,14 +2,10 @@
 
 import { Type } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
 import { WorkflowApiError, workflowNotFound } from "../../workflows/errors";
-import {
-    revisionResponse,
-    WorkflowIdSchema,
-    WorkflowRevisionSchema,
-} from "../../workflows/schemas";
+import { revisionResponse, WorkflowIdSchema, WorkflowRevision } from "../../workflows/schemas";
 
 /**
  * Serves GET /api/workflows/:workflowId. Returns the current revision with the
@@ -31,13 +27,9 @@ export const retrieveWorkflowDraft = defineControlService({
     responses: {
         200: {
             description: "The draft's current revision: stored text plus findings snapshot",
-            body: WorkflowRevisionSchema,
+            body: WorkflowRevision,
         },
-        404: { description: "The workflow does not exist", body: ErrorResponseSchema },
-    },
-    schemas: {
-        WorkflowRevision: WorkflowRevisionSchema,
-        ErrorResponse: ErrorResponseSchema,
+        404: { description: "The workflow does not exist", body: ErrorResponse },
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;

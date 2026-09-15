@@ -2,7 +2,7 @@
 
 import { Type } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
 import {
     WorkflowApiError,
@@ -10,10 +10,10 @@ import {
     workflowRevisionNotFound,
 } from "../../workflows/errors";
 import {
-    RewindRequestSchema,
+    RewindRequest,
     revisionResponse,
     WorkflowIdSchema,
-    WorkflowRevisionSchema,
+    WorkflowRevision,
 } from "../../workflows/schemas";
 
 /**
@@ -26,7 +26,7 @@ export const rewindWorkflow = defineControlService({
     method: "POST",
     path: "/api/workflows/:workflowId/rewind",
     request: {
-        body: RewindRequestSchema,
+        body: RewindRequest,
         params: Type.Object({ workflowId: WorkflowIdSchema }),
         paramsDescriptions: { workflowId: "The draft's workflow id." },
         bodyDescription: "The rewind request body, naming the target revision.",
@@ -40,19 +40,14 @@ export const rewindWorkflow = defineControlService({
         200: {
             description:
                 "The draft now shows the target revision (a rewind to the current revision is a no-op)",
-            body: WorkflowRevisionSchema,
+            body: WorkflowRevision,
         },
-        400: { description: "The body is not a valid rewind request", body: ErrorResponseSchema },
+        400: { description: "The body is not a valid rewind request", body: ErrorResponse },
         404: {
             description:
                 "The workflow does not exist (code not_found), or the target revision does not (code revision_not_found)",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-    },
-    schemas: {
-        RewindRequest: RewindRequestSchema,
-        WorkflowRevision: WorkflowRevisionSchema,
-        ErrorResponse: ErrorResponseSchema,
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;

@@ -3,6 +3,7 @@
 import type { Context as HonoContext } from "hono";
 import type { Static, TObject, TSchema } from "typebox";
 import { type ServiceBodyDecoder, validatePathParameters } from "./request";
+import { type DefinedSchema, schemaOf } from "./schema";
 
 /** Methods a service route can bind to. */
 export const SERVICE_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -16,19 +17,30 @@ export const BODY_METHODS: readonly ServiceMethod[] = ["POST", "PUT", "PATCH"];
 /** The OpenAPI tag vocabulary one application declares. */
 export type ServiceTag = string;
 
+/** The value a declared body produces, whether it was named as a component or not. */
+type BodyValue<Body> =
+    Body extends DefinedSchema<infer Schema>
+        ? Static<Schema>
+        : Body extends TSchema
+          ? Static<Body>
+          : never;
+
 /**
  * The request a service handler receives. `body` and `params` exist only when
  * the service declares the matching schema, so reading an undeclared member
  * does not type-check.
  */
-export type ServiceRequest<Body extends TSchema | undefined, Params extends TSchema | undefined> = {
+export type ServiceRequest<
+    Body extends TSchema | DefinedSchema | undefined,
+    Params extends TSchema | undefined,
+> = {
     /** The request's headers, as the web platform represents them. */
     readonly headers: Headers;
 } & (Body extends undefined
     ? Record<never, never>
     : {
           /** The body, strictly decoded and validated against the declared schema. */
-          readonly body: Static<Extract<Body, TSchema>>;
+          readonly body: BodyValue<Body>;
           /**
            * The body's exact source text, kept for operations that store or
            * re-anchor to the bytes the author sent.
@@ -76,7 +88,7 @@ export type ServiceContext<Context extends object> = Context & {
 /** The handler a service declares; all three arguments are inferred. */
 export type ServiceHandler<
     Context extends object,
-    Body extends TSchema | undefined,
+    Body extends TSchema | DefinedSchema | undefined,
     Params extends TSchema | undefined,
 > = (
     request: ServiceRequest<Body, Params>,
@@ -88,8 +100,8 @@ export type ServiceHandler<
 export interface ServiceResponseDefinition {
     /** Human-readable description surfaced in the generated contract. */
     description: string;
-    /** The TypeBox schema the response body satisfies, contributed as a component. */
-    body?: TSchema;
+    /** The response body's schema: a named component, or an inline shape. */
+    body?: TSchema | DefinedSchema;
 }
 
 /** The OpenAPI metadata every service operation declares. */
@@ -105,7 +117,7 @@ export interface ServiceOpenApiDefinition<Tag extends string> {
 /** The input schemas a service declares. */
 export interface ServiceRequestDefinition {
     /** JSON body schema; declaring it makes `request.body` available. */
-    body?: TSchema;
+    body?: TSchema | DefinedSchema;
     /** Path-parameter schema; declaring it makes `request.params` available. */
     params?: TObject;
     /** Path-parameter descriptions for the generated contract, keyed by token name. */
@@ -141,8 +153,6 @@ export interface ServiceBinding<Context extends object, Tag extends string = str
     readonly openapi: ServiceOpenApiDefinition<Tag>;
     /** Documented responses keyed by status code. */
     readonly responses: Record<string, ServiceResponseDefinition>;
-    /** Named OpenAPI components this service contributes, keyed by component name. */
-    readonly schemas: Record<string, TSchema>;
     /** Reads this service's declared inputs and calls its handler. */
     readonly serve: ServiceBinder<Context>;
 }
@@ -151,7 +161,7 @@ export interface ServiceBinding<Context extends object, Tag extends string = str
 export interface ServiceDefinition<
     Context extends object = Record<string, never>,
     Tag extends string = string,
-    Body extends TSchema | undefined = undefined,
+    Body extends TSchema | DefinedSchema | undefined = undefined,
     Params extends TSchema | undefined = undefined,
 > extends ServiceBinding<Context, Tag> {
     /** The handler serving the route, with every argument inferred. */
@@ -162,7 +172,7 @@ export interface ServiceDefinition<
 interface ServiceDefinitionInput<
     Context extends object,
     Tag extends string,
-    Body extends TSchema | undefined,
+    Body extends TSchema | DefinedSchema | undefined,
     Params extends TSchema | undefined,
 > {
     /** The HTTP method the route binds to. */
@@ -184,8 +194,6 @@ interface ServiceDefinitionInput<
     openapi: ServiceOpenApiDefinition<Tag>;
     /** Documented responses keyed by status code. */
     responses: Record<string, ServiceResponseDefinition>;
-    /** Named OpenAPI components this service contributes, keyed by component name. */
-    schemas: Record<string, TSchema>;
     /** The handler serving the route, with every argument inferred. */
     handler: ServiceHandler<Context, Body, Params>;
 }
@@ -204,7 +212,7 @@ export type ServiceBuilder<
           readonly "the application context must not declare the reserved `raw` field; the framework provides it": never;
       }
     : <
-          Body extends TSchema | undefined = undefined,
+          Body extends TSchema | DefinedSchema | undefined = undefined,
           Params extends TSchema | undefined = undefined,
       >(
           definition: ServiceDefinitionInput<Context, Tag, Body, Params>,
@@ -225,12 +233,13 @@ export function createServiceBuilder<
      * schemas, and the handler's three arguments follow from them.
      */
     function defineService<
-        Body extends TSchema | undefined = undefined,
+        Body extends TSchema | DefinedSchema | undefined = undefined,
         Params extends TObject | undefined = undefined,
     >(
         definition: ServiceDefinitionInput<Context, Tag, Body, Params>,
     ): ServiceDefinition<Context, Tag, Body, Params> {
-        const bodySchema = definition.request.body;
+        const bodyReference = definition.request.body;
+        const bodySchema = bodyReference === undefined ? undefined : schemaOf(bodyReference);
         const paramsSchema = definition.request.params;
 
         // Read the declared inputs once, then hand the handler one plain request

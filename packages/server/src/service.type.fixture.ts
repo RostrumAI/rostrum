@@ -1,7 +1,8 @@
 /** @fileoverview Compile-time fixtures for the typed service contract. */
 
 import type { Context as HonoContext } from "hono";
-import { Type } from "typebox";
+import { type Static, Type } from "typebox";
+import { defineSchema } from "./schema";
 import {
     createServiceBuilder,
     type ServiceContext,
@@ -28,16 +29,21 @@ interface FixtureContext {
 const bodySchema = Type.Object({ value: Type.String() });
 const paramsSchema = Type.Object({ id: Type.String() });
 
+/** The body schema as a documented component. */
+const item = defineSchema("Item", bodySchema);
+
+/** The response body type a named component still yields. */
+export type ItemBody = Expect<Equal<Static<typeof item.schema>, { value: string }>>;
+
 const defineService = createServiceBuilder<FixtureContext, "system" | "workflows">();
 
 /** Every declared input and every handler argument, inferred from one definition. */
 export const withEverything = defineService({
     method: "POST",
     path: "/api/items/:id",
-    request: { body: bodySchema, params: paramsSchema },
+    request: { body: item, params: paramsSchema },
     openapi: { operationId: "createItem", summary: "Create an item", tags: ["workflows"] },
-    responses: { 200: { description: "Created", body: bodySchema } },
-    schemas: { Item: bodySchema },
+    responses: { 200: { description: "Created", body: item } },
     handler: (request, response, context) => {
         const { body, params, headers, bodyText } = request;
         const bodyCheck: Expect<Equal<typeof body, { value: string }>> = true;
@@ -71,7 +77,6 @@ export const withNothing = defineService({
     request: {},
     openapi: { operationId: "listItems", summary: "List items", tags: ["system"] },
     responses: { 200: { description: "The items" } },
-    schemas: {},
     handler: (request, response) => {
         const headers: Headers = request.headers;
         void headers;
@@ -117,7 +122,6 @@ export const withTwoParameters = defineService({
     request: { params: Type.Object({ itemId: Type.String(), revisionId: Type.String() }) },
     openapi: { operationId: "getRevision", summary: "Read a revision", tags: ["system"] },
     responses: { 200: { description: "The revision" } },
-    schemas: {},
     handler: (request, response) =>
         response.json({
             itemId: request.params.itemId,

@@ -1,6 +1,6 @@
 /** @fileoverview Control API dependency-readiness service. */
 
-import { ControlApiReadinessSchema } from "@rostrum/server/protocol";
+import { ControlApiReadiness } from "@rostrum/server/protocol";
 import { defineControlService } from "../../define";
 import { CONTROL_API_TAG } from "../../tags";
 
@@ -19,13 +19,12 @@ export const readiness = defineControlService({
         tags: [CONTROL_API_TAG.SYSTEM],
     },
     responses: {
-        200: { description: "Every dependency is ready", body: ControlApiReadinessSchema },
+        200: { description: "Every dependency is ready", body: ControlApiReadiness },
         503: {
             description: "At least one dependency is unavailable or not ready",
-            body: ControlApiReadinessSchema,
+            body: ControlApiReadiness,
         },
     },
-    schemas: { ControlApiReadiness: ControlApiReadinessSchema },
     handler: async (_request, response, context) => {
         const result = await context.readiness(context.abortSignal);
         return response.json(result, result.status === "ready" ? 200 : 503, {

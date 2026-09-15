@@ -2,9 +2,13 @@
 
 import type { Static } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
-import { PermissiveWorkflowDocumentSchema, ValidateResponseSchema } from "../../workflows/schemas";
+import {
+    ValidateResponse,
+    type ValidateResponseSchema,
+    WorkflowDocument,
+} from "../../workflows/schemas";
 
 /**
  * Serves POST /api/workflows/validate. Runs the same strict parse and
@@ -17,7 +21,7 @@ export const validateWorkflow = defineControlService({
     method: "POST",
     path: "/api/workflows/validate",
     request: {
-        body: PermissiveWorkflowDocumentSchema,
+        body: WorkflowDocument,
         bodyDescription: "The raw workflow JSON document to validate.",
     },
     openapi: {
@@ -28,17 +32,12 @@ export const validateWorkflow = defineControlService({
     responses: {
         200: {
             description: "Validation findings for the submitted document; nothing is saved",
-            body: ValidateResponseSchema,
+            body: ValidateResponse,
         },
         400: {
             description: "The document is not syntactically valid workflow JSON",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-    },
-    schemas: {
-        ValidateResponse: ValidateResponseSchema,
-        WorkflowDocument: PermissiveWorkflowDocumentSchema,
-        ErrorResponse: ErrorResponseSchema,
     },
     handler: async (request, response, context) => {
         const outcome = await context.workflows.validate(request.bodyText);

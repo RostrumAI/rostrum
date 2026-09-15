@@ -204,13 +204,25 @@ Each route is one service module under `apis/control-api/src/services/`, or
 under `apis/daemon/src/services/` for the daemon's private routes. A service
 module declares its method, its complete `/api` path, the TypeBox schemas for
 its body and path parameters, its OpenAPI metadata and documented responses,
-the named components it contributes, and a `handler(request, response,
-context)` that answers with the response view. `src/routes.ts` imports every
-service of that application and registers it, so registration is static: no
-directory scan, no dynamic import, and no folder-derived path. A conflicting
-declaration — a duplicate route or operation id, an undeclared tag, a body on
-a method that cannot carry one, a path parameter without a schema — fails
-startup.
+and a `handler(request, response, context)` that answers with the response
+view. `src/routes.ts` imports every service of that application and registers
+it, so registration is static: no directory scan, no dynamic import, and no
+folder-derived path. A conflicting declaration — a duplicate route or operation
+id, an undeclared tag, a body on a method that cannot carry one, a path
+parameter without a schema, or one component name carrying two different
+schemas — fails startup.
+
+A shared shape is declared once with `defineSchema`, which pairs the schema
+with the component name the document references, and the services that
+document it use that value:
+
+```ts
+export const WorkflowRevision = defineSchema("WorkflowRevision", WorkflowRevisionSchema);
+```
+
+Every named schema a service references becomes one component, so several
+services can share it without restating it. A body left as a plain schema is
+documented inline at that operation and contributes no component.
 
 The framework installs the mandatory middleware (request ids and access
 logging) before any route, and an application may add its own middleware

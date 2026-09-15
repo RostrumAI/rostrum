@@ -11,11 +11,9 @@ import type { Context } from "hono";
 import pkg from "../package.json" with { type: "json" };
 import type { ControlApiContext } from "./control-api";
 import { registerRoutes } from "./routes";
-import { ErrorResponseSchema } from "./schemas";
 import { CONTROL_API_TAG } from "./tags";
 import { errorBody, errorPayloadFor } from "./workflows/errors";
 import { decodeWorkflowBody } from "./workflows/request-body";
-import { FindingSchema } from "./workflows/schemas";
 
 /** The single error shape every Control API boundary failure answers with. */
 function errorJson(code: string, message: string): Record<string, unknown> {
@@ -35,7 +33,6 @@ export function createControlApiApp(): ServerApp<ControlApiContext> {
         title: "Rostrum Control API",
         description: "Code-first OpenAPI 3.1 document generated from TypeBox schemas.",
         version: pkg.version,
-        components: { ErrorResponse: ErrorResponseSchema, Finding: FindingSchema },
         decodeBody: decodeWorkflowBody,
     });
 

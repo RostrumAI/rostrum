@@ -2,14 +2,14 @@
 
 import { Type } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
 import { WorkflowApiError, workflowNotFound } from "../../workflows/errors";
 import {
     RevisionIdSchema,
     revisionResponse,
     WorkflowIdSchema,
-    WorkflowRevisionSchema,
+    WorkflowRevision,
 } from "../../workflows/schemas";
 
 /**
@@ -37,16 +37,12 @@ export const retrieveWorkflowRevision = defineControlService({
     responses: {
         200: {
             description: "The stored revision: exact text plus findings snapshot",
-            body: WorkflowRevisionSchema,
+            body: WorkflowRevision,
         },
         404: {
             description: "The workflow or revision does not exist",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-    },
-    schemas: {
-        WorkflowRevision: WorkflowRevisionSchema,
-        ErrorResponse: ErrorResponseSchema,
     },
     handler: async (request, response, context) => {
         const { workflowId, revisionId } = request.params;

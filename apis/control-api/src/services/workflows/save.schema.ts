@@ -1,3 +1,4 @@
+import { defineSchema } from "@rostrum/server/schema";
 import { Type } from "typebox";
 import { PermissiveWorkflowDocumentSchema, UUID_PATTERN } from "../../workflows/schemas";
 
@@ -21,3 +22,6 @@ export const SaveRevisionRequestSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/** The `SaveRevisionRequest` component: the base revision and document a save carries. */
+export const SaveRevisionRequest = defineSchema("SaveRevisionRequest", SaveRevisionRequestSchema);

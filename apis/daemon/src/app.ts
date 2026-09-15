@@ -2,7 +2,7 @@
 
 import { getLogger } from "@logtape/logtape";
 import { createServerApp, type ServerApp, serveOpenApi } from "@rostrum/server/app";
-import { BoundaryErrorSchema } from "@rostrum/server/protocol";
+import { BoundaryError } from "@rostrum/server/protocol";
 import type { Context } from "hono";
 import pkg from "../package.json" with { type: "json" };
 import type { DaemonContext } from "./daemon";
@@ -26,9 +26,8 @@ export function createDaemonApp(): ServerApp<DaemonContext> {
         title: "Rostrum Daemon API",
         description: "Private authenticated daemon boundary.",
         version: pkg.version,
-        components: { BoundaryError: BoundaryErrorSchema },
         defaultResponses: {
-            401: { description: "Bearer authentication required", body: BoundaryErrorSchema },
+            401: { description: "Bearer authentication required", body: BoundaryError },
         },
         security: [{ daemonBearer: [] }],
         securitySchemes: { daemonBearer: { type: "http", scheme: "bearer" } },

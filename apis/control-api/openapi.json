@@ -15,159 +15,6 @@
   ],
   "components": {
     "schemas": {
-      "ErrorResponse": {
-        "type": "object",
-        "required": [
-          "code",
-          "message",
-          "findings"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "code",
-                "message",
-                "blocking",
-                "path"
-              ],
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "blocking": {
-                  "type": "boolean"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "line": {
-                  "type": "integer",
-                  "description": "One-based line in the saved text."
-                },
-                "column": {
-                  "type": "integer",
-                  "description": "One-based column in the saved text."
-                },
-                "relatedLocations": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "required": [
-                      "path",
-                      "message"
-                    ],
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      },
-                      "message": {
-                        "type": "string"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "details": {
-                  "type": "object",
-                  "patternProperties": {
-                    "^.*$": {}
-                  },
-                  "description": "Structured context an automated author can repair without parsing the message."
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "currentRevision": {
-            "type": "string",
-            "description": "The draft's current revision id, present on revision conflicts so a client can retry against it."
-          }
-        },
-        "additionalProperties": false
-      },
-      "Finding": {
-        "type": "object",
-        "required": [
-          "code",
-          "message",
-          "blocking",
-          "path"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "blocking": {
-            "type": "boolean"
-          },
-          "path": {
-            "type": "string"
-          },
-          "line": {
-            "type": "integer",
-            "description": "One-based line in the saved text."
-          },
-          "column": {
-            "type": "integer",
-            "description": "One-based column in the saved text."
-          },
-          "relatedLocations": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "path",
-                "message"
-              ],
-              "properties": {
-                "path": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "details": {
-            "type": "object",
-            "patternProperties": {
-              "^.*$": {}
-            },
-            "description": "Structured context an automated author can repair without parsing the message."
-          }
-        },
-        "additionalProperties": false
-      },
-      "Health": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "const": "ok"
-          }
-        },
-        "additionalProperties": false
-      },
       "ControlApiReadiness": {
         "anyOf": [
           {
@@ -459,6 +306,278 @@
         },
         "additionalProperties": false
       },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "findings"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message",
+                "blocking",
+                "path"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "blocking": {
+                  "type": "boolean"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer",
+                  "description": "One-based line in the saved text."
+                },
+                "column": {
+                  "type": "integer",
+                  "description": "One-based column in the saved text."
+                },
+                "relatedLocations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "message"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "details": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^.*$": {}
+                  },
+                  "description": "Structured context an automated author can repair without parsing the message."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "currentRevision": {
+            "type": "string",
+            "description": "The draft's current revision id, present on revision conflicts so a client can retry against it."
+          }
+        },
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublicationResponse": {
+        "type": "object",
+        "required": [
+          "publicationNumber",
+          "revisionId",
+          "workflowFormatVersion",
+          "digest",
+          "content"
+        ],
+        "properties": {
+          "publicationNumber": {
+            "type": "integer"
+          },
+          "revisionId": {
+            "type": "string",
+            "description": "The source revision the published bytes came from."
+          },
+          "workflowFormatVersion": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "description": "The stored canonical text (RFC 8785), full document with metadata members included. Verify by removing name and description, canonicalizing, and hashing SHA-256: the result equals digest."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublishResponse": {
+        "type": "object",
+        "required": [
+          "workflowId",
+          "publicationNumber",
+          "workflowFormatVersion",
+          "digest"
+        ],
+        "properties": {
+          "workflowId": {
+            "type": "string"
+          },
+          "publicationNumber": {
+            "type": "integer",
+            "description": "The per-workflow publication number."
+          },
+          "workflowFormatVersion": {
+            "type": "string",
+            "description": "The exact format version token the published content satisfies."
+          },
+          "digest": {
+            "type": "string",
+            "description": "SHA-256 hex over the RFC 8785 canonical form of the document with name and description removed."
+          }
+        },
+        "additionalProperties": false
+      },
+      "RewindRequest": {
+        "type": "object",
+        "required": [
+          "targetRevisionId"
+        ],
+        "properties": {
+          "targetRevisionId": {
+            "type": "string",
+            "description": "The revision to rewind the draft to."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveRevisionRequest": {
+        "type": "object",
+        "required": [
+          "baseRevision",
+          "document"
+        ],
+        "properties": {
+          "baseRevision": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "description": "The revision id the client last saw; the save commits only against it."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional display label for the new revision."
+          },
+          "document": {
+            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidateResponse": {
+        "type": "object",
+        "required": [
+          "findings",
+          "validForPublication"
+        ],
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message",
+                "blocking",
+                "path"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "blocking": {
+                  "type": "boolean"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer",
+                  "description": "One-based line in the saved text."
+                },
+                "column": {
+                  "type": "integer",
+                  "description": "One-based column in the saved text."
+                },
+                "relatedLocations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "message"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "details": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^.*$": {}
+                  },
+                  "description": "Structured context an automated author can repair without parsing the message."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "validForPublication": {
+            "type": "boolean",
+            "description": "True when no finding blocks publication."
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowDocument": {
+        "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
+      },
       "WorkflowRevision": {
         "type": "object",
         "required": [
@@ -567,183 +686,6 @@
               "additionalProperties": false
             },
             "description": "The validation findings snapshot stored with the revision."
-          }
-        },
-        "additionalProperties": false
-      },
-      "SaveRevisionRequest": {
-        "type": "object",
-        "required": [
-          "baseRevision",
-          "document"
-        ],
-        "properties": {
-          "baseRevision": {
-            "type": "string",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "description": "The revision id the client last saw; the save commits only against it."
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Optional display label for the new revision."
-          },
-          "document": {
-            "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
-          }
-        },
-        "additionalProperties": false
-      },
-      "RewindRequest": {
-        "type": "object",
-        "required": [
-          "targetRevisionId"
-        ],
-        "properties": {
-          "targetRevisionId": {
-            "type": "string",
-            "description": "The revision to rewind the draft to."
-          }
-        },
-        "additionalProperties": false
-      },
-      "ValidateResponse": {
-        "type": "object",
-        "required": [
-          "findings",
-          "validForPublication"
-        ],
-        "properties": {
-          "findings": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "code",
-                "message",
-                "blocking",
-                "path"
-              ],
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "blocking": {
-                  "type": "boolean"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "line": {
-                  "type": "integer",
-                  "description": "One-based line in the saved text."
-                },
-                "column": {
-                  "type": "integer",
-                  "description": "One-based column in the saved text."
-                },
-                "relatedLocations": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "required": [
-                      "path",
-                      "message"
-                    ],
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      },
-                      "message": {
-                        "type": "string"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "details": {
-                  "type": "object",
-                  "patternProperties": {
-                    "^.*$": {}
-                  },
-                  "description": "Structured context an automated author can repair without parsing the message."
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "validForPublication": {
-            "type": "boolean",
-            "description": "True when no finding blocks publication."
-          }
-        },
-        "additionalProperties": false
-      },
-      "WorkflowDocument": {
-        "description": "The raw workflow JSON document. Drafts accept any syntactically valid JSON, including documents with blocking validation findings; the precise document shape lives in the workflow format, not the transport contract."
-      },
-      "PublicationResponse": {
-        "type": "object",
-        "required": [
-          "publicationNumber",
-          "revisionId",
-          "workflowFormatVersion",
-          "digest",
-          "content"
-        ],
-        "properties": {
-          "publicationNumber": {
-            "type": "integer"
-          },
-          "revisionId": {
-            "type": "string",
-            "description": "The source revision the published bytes came from."
-          },
-          "workflowFormatVersion": {
-            "type": "string"
-          },
-          "digest": {
-            "type": "string"
-          },
-          "content": {
-            "type": "string",
-            "description": "The stored canonical text (RFC 8785), full document with metadata members included. Verify by removing name and description, canonicalizing, and hashing SHA-256: the result equals digest."
-          }
-        },
-        "additionalProperties": false
-      },
-      "PublishResponse": {
-        "type": "object",
-        "required": [
-          "workflowId",
-          "publicationNumber",
-          "workflowFormatVersion",
-          "digest"
-        ],
-        "properties": {
-          "workflowId": {
-            "type": "string"
-          },
-          "publicationNumber": {
-            "type": "integer",
-            "description": "The per-workflow publication number."
-          },
-          "workflowFormatVersion": {
-            "type": "string",
-            "description": "The exact format version token the published content satisfies."
-          },
-          "digest": {
-            "type": "string",
-            "description": "SHA-256 hex over the RFC 8785 canonical form of the document with name and description removed."
           }
         },
         "additionalProperties": false

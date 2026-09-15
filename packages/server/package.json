@@ -9,6 +9,7 @@
         "./tokens": "./src/tokens.ts",
         "./logger": "./src/logger.ts",
         "./service": "./src/service.ts",
+        "./schema": "./src/schema.ts",
         "./request": "./src/request.ts",
         "./app": "./src/app.ts",
         "./protocol": "./src/protocol.ts",

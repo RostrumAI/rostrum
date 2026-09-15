@@ -1,3 +1,4 @@
+import { defineSchema } from "@rostrum/server/schema";
 import { Type } from "typebox";
 import { PermissiveWorkflowDocumentSchema } from "../../workflows/schemas";
 
@@ -17,3 +18,6 @@ export const CreateDraftRequestSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/** The `CreateDraftRequest` component: the document and optional label a creation sends. */
+export const CreateDraftRequest = defineSchema("CreateDraftRequest", CreateDraftRequestSchema);

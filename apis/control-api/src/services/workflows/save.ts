@@ -2,7 +2,7 @@
 
 import { Type } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
 import {
     WorkflowApiError,
@@ -10,12 +10,8 @@ import {
     workflowRevisionConflict,
 } from "../../workflows/errors";
 import { extractDocumentText } from "../../workflows/request-body";
-import {
-    revisionResponse,
-    WorkflowIdSchema,
-    WorkflowRevisionSchema,
-} from "../../workflows/schemas";
-import { SaveRevisionRequestSchema } from "./save.schema";
+import { revisionResponse, WorkflowIdSchema, WorkflowRevision } from "../../workflows/schemas";
+import { SaveRevisionRequest } from "./save.schema";
 
 /**
  * Serves PUT /api/workflows/:workflowId/revisions. The request body's
@@ -28,7 +24,7 @@ export const saveWorkflowRevision = defineControlService({
     method: "PUT",
     path: "/api/workflows/:workflowId/revisions",
     request: {
-        body: SaveRevisionRequestSchema,
+        body: SaveRevisionRequest,
         params: Type.Object({ workflowId: WorkflowIdSchema }),
         paramsDescriptions: { workflowId: "The draft's workflow id." },
         bodyDescription:
@@ -42,24 +38,19 @@ export const saveWorkflowRevision = defineControlService({
     responses: {
         200: {
             description: "The revision was stored and is the draft's current revision",
-            body: WorkflowRevisionSchema,
+            body: WorkflowRevision,
         },
         400: {
             description:
                 "The body is not a valid save request, or the document is not syntactically valid workflow JSON",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-        404: { description: "The workflow does not exist", body: ErrorResponseSchema },
+        404: { description: "The workflow does not exist", body: ErrorResponse },
         409: {
             description:
                 "The saved base revision is stale (code revision_conflict, body carries currentRevision and its findings), or the document's embedded id disagrees with the addressed workflow (code identity_conflict)",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-    },
-    schemas: {
-        SaveRevisionRequest: SaveRevisionRequestSchema,
-        WorkflowRevision: WorkflowRevisionSchema,
-        ErrorResponse: ErrorResponseSchema,
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;

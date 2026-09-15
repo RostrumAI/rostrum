@@ -1,6 +1,6 @@
 /** @fileoverview Daemon dependency-readiness service. */
 
-import { DaemonReadinessSchema } from "@rostrum/server/protocol";
+import { DaemonReadiness } from "@rostrum/server/protocol";
 import { createServiceBuilder } from "@rostrum/server/service";
 import { checkDaemonReadiness, type DaemonContext } from "../../daemon";
 import { DAEMON_TAG } from "../../tags";
@@ -25,10 +25,9 @@ export const readiness = defineDaemonService({
         tags: [DAEMON_TAG.SYSTEM],
     },
     responses: {
-        200: { description: "Dependencies are ready", body: DaemonReadinessSchema },
-        503: { description: "Dependencies are unavailable", body: DaemonReadinessSchema },
+        200: { description: "Dependencies are ready", body: DaemonReadiness },
+        503: { description: "Dependencies are unavailable", body: DaemonReadiness },
     },
-    schemas: { DaemonReadiness: DaemonReadinessSchema },
     handler: async (_request, response, context) => {
         const result = await checkDaemonReadiness(
             context.config,

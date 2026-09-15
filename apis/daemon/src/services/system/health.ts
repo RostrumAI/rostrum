@@ -1,6 +1,6 @@
 /** @fileoverview Daemon process-liveness service. */
 
-import { HealthSchema } from "@rostrum/server/protocol";
+import { Health } from "@rostrum/server/protocol";
 import { createServiceBuilder } from "@rostrum/server/service";
 import type { DaemonContext } from "../../daemon";
 import { DAEMON_TAG } from "../../tags";
@@ -22,8 +22,7 @@ export const health = defineDaemonService({
         tags: [DAEMON_TAG.SYSTEM],
     },
     responses: {
-        200: { description: "Service is healthy", body: HealthSchema },
+        200: { description: "Service is healthy", body: Health },
     },
-    schemas: { Health: HealthSchema },
     handler: (_request, response) => response.json({ status: "ok" as const }),
 });

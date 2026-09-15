@@ -7,6 +7,7 @@ import type { DescribeRouteOptions } from "hono-openapi";
 import { describeRoute, generateSpecs } from "hono-openapi";
 import type { TSchema } from "typebox";
 import { decodeJsonBody, type ServiceBodyDecoder } from "./request";
+import { type DefinedSchema, isDefinedSchema } from "./schema";
 import { BODY_METHODS, type ServiceBinding, type ServiceResponseDefinition } from "./service";
 
 /** Methods answered by 405 handlers: the HTTP standard set plus QUERY (RFC 9213). */
@@ -25,8 +26,8 @@ export const CANDIDATE_METHODS = [
 interface DocumentedResponse {
     /** Human-readable description of the outcome. */
     readonly description: string;
-    /** The response body's schema, referenced by its component name. */
-    readonly content?: Record<string, { readonly schema: { readonly $ref: string } }>;
+    /** The response body's schema: a component reference or an inline shape. */
+    readonly content?: Record<string, { readonly schema: Record<string, unknown> }>;
 }
 
 /** A bearer-token security scheme the generated document declares. */
@@ -51,8 +52,6 @@ export interface ServerAppOptions<Tag extends string = string> {
     readonly description: string;
     /** Version of the generated OpenAPI document. */
     readonly version: string;
-    /** Components every operation may reference, keyed by component name. */
-    readonly components?: Record<string, TSchema>;
     /** Responses every operation documents, folded under the service's own. */
     readonly defaultResponses?: Record<string, ServiceResponseDefinition>;
     /** Security schemes the document declares. */
@@ -100,9 +99,9 @@ export class ServerApp<Context extends object> {
         this.logger = getLogger(options.serviceName);
         this.hono = new Hono<{ Bindings: Context }>();
 
-        // Every component every operation may reference, shared by name.
-        for (const [name, schema] of Object.entries(options.components ?? {})) {
-            this.componentOwners.set(name, schema);
+        // Components the application documents on every operation, referenced by name.
+        for (const response of Object.values(options.defaultResponses ?? {})) {
+            this.contribute(response.body);
         }
 
         // Mandatory middleware first, so it wraps routes and application middleware.
@@ -154,20 +153,8 @@ export class ServerApp<Context extends object> {
         }
         this.checkParameters(service);
 
-        // Contribute this service's components; an identical object is the same
-        // component shared across services, a different one is a conflict.
-        for (const [name, schema] of Object.entries(service.schemas)) {
-            const owner = this.componentOwners.get(name);
-            if (owner !== undefined && owner !== schema) {
-                throw new Error(
-                    `service conflict on ${route}: component "${name}" is already contributed`,
-                );
-            }
-            this.componentOwners.set(name, schema);
-        }
-
-        // Every documented response and request body must name a contributed
-        // component, so the generated contract can reference it.
+        // Documented bodies are the components this service contributes.
+        this.contribute(service.request.body);
         for (const [status, response] of Object.entries(service.responses)) {
             if (!/^[1-5][0-9][0-9]$/.test(status)) {
                 throw new Error(`service conflict on ${route}: "${status}" is not a status code`);
@@ -177,12 +164,7 @@ export class ServerApp<Context extends object> {
                     `service conflict on ${route}: response ${status} needs a description`,
                 );
             }
-            if (response.body !== undefined) {
-                this.componentNameOf(response.body, `${route} response ${status}`);
-            }
-        }
-        if (service.request.body !== undefined) {
-            this.componentNameOf(service.request.body, `${route} request body`);
+            this.contribute(response.body);
         }
 
         this.operationIds.add(service.openapi.operationId);
@@ -226,14 +208,35 @@ export class ServerApp<Context extends object> {
         }
     }
 
-    /** Finds the component name a schema was contributed under. */
-    private componentNameOf(schema: TSchema, subject: string): string {
-        for (const [name, contributed] of this.componentOwners) {
-            if (contributed === schema) {
-                return name;
-            }
+    /**
+     * Registers one referenced component. The same name and the same schema may
+     * arrive from several services; the same name with a different schema is a
+     * conflict, so two services cannot silently disagree about a shared shape.
+     */
+    private contribute(reference: TSchema | DefinedSchema | undefined): void {
+        if (reference === undefined || !isDefinedSchema(reference)) {
+            return;
         }
-        throw new Error(`service conflict on ${subject}: the schema is not a documented component`);
+        if (reference.name.trim() === "") {
+            throw new Error("service conflict: a documented component needs a name");
+        }
+        const owner = this.componentOwners.get(reference.name);
+        if (owner !== undefined && owner !== reference.schema) {
+            throw new Error(
+                `service conflict: component "${reference.name}" is already contributed`,
+            );
+        }
+        this.componentOwners.set(reference.name, reference.schema);
+    }
+
+    /** The document's schema for one documented body: a reference or an inline shape. */
+    private documentSchema(reference: TSchema | DefinedSchema): Record<string, unknown> {
+        if (isDefinedSchema(reference)) {
+            return { $ref: `#/components/schemas/${reference.name}` };
+        }
+        // The generator serializes an inline schema as written, so a schema that
+        // carries no component name is documented where it is used.
+        return reference as unknown as Record<string, unknown>;
     }
 
     /** Translates one service into the operation the contract documents. */
@@ -264,18 +267,16 @@ export class ServerApp<Context extends object> {
                 required: true,
                 description: service.request.bodyDescription ?? "The request body.",
                 content: {
-                    "application/json": {
-                        schema: { $ref: this.componentRef(service.request.body, service.path) },
-                    },
+                    "application/json": { schema: this.documentSchema(service.request.body) },
                 },
             };
         }
         return description;
     }
 
-    /** Builds one documented response, referencing its component by name. */
+    /** Builds one documented response from its referenced or inline body schema. */
     private describeResponse(
-        service: ServiceBinding<Context, string>,
+        _service: ServiceBinding<Context, string>,
         response: ServiceResponseDefinition,
     ): DocumentedResponse {
         if (response.body === undefined) {
@@ -283,11 +284,7 @@ export class ServerApp<Context extends object> {
         }
         return {
             description: response.description,
-            content: {
-                "application/json": {
-                    schema: { $ref: this.componentRef(response.body, service.path) },
-                },
-            },
+            content: { "application/json": { schema: this.documentSchema(response.body) } },
         };
     }
 
@@ -306,11 +303,6 @@ export class ServerApp<Context extends object> {
             description: service.request.paramsDescriptions?.[name] ?? name,
             schema: property as TSchema,
         }));
-    }
-
-    /** The `$ref` for one schema, resolved from the application's components. */
-    private componentRef(schema: TSchema, subject: string): string {
-        return `#/components/schemas/${this.componentNameOf(schema, subject)}`;
     }
 
     /** The methods registered on each path, for this application's 405 policy. */
@@ -357,7 +349,12 @@ export class ServerApp<Context extends object> {
                     ? {}
                     : { security: this.securityRequirements() }),
                 components: {
-                    schemas: Object.fromEntries(this.componentOwners),
+                    // Sorted so the document is stable regardless of registration order.
+                    schemas: Object.fromEntries(
+                        [...this.componentOwners].sort(([left], [right]) =>
+                            left.localeCompare(right),
+                        ),
+                    ),
                     ...(this.options.securitySchemes === undefined
                         ? {}
                         : { securitySchemes: this.options.securitySchemes }),

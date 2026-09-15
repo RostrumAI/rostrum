@@ -1,6 +1,6 @@
 /** @fileoverview Control API process-liveness service. */
 
-import { HealthSchema } from "@rostrum/server/protocol";
+import { Health } from "@rostrum/server/protocol";
 import { defineControlService } from "../../define";
 import { CONTROL_API_TAG } from "../../tags";
 
@@ -20,8 +20,7 @@ export const health = defineControlService({
         tags: [CONTROL_API_TAG.SYSTEM],
     },
     responses: {
-        200: { description: "Service is healthy", body: HealthSchema },
+        200: { description: "Service is healthy", body: Health },
     },
-    schemas: { Health: HealthSchema },
     handler: (_request, response) => response.json({ status: "ok" as const }),
 });

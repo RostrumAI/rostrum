@@ -2,7 +2,7 @@
 
 import { type Static, Type } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
 import {
     WorkflowApiError,
@@ -10,7 +10,11 @@ import {
     workflowNotValid,
     workflowRevisionNotFound,
 } from "../../workflows/errors";
-import { PublishResponseSchema, WorkflowIdSchema } from "../../workflows/schemas";
+import {
+    PublishResponse,
+    type PublishResponseSchema,
+    WorkflowIdSchema,
+} from "../../workflows/schemas";
 
 /**
  * Serves POST /api/workflows/:workflowId/publish. Re-runs validation on the
@@ -33,27 +37,23 @@ export const publishWorkflow = defineControlService({
         201: {
             description:
                 "The current revision was published and stored as an immutable publication",
-            body: PublishResponseSchema,
+            body: PublishResponse,
         },
         200: {
             description:
                 "The current revision was already published: the response is identical and idempotent",
-            body: PublishResponseSchema,
+            body: PublishResponse,
         },
         404: {
             description:
                 "The workflow does not exist (code not_found), or its current revision does not (code revision_not_found)",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
         422: {
             description:
                 "The current revision has blocking validation findings; nothing is created and the body carries the findings",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-    },
-    schemas: {
-        PublishResponse: PublishResponseSchema,
-        ErrorResponse: ErrorResponseSchema,
     },
     handler: async (request, response, context) => {
         const { workflowId } = request.params;

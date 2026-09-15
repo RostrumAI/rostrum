@@ -3,6 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { createServerApp, createServiceRegistrar, type ServerApp, serveOpenApi } from "./app";
+import { defineSchema } from "./schema";
 import { createServiceBuilder, type ServiceBinding } from "./service";
 
 /** The application context the tests serve requests with. */
@@ -14,6 +15,7 @@ interface TestContext {
 const defineService = createServiceBuilder<TestContext, "system">();
 
 const itemSchema = Type.Object({ value: Type.String() });
+const item = defineSchema("Item", itemSchema);
 const paramsSchema = Type.Object({ itemId: Type.String({ minLength: 3 }) });
 
 /** Builds an application that records the order of its middleware and handler. */
@@ -36,10 +38,9 @@ function buildApp(trace: string[], handlerRuns: { count: number }) {
     const createItem = defineService({
         method: "POST",
         path: "/api/items/:itemId",
-        request: { body: itemSchema, params: paramsSchema },
+        request: { body: item, params: paramsSchema },
         openapi: { operationId: "createItem", summary: "Create an item", tags: ["system"] },
-        responses: { 200: { description: "The created item", body: itemSchema } },
-        schemas: { Item: itemSchema },
+        responses: { 200: { description: "The created item", body: item } },
         handler: (request, response, context) => {
             handlerRuns.count += 1;
             trace.push("handler");
@@ -164,7 +165,6 @@ describe("service registration", () => {
         request: {},
         openapi: { operationId: "listThings", summary: "List things", tags: ["system"] },
         responses: { 200: { description: "The things" } },
-        schemas: {},
         serve: async () => Response.json({ ok: true }),
     };
 
@@ -195,12 +195,49 @@ describe("service registration", () => {
         ).toThrow(/undeclared/);
     });
 
-    test("rejects a response whose schema is not a documented component", () => {
+    test("rejects one component name carrying two different schemas", () => {
+        const other = defineSchema("Item", Type.Object({ other: Type.String() }));
+
+        // Two services on different paths, each naming its own "Item" shape.
         expect(() =>
-            register({
-                ...base,
-                responses: { 200: { description: "The things", body: itemSchema } },
-            }),
-        ).toThrow(/not a documented component/);
+            register(
+                { ...base, responses: { 200: { description: "The things", body: other } } },
+                (app) =>
+                    createServiceRegistrar(app)({
+                        ...base,
+                        path: "/api/others",
+                        openapi: { ...base.openapi, operationId: "listOthers" },
+                        responses: { 200: { description: "The others", body: item } },
+                    }),
+            ),
+        ).toThrow(/already contributed/);
+    });
+
+    test("documents an unnamed schema where it is used, without a component", async () => {
+        const app = createServerApp<TestContext>({
+            serviceName: "test-service",
+            tags: ["system"],
+            title: "Test API",
+            description: "Test document.",
+            version: "1.2.3",
+        });
+        createServiceRegistrar(app)({
+            ...base,
+            responses: { 200: { description: "The things", body: itemSchema } },
+        });
+
+        const document = await app.generateOpenApiDocument();
+        const responses = (
+            document.paths as Record<
+                string,
+                Record<
+                    string,
+                    { responses: Record<string, { content: Record<string, { schema: unknown }> }> }
+                >
+            >
+        )["/api/things"]?.get?.responses;
+
+        expect(responses?.["200"]?.content["application/json"]?.schema).toEqual(itemSchema);
+        expect((document.components as { schemas: Record<string, unknown> }).schemas).toEqual({});
     });
 });

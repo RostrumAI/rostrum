@@ -2,12 +2,13 @@
 
 import { type Static, Type } from "typebox";
 import { defineControlService } from "../../define";
-import { ErrorResponseSchema } from "../../schemas";
+import { ErrorResponse } from "../../schemas";
 import { CONTROL_API_TAG } from "../../tags";
 import { WorkflowApiError, workflowNotFound } from "../../workflows/errors";
 import {
     PublicationNumberSchema,
-    PublicationResponseSchema,
+    PublicationResponse,
+    type PublicationResponseSchema,
     WorkflowIdSchema,
 } from "../../workflows/schemas";
 
@@ -40,16 +41,12 @@ export const retrieveWorkflowPublication = defineControlService({
         200: {
             description:
                 "The publication: canonical stored text, verified at retrieval by digest recomputation",
-            body: PublicationResponseSchema,
+            body: PublicationResponse,
         },
         404: {
             description: "The workflow has no such publication",
-            body: ErrorResponseSchema,
+            body: ErrorResponse,
         },
-    },
-    schemas: {
-        PublicationResponse: PublicationResponseSchema,
-        ErrorResponse: ErrorResponseSchema,
     },
     handler: async (request, response, context) => {
         const { workflowId, publicationNumber: requestedNumber } = request.params;

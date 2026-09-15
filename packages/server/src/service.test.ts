@@ -3,6 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { createServerApp, createServiceRegistrar } from "./app";
+import { defineSchema } from "./schema";
 import { createServiceBuilder } from "./service";
 
 /** The application context these services receive. */
@@ -13,6 +14,7 @@ interface TestContext {
 
 const bodySchema = Type.Object({ value: Type.String() });
 const paramsSchema = Type.Object({ itemId: Type.String({ minLength: 3 }) });
+const item = defineSchema("Item", bodySchema);
 
 const defineService = createServiceBuilder<TestContext, "system">();
 
@@ -34,10 +36,9 @@ function buildApp(observed: Observed) {
     const service = defineService({
         method: "POST",
         path: "/api/items/:itemId",
-        request: { body: bodySchema, params: paramsSchema },
+        request: { body: item, params: paramsSchema },
         openapi: { operationId: "createItem", summary: "Create an item", tags: ["system"] },
-        responses: { 200: { description: "The created item", body: bodySchema } },
-        schemas: { Item: bodySchema },
+        responses: { 200: { description: "The created item", body: item } },
         handler: (request, response, context) => {
             observed.runs += 1;
             observed.request = {

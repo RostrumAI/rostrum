@@ -1,3 +1,4 @@
+import { defineSchema } from "@rostrum/server/schema";
 import { Type } from "typebox";
 import { FindingSchema } from "./workflows/schemas";
 
@@ -16,3 +17,6 @@ export const ErrorResponseSchema = Type.Object(
     },
     { additionalProperties: false },
 );
+
+/** The `ErrorResponse` component: the failure body every Control API error documents. */
+export const ErrorResponse = defineSchema("ErrorResponse", ErrorResponseSchema);
