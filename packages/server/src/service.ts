@@ -14,9 +14,6 @@ export type ServiceMethod = (typeof SERVICE_METHODS)[number];
 /** Methods whose services may declare a JSON request body. */
 export const BODY_METHODS: readonly ServiceMethod[] = ["POST", "PUT", "PATCH"];
 
-/** The OpenAPI tag vocabulary one application declares. */
-export type ServiceTag = string;
-
 /** The value a declared body produces, whether it was named as a component or not. */
 type BodyValue<Body> =
     Body extends DefinedSchema<infer Schema>
