@@ -5,8 +5,8 @@ import { Type } from "typebox";
 import {
     createServiceBuilder,
     type ServiceContext,
+    type ServiceHandler,
     type ServiceRequest,
-    type ServiceResponse,
 } from "./service";
 
 /** Asserts that two types are identical. */
@@ -75,56 +75,40 @@ export const withNothing = defineService({
     handler: (request, response) => {
         const headers: Headers = request.headers;
         void headers;
-
-        // @ts-expect-error a service that declares no body cannot read one
-        void request.body;
-
-        // @ts-expect-error a service that declares no parameters cannot read them
-        void request.params;
-
         return response.json({ ok: true });
     },
 });
 
-/** A handler cannot read a context field the application does not declare. */
-export const wrongContextField = defineService({
-    method: "GET",
-    path: "/api/other",
-    request: {},
-    openapi: { operationId: "listOther", summary: "List other items", tags: ["system"] },
-    responses: { 200: { description: "The items" } },
-    schemas: {},
-    handler: (_request, response, context) => {
-        // @ts-expect-error the application context does not declare this field
-        void context.nonexistent;
+/** A bodyless service's request exposes headers only. */
+export type BodylessRequestKeys = Expect<
+    Equal<keyof ServiceRequest<undefined, undefined>, "headers">
+>;
 
-        return response.json({ ok: true });
-    },
-});
+/** A context carries the application's own fields plus the reserved raw view, and nothing else. */
+export type ContextKeys = Expect<Equal<keyof ServiceContext<FixtureContext>, "database" | "raw">>;
 
 /** A handler answers with a response, never with a plain value. */
-export const wrongHandlerReturn = defineService({
-    method: "GET",
-    path: "/api/third",
-    request: {},
-    openapi: { operationId: "listThird", summary: "List third items", tags: ["system"] },
-    responses: { 200: { description: "The items" } },
-    schemas: {},
-    // @ts-expect-error the handler's return value must be a response
-    handler: (_request, response) => ({ ok: true, status: response.status }),
-});
+export type HandlerAnswer = Expect<
+    Equal<
+        ReturnType<ServiceHandler<FixtureContext, undefined, undefined>>,
+        Response | Promise<Response>
+    >
+>;
 
-// @ts-expect-error the application context must not declare the reserved raw field
-export const withReservedRaw = createServiceBuilder<{ raw: string }, "system">()({
-    method: "GET",
-    path: "/api/raw",
-    request: {},
-    openapi: { operationId: "getRaw", summary: "Read raw", tags: ["system"] },
-    responses: { 200: { description: "The raw context" } },
-    schemas: {},
-    handler: (_request: ServiceRequest<undefined, undefined>, response: ServiceResponse) =>
-        response.json({ ok: true }),
-});
+/** A handler with the application's context and no declared inputs takes all three arguments. */
+export type HandlerArity = Expect<
+    Equal<Parameters<ServiceHandler<FixtureContext, undefined, undefined>>["length"], 3>
+>;
+
+/** An application context that declares the reserved raw field yields an error marker, not a builder. */
+export type ReservedRawBuilder = Expect<
+    Equal<
+        ReturnType<typeof createServiceBuilder<{ raw: string }, "system">>,
+        {
+            readonly "the application context must not declare the reserved `raw` field; the framework provides it": never;
+        }
+    >
+>;
 
 /** Two path tokens must both be inferred, not collapsed by the wide declaration. */
 export const withTwoParameters = defineService({
@@ -134,15 +118,11 @@ export const withTwoParameters = defineService({
     openapi: { operationId: "getRevision", summary: "Read a revision", tags: ["system"] },
     responses: { 200: { description: "The revision" } },
     schemas: {},
-    handler: (request, response) => {
-        // @ts-expect-error only the declared tokens exist on the parameters
-        void request.params.missing;
-
-        return response.json({
+    handler: (request, response) =>
+        response.json({
             itemId: request.params.itemId,
             revisionId: request.params.revisionId,
-        });
-    },
+        }),
 });
 
 /** The request a handler receives carries only the declared members. */
@@ -153,12 +133,6 @@ export type RequestKeys = Expect<
     >
 >;
 
-/** The context a handler receives is the application's fields plus the reserved raw view. */
-export type ContextShape = Expect<Equal<keyof ServiceContext<FixtureContext>, "database" | "raw">>;
-
 void withEverything;
 void withNothing;
 void withTwoParameters;
-void wrongContextField;
-void wrongHandlerReturn;
-void withReservedRaw;
