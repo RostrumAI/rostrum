@@ -4,7 +4,7 @@ import Ajv2020 from "ajv/dist/2020";
 import type { TSchema } from "typebox";
 import { Compile, type Validator } from "typebox/compile";
 import type { TLocalizedValidationError } from "typebox/error";
-import { checkJsonValue, MAX_VALUE_DEPTH } from "./json-value";
+import { checkJsonValue, type JsonValueCheckResult, MAX_VALUE_DEPTH } from "./json-value";
 
 /**
  * Compiles the value schemas a workflow declares, without executing work.
@@ -141,16 +141,23 @@ export class CompiledValueCheck {
      * object into stored run state.
      */
     validate(value: unknown): ValueCheckResult {
-        const checked = checkJsonValue(value, this.maxValueDepth);
-        if (!checked.ok) {
-            return { ok: false, code: checked.code, path: checked.path };
+        let inspected: JsonValueCheckResult;
+        try {
+            inspected = checkJsonValue(value, this.maxValueDepth);
+        } catch {
+            // A value whose own members cannot be read is not JSON, and a
+            // check never throws at the call site that supplied it.
+            return { ok: false, code: "invalid_json", path: "" };
+        }
+        if (!inspected.ok) {
+            return { ok: false, code: inspected.code, path: inspected.path };
         }
 
         try {
-            if (this.compiled.Check(checked.value)) {
+            if (this.compiled.Check(inspected.value)) {
                 return { ok: true };
             }
-            const [error] = this.compiled.Errors(checked.value);
+            const [error] = this.compiled.Errors(inspected.value);
             return { ok: false, code: "invalid_value", path: failurePath(error) };
         } catch {
             // An evaluation failure is never an accepted value; the exception
@@ -213,19 +220,26 @@ export class ValueSchemaCompiler {
      * the fragment describes, including across runs.
      */
     compile(schema: unknown): ValueSchemaCompileResult {
-        const checked = checkJsonValue(schema, this.maxValueDepth);
-        if (!checked.ok) {
+        let inspected: JsonValueCheckResult;
+        try {
+            inspected = checkJsonValue(schema, this.maxValueDepth);
+        } catch {
+            // A fragment whose own members cannot be read is not a schema, and
+            // preparation never throws at the caller that supplied it.
+            return { ok: false, code: "invalid_schema", path: "" };
+        }
+        if (!inspected.ok) {
             return {
                 ok: false,
-                code: checked.code === "value_depth" ? "value_depth" : "invalid_schema",
-                path: checked.path,
+                code: inspected.code === "value_depth" ? "value_depth" : "invalid_schema",
+                path: inspected.path,
             };
         }
 
         try {
             const refs: RefSite[] = [];
-            const adjusted = this.adjustSchema(checked.value, "", true, refs);
-            this.checkReferences(checked.value, refs);
+            const adjusted = this.adjustSchema(inspected.value, "", true, refs);
+            this.checkReferences(inspected.value, refs);
             if (!this.fragmentValidator.validateSchema(adjusted)) {
                 const [error] = this.fragmentValidator.errors ?? [];
                 return { ok: false, code: "invalid_schema", path: error?.instancePath ?? "" };
@@ -433,8 +447,9 @@ function resolvePointer(root: JsonValue, pointer: string): string | undefined {
     let currentPointer = "";
     for (const token of pointer.slice(1).split("/").map(unescapePointerToken)) {
         if (Array.isArray(current)) {
-            const index = Number(token);
-            const element = Number.isInteger(index) && index >= 0 ? current[index] : undefined;
+            // RFC 6901 indexes an array with `0` or a digit run with no leading zero.
+            const index = /^(?:0|[1-9][0-9]*)$/.test(token) ? Number(token) : undefined;
+            const element = index !== undefined ? current[index] : undefined;
             if (element === undefined) {
                 return undefined;
             }

@@ -167,6 +167,40 @@ describe("value schema preparation", () => {
         expect(expectRejected(permissive.validate(nestedValue(6))).code).toBe("value_depth");
     });
 
+    test("refuses a reference that does not name a schema position", () => {
+        // A target must be an object or boolean schema, and an array index is
+        // written without a leading zero.
+        expect(expectRefused({ $ref: "#/$defs/x", $defs: { x: "text" } }).code).toBe(
+            "invalid_schema",
+        );
+        expect(
+            expectRefused({
+                type: "object",
+                properties: { a: { $ref: "#/prefixItems/01" } },
+                prefixItems: [{ type: "integer" }, { type: "string" }],
+            }).code,
+        ).toBe("invalid_schema");
+    });
+
+    test("never throws at the caller that supplied an unreadable value or fragment", () => {
+        // An object whose own members cannot be inspected is refused as a
+        // fragment and as a value, rather than escaping as an exception.
+        const unreadable = new Proxy(
+            {},
+            {
+                getPrototypeOf: () => {
+                    throw new Error("unreadable");
+                },
+            },
+        );
+        expect(compiler.compile(unreadable)).toMatchObject({
+            ok: false,
+            code: "invalid_schema",
+        });
+        const check = compileChecked({ type: "object" });
+        expect(expectRejected(check.validate({ value: unreadable })).code).toBe("invalid_json");
+    });
+
     test("rejects values JSON cannot represent", () => {
         const check = compileChecked({ type: "object" });
 
