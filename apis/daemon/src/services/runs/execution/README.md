@@ -83,7 +83,7 @@ with `{total: 100, perPerson: 25}`.
 
 ## Refusals
 
-A refusal is not an error envelope and not a run. It is a domain outcome with a
+A refusal is not an HTTP error and not a run. It is a domain outcome with a
 reason the caller acts on and the failures behind it:
 
 | Reason | Meaning |
