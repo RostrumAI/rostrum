@@ -152,6 +152,7 @@ function visitArray(
             return result;
         }
     }
+    // Every element was visited and accepted above, so the array is JSON.
     return { ok: true, value: value as JsonValue };
 }
 
@@ -181,6 +182,7 @@ function visitObject(
             return result;
         }
     }
+    // Every own member was visited and accepted above, so the object is JSON.
     return { ok: true, value: value as JsonObject };
 }
 

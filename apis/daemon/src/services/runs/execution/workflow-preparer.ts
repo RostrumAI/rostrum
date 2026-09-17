@@ -198,7 +198,7 @@ class PreparationRejection extends Error {
 export class WorkflowPreparer {
     private readonly maxValueDepth: number;
     private readonly schemaCompiler: ValueSchemaCompiler;
-    private readonly operations: Readonly<Record<string, CompiledTaskOperation>>;
+    private readonly compiledOperations: Readonly<Record<string, CompiledTaskOperation>>;
     private readonly validator: WorkflowValidator;
 
     /**
@@ -211,7 +211,7 @@ export class WorkflowPreparer {
     constructor(maxValueDepth: number = MAX_VALUE_DEPTH) {
         this.maxValueDepth = maxValueDepth;
         this.schemaCompiler = new ValueSchemaCompiler(maxValueDepth);
-        this.operations = this.compileOperations();
+        this.compiledOperations = this.compileOperations();
         this.validator = createWorkflowValidator();
     }
 
@@ -406,7 +406,7 @@ export class WorkflowPreparer {
             return undefined;
         }
         const operation = findTaskOperation(name);
-        const compiled = operation ? this.operations[operation.name] : undefined;
+        const compiled = operation ? this.compiledOperations[operation.name] : undefined;
         if (!operation || !compiled) {
             refusals.push(
                 new PreparationRejection(
