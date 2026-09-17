@@ -4,6 +4,7 @@
     "type": "module",
     "exports": {
         ".": "./src/index.ts",
+        "./execution": "./src/execution.ts",
         "./fixtures/*.json": "./src/fixtures/*.json"
     },
     "scripts": {
