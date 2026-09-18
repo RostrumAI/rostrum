@@ -107,8 +107,8 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
-          REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          REVIEW_MODEL: opencode-go/muse-spark-1.3-contributor
         run: >-
           bun run review:adjudicate
           --comment-id "${COMMENT_ID}"
@@ -188,8 +188,8 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
-          REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          REVIEW_MODEL: opencode-go/muse-spark-1.3-contributor
         run: >-
           bun run review:adjudicate
           --sweep
@@ -262,7 +262,7 @@ jobs:
         if: steps.target.outputs.fork == 'false'
         working-directory: base
         env:
-          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
-          REVIEW_MODEL: commandcode/deepseek/deepseek-v4.1-flash
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          REVIEW_MODEL: opencode-go/muse-spark-1.3-contributor
         run: bun run review --pr "${PR_NUMBER}" --review-checkout "${GITHUB_WORKSPACE}/pr" --post
         timeout-minutes: 45
