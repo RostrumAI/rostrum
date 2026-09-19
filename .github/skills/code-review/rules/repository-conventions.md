@@ -310,10 +310,13 @@ no context.
 **Evidence:** PR #12 `apps/control-api/src/workflows/rule-sets.ts:6` — "Direct file references in TSDoc".
 
 ### REPO-DOC-05 — Write prose for its reader
-Documentation leads with what the reader must understand, uses the repository's writing rules, and
-avoids filler or restating the editing process; match detail to the document's purpose.
+Documentation leads with what the reader must understand and explains responsibilities, interactions,
+and reasons before detailed mechanisms. Use plain causal language, distinguish current behavior from
+proposals and future scope, and match detail to the document's purpose. The canonical writing and
+self-review guidance lives in `rostrum-dev-docs/writing-style.md`, with separate blueprint and technical
+design guides; `AGENTS.md` directs authors to the local checkout.
 **Applies to:** `dev-docs/**`, `**/*.md` · **Check:** judgment · **Severity:** low
-**Flag:** An overview that catalogs sample implementations; prose a junior engineer cannot follow; promotional or process narration.
+**Flag:** An overview that catalogs implementation details without explaining the required behavior; a list of components with no explanation of their interaction; unexplained shorthand, promotional wording, or editing-process narration that obscures the subject. Name the concrete reading burden, not a preferred phrasing.
 **Evidence:** PR #3 `docs/decisions/epic-01/e1-s3-draft-publication-lifecycle.md:15` — "the language being used here can be simplified such that it can be easily understood by a junior software engineer without impacting the level of detail"; `AGENTS.md` "Writing style" is the governing rule.
 
 ### REPO-DOC-06 — Keep TSDoc concise and put execution guidance beside the code
@@ -334,6 +337,19 @@ includes named and inline object type literals. Ordinary object values and gener
 **Applies to:** `apps/**`, `apis/**`, `packages/**`, `scripts/**` · **Check:** judgment · **Severity:** medium
 **Flag:** An interface or object type literal declares a named member with no TSDoc, or its comment merely restates the member's name or TypeScript type.
 **Evidence:** Maintainer review direction — every key of an object type must carry succinct TSDoc explaining in plain terms what the key is for.
+
+### REPO-DOC-08 — Keep requirements, blueprints, and technical designs distinct
+New delivery work follows Epic → high-level implementation blueprint → technical design → code and
+verification. An Epic defines product behavior and acceptance; a blueprint explains the technical
+responsibilities, interactions, approach, and scope; a design resolves actual files and purposes,
+affected callers and contracts, ownership, ordering, failures, and meaningful verification. Designs
+own implementation checkpoints and evidence. Code belongs in a design only when it clarifies a point
+better than prose. Each design links its parent blueprint and Epic; earlier combined plans cannot
+substitute for the new handoffs when implementation resumes.
+**Applies to:** New or substantively revised delivery guidance, Epics, blueprints, and technical designs in `**/*.md` · **Check:** judgment · **Severity:** medium
+**Flag:** A delivery process that skips the blueprint or technical-design stage; an Epic used as a file-by-file plan; a blueprint treated as an executable design despite unresolved implementation interactions; a technical design missing an affected participant, state owner, failure outcome, or observable verification needed to implement its requirement. Cite the missing relationship or misplaced content and the requirement it affects.
+**Exceptions:** General references, research, setup documentation, and clearly labeled historical records do not need a delivery-document template. Assess the affected scope, not identical headings or template wording. Do not infer missing approval or missing parent documents merely because the independent documentation checkout is unavailable.
+**Evidence:** Maintainer direction: separate product requirements, the high-level technical blueprint, technical design, and implementation; use the same explanatory language at greater design depth and review the interactions between components. The canonical delivery methodology and document guides define the handoffs.
 
 ## 8. Code readability and TypeScript hygiene
 

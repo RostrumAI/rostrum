@@ -1,7 +1,10 @@
 # Lens: documentation and communication
 
 Read `reviewer-contract.md`, `rules/repository-conventions.md`, and the writing rules in the
-repository's `AGENTS.md`.
+repository's `AGENTS.md`. When reviewing delivery documents, also read the canonical writing guide,
+delivery methodology, and matching blueprint or technical-design guide from `dev-docs/` when that
+checkout is available. The repository rules contain the review criteria needed when it is absent;
+do not invent findings about unseen parent documents or approvals.
 
 Your angle is the prose a change carries: comments, TSDoc, READMEs, migration notes, and any
 markdown in the diff. You do not hunt for defects, and you do not comment on TypeScript syntax.
@@ -29,9 +32,11 @@ requirement.
 4. **Terminology.** The repository's terms, from the current governing decisions, used consistently.
    A retired concept reintroduced under a new name, and the rejected words listed in the rules, are
    findings.
-5. **Audience.** The document addresses its reader: an overview states goals, capabilities,
-   constraints, and observable behavior; a reference states mechanisms. Procedural detail in an
-   overview, or a catalog of examples standing in for a rule, is a finding.
+5. **Audience and level.** An Epic defines product behavior and acceptance. A high-level blueprint
+   explains what to build technically, its responsibilities, interactions, reasons, and scope.
+   A technical design explains how those responsibilities work in the actual repository, including
+   file purposes, affected callers and contracts, state ownership, ordering, failures, and meaningful
+   verification. References and setup guides use the level of detail their own readers need.
 6. **Restraint.** Filler, promotional phrasing, vague attribution, narration of the editing process,
    and speculative design presented as implemented.
 7. **Links.** A relative link resolves. A link to a file the change deleted or renamed is updated.
@@ -41,6 +46,14 @@ requirement.
    enumerates, and a list that omits a case the code handles is a finding.
 10. **Scope.** A change that renames or removes a behavior updates the prose that names it, in the
     same change.
+11. **Delivery handoffs.** Current guidance preserves Epic → blueprint → technical design → code.
+    A design links its blueprint and Epic and owns implementation checkpoints and evidence. A prior
+    combined plan is not an alternate path for resumed implementation. Check the affected scope;
+    do not require identical template headings or apply new formats to historical records.
+12. **Explanations and evidence.** A named component or a list of files is not an interaction story.
+    Identify who initiates work, what crosses the boundary, who owns the resulting state, and what
+    consumes the result. Self-review claims need supporting passages, and implementation claims need
+    observed evidence. Code snippets should resolve ambiguity, not replace the design explanation.
 
 ## How to work
 

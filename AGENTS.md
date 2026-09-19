@@ -8,23 +8,25 @@ Implementation work must not be done on `main`. If the current branch is `main`,
 
 ## Development documentation
 
-The canonical Rostrum product strategy, roadmap, technical Epics, implementation plans, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs). Run `bun run docs:setup` when the ignored `dev-docs/` checkout is absent. Commit and push documentation changes from inside that independent checkout.
+The canonical Rostrum product strategy, roadmap, Epics, high-level implementation blueprints, technical designs, human-readable specifications, decisions, and research live in [`RostrumAI/rostrum-dev-docs`](https://github.com/RostrumAI/rostrum-dev-docs). Run `bun run docs:setup` when the ignored `dev-docs/` checkout is absent. Commit and push documentation changes from inside that independent checkout.
 
-Before planning or implementation, read `dev-docs/README.md`, the methodology, roadmap, relevant technical Epics, active plans, specifications, and decisions.
+Before planning or implementation, read `dev-docs/README.md`, `dev-docs/epic-delivery-methodology.md`, the roadmap, relevant Epic, its blueprint and technical designs, and governing specifications and decisions.
+
+New and resumed implementation follows **Epic → high-level implementation blueprint → technical design → code and verification**. Product requirements live in `dev-docs/epics/`, blueprints in `dev-docs/blueprints/`, and designs in `dev-docs/designs/`; each directory has an index. Use the methodology's Epic format, `dev-docs/high-level-implementation-guide.md`, and `dev-docs/technical-design-guide.md`. Keep implementation checkpoints and evidence in the technical design, not a separate implementation plan. Prior combined plans are historical context and evidence; apply the methodology's resumption and review gates before using them for new code.
 
 Do not recreate development planning documents in this repository. Keep source comments, API documentation generated from code, executable schemas, migrations, tests, fixtures, licensing, security information, and essential setup instructions with the implementation.
 
 ## Writing style
 
-Write for the document's audience and purpose.
+Write for the document's audience and purpose. Apply `dev-docs/writing-style.md` to human-authored technical prose and the matching blueprint or technical-design guide when writing those documents. Before handing off new or revised documentation, run the guides' evidence-based self-review: identify the applicable checks, cite supporting passages, correct failures, and report ready, revise, or blocked with any unresolved decisions. Self-review is not human approval or proof that implementation works.
 
 - Lead with what the reader needs to understand or decide. Assume relevant background knowledge, but explain unfamiliar terms and avoid unexplained shorthand.
-- Match the level of detail to the document. Overviews describe goals, capabilities, constraints, and observable behavior. Include technical detail when it explains those things; put mechanisms, data structures, and procedural instructions in the appropriate reference or implementation document.
+- Match the level of detail to the document. Epics define product requirements; blueprints explain the technical responsibilities and their interactions; technical designs resolve the actual files, contracts, ownership, ordering, failures, and verification. Use the common style for specifications, research, and setup guides without imposing a delivery-document template on them.
 - Be precise without being exhaustive. Preserve distinctions that affect meaning, but remove repeated explanations, speculative designs, and detail that belongs at a later stage.
 - Use examples only when they clarify a requirement or resolve ambiguity. Do not turn an overview into a catalog of sample implementations or a test procedure.
 - Name the subject and scope of each rule. State what a restriction applies to, what remains allowed, and how exceptions affect the outcome. Avoid ambiguous pronouns and broad claims that imply unintended limits.
 - Use consistent terminology from the current governing decisions. Distinguish existing behavior, agreed direction, and open proposals. Do not reintroduce retired concepts under new names or describe planned work as implemented.
-- State responsibilities and dependencies clearly. Link to the source of detailed rules rather than repeating them in several places.
+- State responsibilities and dependencies clearly. Explain what causes a handoff, what crosses the boundary, and how the result affects the next component. Link detailed rules rather than repeating them. In technical designs, include code only when it explains a point more clearly than prose.
 - Describe success and failure through observable outcomes. Approval language is not a substitute for saying what must be true; detailed verification steps belong with the work that performs them.
 - Prefer direct, neutral prose and the simplest accurate words. Remove filler, promotional language, vague authority, and narration of the editing process. A document should make sense without its revision history.
 
