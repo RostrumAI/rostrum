@@ -25,10 +25,12 @@ export const REVIEW_BINARY_ENV = "REVIEW_OMP_BIN";
 /**
  * Environment variable holding the reviewer provider's API key.
  *
- * The reviewer runs on CommandCode's GOAT plan gateway, so the key is a
- * CommandCode account key rather than a provider key for one upstream vendor.
+ * The reviewer runs on OpenCode Go, so the key is an OpenCode console key
+ * rather than a provider key for one upstream vendor. The name is the one the
+ * runtime's own provider catalogue uses, so a workstation that already exports
+ * a key for this gateway needs no second copy.
  */
-export const API_KEY_ENV = "COMMANDCODE_API_KEY";
+export const API_KEY_ENV = "OPENCODE_API_KEY";
 
 /** Environment variable naming the agent directory the runtime reads. */
 const AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
@@ -42,26 +44,27 @@ const AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
  * have stored. `apiKey` names an environment variable, which the runtime
  * resolves at startup; the model entries mirror the gateway's own catalogue, and
  * the model ids are the ones `REVIEW_MODEL` may select.
+ *
+ * Muse Spark is served over the Responses API: the gateway rejects this model on
+ * the chat-completions route. Its effort levels stop at `xhigh` — `max` is an
+ * invalid parameter for it — so the runtime clamps the pipeline's `max` lens
+ * setting to the declared ceiling.
  */
 const PROVIDER_CONFIG = `providers:
-  commandcode:
-    baseUrl: https://api.commandcode.ai/provider/v1
-    api: openai-completions
+  opencode-go:
+    baseUrl: https://opencode.ai/zen/go/v1
+    api: openai-responses
     apiKey: ${API_KEY_ENV}
     models:
-      - id: deepseek/deepseek-v4-flash
-        name: DeepSeek V4 Flash
-        reasoning: true
-        input: [text]
-      - id: deepseek/deepseek-v4.1-flash
-        name: DeepSeek V4.1 Flash
+      - id: muse-spark-1.3-contributor
+        name: Muse Spark 1.3 Contributor
         reasoning: true
         input: [text, image]
-        contextWindow: 1000000
-      - id: deepseek/deepseek-v4-pro
-        name: DeepSeek V4 Pro
-        reasoning: true
-        input: [text]
+        contextWindow: 1048576
+        maxTokens: 131072
+        thinking:
+          mode: effort
+          efforts: [minimal, low, medium, high, xhigh]
 `;
 
 /** Default thinking effort when a lens has no entry in the per-lens table. */
@@ -76,7 +79,7 @@ const DEFAULT_THINKING = "high";
 const MECHANICAL_FINDINGS_IN_PROMPT = 40;
 
 /** Default model for every lens. */
-export const DEFAULT_MODEL = "commandcode/deepseek/deepseek-v4.1-flash";
+export const DEFAULT_MODEL = "opencode-go/muse-spark-1.3-contributor";
 
 /**
  * Default wall-clock ceiling for one reviewer run, in seconds.

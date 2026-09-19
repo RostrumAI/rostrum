@@ -172,10 +172,10 @@ bun run review --since origin/main        # review a local branch diff instead
 bun run review --pr 20 --review-checkout ../pr-head  # review a checkout other than this one
 ```
 
-Set `COMMANDCODE_API_KEY` to review. The reviewers run on the CommandCode GOAT plan gateway at
-`https://api.commandcode.ai/provider/v1`, which the pipeline declares in a private runtime directory
+Set `OPENCODE_API_KEY` to review. The reviewers run on the OpenCode Go gateway at
+`https://opencode.ai/zen/go/v1`, which the pipeline declares in a private runtime directory
 rather than reading one from the machine, so the same command works in CI and on a workstation.
-`REVIEW_MODEL` overrides the model with a `commandcode/<model-id>` selector — the default is
-`commandcode/deepseek/deepseek-v4.1-flash` — `REVIEW_CONFIDENCE_FLOOR` the default confidence floor of
+`REVIEW_MODEL` overrides the model with an `opencode-go/<model-id>` selector — the default is
+`opencode-go/muse-spark-1.3-contributor` — `REVIEW_CONFIDENCE_FLOOR` the default confidence floor of
 80, and `REVIEW_AGENT_TIMEOUT` the ceiling in seconds for one reviewer run, which is 900 by default so
 that a large diff can be read rather than timed out.
