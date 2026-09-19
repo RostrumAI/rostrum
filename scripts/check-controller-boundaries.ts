@@ -24,6 +24,19 @@ interface Violation {
     readonly broken: string;
 }
 
+/**
+ * The parser the walk reads with: `.ts`, never `.tsx`. The TSX loader reads every
+ * file as JSX, so a generic arrow function — `const first = <T>(items: readonly T[]): T => items[0];`
+ * — is a syntax error there, and the check would abort on valid TypeScript instead
+ * of reporting an import.
+ */
+const SCANNER = new Bun.Transpiler({ loader: "ts" });
+
+/** Lists the imports of one module, which the walk then resolves locally. */
+export function scanImports(source: string) {
+    return SCANNER.scan(source).imports;
+}
+
 /** Resolves one local import to a repository-relative module path. */
 function resolveLocal(fromPath: string, specifier: string, root: string): string | undefined {
     if (!specifier.startsWith(".")) {
@@ -65,7 +78,6 @@ async function checkControllerBoundaries(): Promise<void> {
     }
 
     // Walk each controller's local import graph, recording the path that broke a rule.
-    const scanner = new Bun.Transpiler({ loader: "tsx" });
     const violations: Violation[] = [];
     for (const controller of entryPoints) {
         const visited = new Map<string, readonly string[]>([[controller, [controller]]]);
@@ -74,7 +86,7 @@ async function checkControllerBoundaries(): Promise<void> {
             const path = pending.pop() ?? controller;
             const chain = visited.get(path) ?? [path];
             const source = await Bun.file(resolve(root, path)).text();
-            for (const imported of scanner.scan(source).imports) {
+            for (const imported of scanImports(source)) {
                 const database = DATABASE_SPECIFIERS.find(
                     (name) => imported.path === name || imported.path.startsWith(`${name}/`),
                 );
@@ -133,4 +145,7 @@ async function checkControllerBoundaries(): Promise<void> {
     console.log(`Controller boundaries: ${entryPoints.length} controllers reach no database`);
 }
 
-await checkControllerBoundaries();
+// Only a direct run performs the check; importing this module for its parser does not.
+if (import.meta.main) {
+    await checkControllerBoundaries();
+}
