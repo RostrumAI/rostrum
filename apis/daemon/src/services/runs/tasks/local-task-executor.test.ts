@@ -25,7 +25,10 @@ const identity = {
 describe("LocalTaskExecutor", () => {
     // Proves a registered operation's output comes back identified by its run and work.
     test("returns the operation's output with the work's identity", async () => {
+        // Run the real divide operation through the daemon's registry.
         const executor = new LocalTaskExecutor(createOperationRegistry());
+
+        // The quotient comes back tagged with the run and work it answers.
         expect(
             await executor.execute(work("divide", { dividend: 90, divisor: 4 }), signal),
         ).toEqual({
@@ -38,6 +41,8 @@ describe("LocalTaskExecutor", () => {
     // Proves an operation's domain failures pass through with their specific codes.
     test("reports division by zero of either sign as the operation's own failure", async () => {
         const executor = new LocalTaskExecutor(createOperationRegistry());
+
+        // Positive and negative zero both keep divide's own code, located at the divisor.
         for (const divisor of [0, -0]) {
             expect(
                 await executor.execute(work("divide", { dividend: 1, divisor }), signal),
@@ -55,6 +60,7 @@ describe("LocalTaskExecutor", () => {
 
     // Proves an unexpected throw becomes a sanitized task error that doesn't repeat the exception.
     test("turns a throwing operation into a sanitized task error", async () => {
+        // Replace divide with an implementation whose exception carries a sensitive detail.
         const registry: OperationRegistry = new Map([
             [
                 "divide",
@@ -68,6 +74,8 @@ describe("LocalTaskExecutor", () => {
             work("divide", { dividend: 1, divisor: 1 }),
             signal,
         );
+
+        // The failure is the generic task error, and nothing from the exception leaks into it.
         expect(result).toEqual({
             ...identity,
             ok: false,
@@ -78,10 +86,13 @@ describe("LocalTaskExecutor", () => {
 
     // Proves work for an operation this daemon doesn't have fails instead of throwing.
     test("reports an unregistered operation as a task error", async () => {
+        // The release registry has no multiply operation.
         const result = await new LocalTaskExecutor(createOperationRegistry()).execute(
             work("multiply", {}),
             signal,
         );
+
+        // The executor resolves with a task error rather than rejecting.
         expect(result.ok ? undefined : result.failure.code).toBe("task_error");
     });
 });

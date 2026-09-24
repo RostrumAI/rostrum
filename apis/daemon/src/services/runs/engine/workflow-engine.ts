@@ -2,7 +2,7 @@
 
 import { escapePointerToken } from "@rostrum/workflow";
 import type { ExecutionFailure, RunSnapshot } from "@rostrum/workflow/execution";
-import { v7 as mintUuidV7 } from "uuid";
+import { v7 as mintId } from "uuid";
 import { deepFreeze } from "../owned-values";
 import type { PreparedTaskStep, PreparedWorkflow } from "../preparation/prepared-workflow";
 import type { RunInputs } from "../preparation/publication-preparer";
@@ -65,7 +65,7 @@ export interface WorkflowEngineOptions {
     readonly clock?: EngineClock;
     /** The turn and timer source; defaults to `setImmediate` and `setTimeout`. */
     readonly scheduler?: EngineScheduler;
-    /** Creates run and work IDs; defaults to UUID v7. */
+    /** Creates run and work IDs; defaults to the server's identifier generator. */
     readonly createId?: () => string;
 }
 
@@ -161,7 +161,7 @@ export class WorkflowEngine {
         this.runTaskTimeoutMs = options.runTaskTimeoutMs;
         this.clock = options.clock ?? SYSTEM_CLOCK;
         this.scheduler = options.scheduler ?? SYSTEM_SCHEDULER;
-        this.createId = options.createId ?? (() => mintUuidV7());
+        this.createId = options.createId ?? (() => mintId());
     }
 
     /**
@@ -323,7 +323,7 @@ export class WorkflowEngine {
     /** Prepares a ready visit and applies the node's decision: fail it, commit it locally, or start its task. */
     private claim(entry: RunEntry, visit: ReadyVisit): void {
         const node = this.nodeFor(entry, visit.stepId);
-        const preparation = node.prepareExecution(visit, this.bindingContext(entry, visit));
+        const preparation = node.prepareExecution(visit, this.createBindingContext(entry, visit));
         switch (preparation.kind) {
             case "failure":
                 entry.state.visits.set(
@@ -732,8 +732,8 @@ export class WorkflowEngine {
         );
     }
 
-    /** Binds a visit's inputs to the run's inputs and its completed visits' committed outputs. */
-    private bindingContext(entry: RunEntry, visit: VisitState): BindingContext {
+    /** Creates the context that binds a visit's inputs to the run's inputs and its completed visits' committed outputs. */
+    private createBindingContext(entry: RunEntry, visit: VisitState): BindingContext {
         return {
             inputs: entry.state.inputs,
             getCompletedOutput: (stepId) => {
