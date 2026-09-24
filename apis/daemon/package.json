@@ -10,7 +10,8 @@
         "typecheck": "tsc --noEmit",
         "test": "bun test",
         "generate-openapi": "bun src/scripts/generate-openapi.ts",
-        "smoke": "bun src/scripts/smoke.ts"
+        "smoke": "bun src/scripts/smoke.ts",
+        "smoke:execution": "bun src/scripts/smoke-execution.ts"
     },
     "dependencies": {
         "@logtape/logtape": "^2.3.2",
