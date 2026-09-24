@@ -13,6 +13,7 @@ import {
     resultStep,
     taskLoopStep,
     taskStep,
+    testId,
 } from "../testing/documents";
 import { checkStaticCompatibility } from "./static-compatibility-check";
 
@@ -343,6 +344,49 @@ describe("bindings", () => {
             },
         };
         expect(checkDocument(tuple)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+    });
+
+    // Proves a loop whose collection resolves back through its own variable is skipped, not recursed forever.
+    test("a self-referential loop collection is left unresolved", () => {
+        // A loop over its own variable, with itself as the body so it sits in its own scope.
+        const end = resultStep();
+        const loopId = testId();
+        const loop = taskLoopStep(
+            { collection: { ref: "loop.x" }, maxIterations: 2, variable: "x", body: loopId },
+            {
+                id: loopId,
+                config: { operation: "add" },
+                inputs: { left: { ref: "loop.x" } },
+                successors: [end.id],
+            },
+        );
+        const self = buildDocument({ steps: [loop, end], firstNode: loop.id });
+        expect(checkDocument(self)).toEqual([]);
+
+        // Two loops inside each other's bodies, each iterating the other's variable.
+        const first = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.b" } },
+        });
+        const second = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.a" } },
+        });
+        first.loop = {
+            collection: { ref: "loop.b" },
+            maxIterations: 2,
+            variable: "a",
+            body: second.id,
+        };
+        second.loop = {
+            collection: { ref: "loop.a" },
+            maxIterations: 2,
+            variable: "b",
+            body: first.id,
+        };
+        first.successors = [end.id];
+        const mutual = buildDocument({ steps: [first, second, end], firstNode: first.id });
+        expect(checkDocument(mutual)).toEqual([]);
     });
 
     // Proves result steps have no consumer, so any binding fits them.

@@ -144,6 +144,8 @@ class StaticCompatibilityCheck {
     private readonly compiler: DeclaredSchemaCompiler;
     private readonly graph: WorkflowGraph;
     private readonly issues: StaticCompatibilityIssue[] = [];
+    /** Loop steps whose collection is being resolved, to stop a collection that leads back to one. */
+    private readonly resolvingLoops = new Set<string>();
 
     /** Binds the check to one document, its graph, a catalog, and a compiler. */
     constructor(
@@ -464,7 +466,19 @@ class StaticCompatibilityCheck {
         if (!scope || !loop || scope.variable !== variable) {
             return undefined;
         }
-        const collection = this.referenceProducer(loop.collection.ref, scope.loopStepId);
+
+        // A collection that leads back to a loop already being resolved has no element schema
+        // to find, so it's left unresolved rather than followed forever.
+        if (this.resolvingLoops.has(scope.loopStepId)) {
+            return undefined;
+        }
+        this.resolvingLoops.add(scope.loopStepId);
+        let collection: SchemaProducer | undefined;
+        try {
+            collection = this.referenceProducer(loop.collection.ref, scope.loopStepId);
+        } finally {
+            this.resolvingLoops.delete(scope.loopStepId);
+        }
         if (!collection) {
             return undefined;
         }

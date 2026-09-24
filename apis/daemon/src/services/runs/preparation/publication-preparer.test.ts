@@ -347,6 +347,22 @@ describe("refusals", () => {
         const [reason, failures] = getRefusal(document);
         expect(reason).toBe("unsupported_execution");
         expect(failures).toContainEqual(["unsupported_control_flow", "/steps/1/loop"]);
+
+        // A loop iterating its own variable, and binding it, is refused rather than overflowing the stack.
+        const selfReferential = copyCalculationFixture();
+        const [, loopStep] = selfReferential.steps;
+        if (loopStep) {
+            loopStep.inputs = { dividend: { ref: "loop.person" }, divisor: 1 };
+            loopStep.loop = {
+                collection: { ref: "loop.person" },
+                maxIterations: 2,
+                variable: "person",
+                body: DIVIDE_STEP,
+            };
+        }
+        const [selfReason, selfFailures] = getRefusal(selfReferential);
+        expect(selfReason).toBe("unsupported_execution");
+        expect(selfFailures).toContainEqual(["unsupported_control_flow", "/steps/1/loop"]);
     });
 
     // Proves a document whose step links the engine can't follow is refused before any run.
