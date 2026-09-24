@@ -150,6 +150,15 @@ export const WorkflowDocumentSchema = Type.Object(
 export type WorkflowDocument = Static<typeof WorkflowDocumentSchema>;
 
 export type WorkflowStep = Static<typeof Step>;
+/**
+ * A step's `config` as named members, or an empty object when it has none.
+ * The document schema proves `config` is a JSON object; TypeBox only
+ * types it as an opaque object.
+ */
+export function getStepConfig(step: WorkflowStep): Readonly<Record<string, unknown>> {
+    return (step.config ?? {}) as Readonly<Record<string, unknown>>;
+}
+
 /** A workflow input declaration: its value schema and optional default. */
 export type WorkflowInputDeclaration = Static<typeof InputDeclaration>;
 export type WorkflowConditional = Static<typeof Conditional>;

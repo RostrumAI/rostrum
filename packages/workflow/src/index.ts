@@ -27,9 +27,7 @@
  */
 
 export type {
-    SchemaProducer,
     StaticCompatibilityIssue,
-    StaticIssueCodes,
     StaticIssueKind,
 } from "./compatibility/static-compatibility-check";
 export {
@@ -39,9 +37,7 @@ export {
 export type {
     DeclaredSchemaCompiler,
     JsonSchema,
-    SchemaCompilation,
     ValueCheck,
-    ValueIssue,
 } from "./declared-schemas/declared-schema-compiler";
 export {
     createDeclaredSchemaCompiler,
@@ -64,7 +60,6 @@ export { ADD_OPERATION } from "./operations/add";
 export { DIVIDE_OPERATION } from "./operations/divide";
 export { GREET_OPERATION } from "./operations/greet";
 export type {
-    OperationArgument,
     OperationCatalog,
     OperationDeclaration,
     OperationInputs,
@@ -86,10 +81,9 @@ export { WorkflowFormatRegistry } from "./rules/workflow-format-rule-set";
 export type {
     WorkflowConditional,
     WorkflowDocument,
-    WorkflowInputDeclaration,
     WorkflowStep,
 } from "./schema";
-export { UUID_V7_PATTERN, WorkflowDocumentSchema } from "./schema";
+export { getStepConfig, WorkflowDocumentSchema } from "./schema";
 export {
     isReferenceObject,
     LOOP_RESULTS_OUTPUT,

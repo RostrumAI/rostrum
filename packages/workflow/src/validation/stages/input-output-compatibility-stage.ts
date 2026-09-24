@@ -42,6 +42,7 @@ export class InputOutputCompatibilityStage implements ValidationStage {
             context.typedDocument,
             this.catalog,
             createDeclaredSchemaCompiler(),
+            context.graph,
         );
         return issues.map((issue) =>
             context.findings.create({

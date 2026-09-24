@@ -131,6 +131,7 @@ export function createDeclaredSchemaCompiler(): DeclaredSchemaCompiler {
         code: { regExp: linearTimeRegExp },
     });
     const compilations = new Map<JsonSchema, SchemaCompilation>();
+    let compiled = 0;
 
     return {
         compile(schema) {
@@ -138,15 +139,25 @@ export function createDeclaredSchemaCompiler(): DeclaredSchemaCompiler {
             if (cached) {
                 return cached;
             }
-            const compilation = compileSchema(ajv, schema);
+            compiled += 1;
+            const compilation = compileSchema(
+                ajv,
+                schema,
+                `urn:rostrum:declared-schema:${compiled}`,
+            );
             compilations.set(schema, compilation);
             return compilation;
         },
     };
 }
 
-/** Validates, compiles, and wraps one schema, turning every refusal into a located reason. */
-function compileSchema(ajv: Ajv2020, schema: JsonSchema): SchemaCompilation {
+/**
+ * Validates, compiles, and wraps one schema, turning every refusal into a
+ * located reason. A schema without its own `$id` is compiled under
+ * `fallbackId`, a base only this compilation uses, so a `$ref` to the
+ * schema's own root (`#`) resolves.
+ */
+function compileSchema(ajv: Ajv2020, schema: JsonSchema, fallbackId: string): SchemaCompilation {
     // An asynchronous schema would return a promise instead of a verdict.
     if (typeof schema === "object" && Object.hasOwn(schema, "$async")) {
         return { ok: false, path: "/$async", message: "Asynchronous schemas aren't supported" };
@@ -167,7 +178,11 @@ function compileSchema(ajv: Ajv2020, schema: JsonSchema): SchemaCompilation {
 
     let validate: ValidateFunction;
     try {
-        validate = ajv.compile(schema);
+        const identified =
+            typeof schema === "object" && !Object.hasOwn(schema, "$id")
+                ? { ...schema, $id: fallbackId }
+                : schema;
+        validate = ajv.compile(identified);
     } catch (error) {
         return { ok: false, path: "", message: describeCompileError(error) };
     }

@@ -11,7 +11,7 @@ import {
     type OperationCatalog,
     type OperationDeclaration,
 } from "../operations/operation-catalog";
-import type { WorkflowDocument, WorkflowStep } from "../schema";
+import { getStepConfig, type WorkflowDocument, type WorkflowStep } from "../schema";
 import {
     isReferenceObject,
     LOOP_RESULTS_OUTPUT,
@@ -125,14 +125,16 @@ const LOOP_RESULTS_SCHEMA: JsonSchema = { type: "array" };
 /**
  * Runs the static compatibility check over a shape-valid document and
  * returns every issue found. The compiler should be fresh for this run so
- * compiled declarations don't outlive the document.
+ * compiled declarations don't outlive the document. A caller that already
+ * built the document's graph passes it in; otherwise one is built.
  */
 export function checkStaticCompatibility(
     document: WorkflowDocument,
     catalog: OperationCatalog,
     compiler: DeclaredSchemaCompiler,
+    graph: WorkflowGraph = new WorkflowGraph(document),
 ): StaticCompatibilityIssue[] {
-    return new StaticCompatibilityCheck(document, catalog, compiler).run();
+    return new StaticCompatibilityCheck(document, catalog, compiler, graph).run();
 }
 
 /** One run of the static check over one document. */
@@ -143,16 +145,17 @@ class StaticCompatibilityCheck {
     private readonly graph: WorkflowGraph;
     private readonly issues: StaticCompatibilityIssue[] = [];
 
-    /** Binds the check to one document, catalog, and compiler. */
+    /** Binds the check to one document, its graph, a catalog, and a compiler. */
     constructor(
         document: WorkflowDocument,
         catalog: OperationCatalog,
         compiler: DeclaredSchemaCompiler,
+        graph: WorkflowGraph,
     ) {
         this.document = document;
         this.catalog = catalog;
         this.compiler = compiler;
-        this.graph = new WorkflowGraph(document);
+        this.graph = graph;
     }
 
     /** Checks inputs, then each step, then condition operands. */
@@ -198,7 +201,20 @@ class StaticCompatibilityCheck {
             }
         }
 
-        // Only tasks run operations; a result step's bindings have no consumer.
+        // A result step's resolved inputs are the run's result, so it produces no outputs to
+        // declare, and its bindings have no consumer.
+        if (step.type === "result") {
+            for (const name of Object.keys(step.outputs ?? {})) {
+                this.report(
+                    "undeclared-output",
+                    `${pointer}/outputs/${escapePointerToken(name)}`,
+                    "A result step produces no outputs other steps can bind to",
+                    step.id,
+                    { output: name },
+                );
+            }
+            return;
+        }
         if (step.type !== "task") {
             return;
         }
@@ -213,7 +229,7 @@ class StaticCompatibilityCheck {
 
     /** Finds the task's operation in the catalog, reporting an absent or unknown one. */
     private operationFor(step: WorkflowStep, pointer: string): OperationDeclaration | undefined {
-        const name = configOf(step).operation;
+        const name = getStepConfig(step).operation;
         const operation = typeof name === "string" ? this.catalog.get(name) : undefined;
         if (operation) {
             return operation;
@@ -241,7 +257,7 @@ class StaticCompatibilityCheck {
         operation: OperationDeclaration,
         pointer: string,
     ): void {
-        const { operation: _name, ...config } = configOf(step);
+        const { operation: _name, ...config } = getStepConfig(step);
         const compiled = this.compiler.compile(catalogSchema(operation.configSchema));
         if (!compiled.ok) {
             throw new Error(
@@ -427,7 +443,7 @@ class StaticCompatibilityCheck {
         if (producer.loop && output === LOOP_RESULTS_OUTPUT) {
             return { schema: LOOP_RESULTS_SCHEMA, root: LOOP_RESULTS_SCHEMA };
         }
-        const operationName = configOf(producer).operation;
+        const operationName = getStepConfig(producer).operation;
         const operation =
             typeof operationName === "string" ? this.catalog.get(operationName) : undefined;
         const member = operation ? operationOutputMember(operation, output) : undefined;
@@ -583,12 +599,4 @@ function operationOutputMember(
         return undefined;
     }
     return catalogSchema(member);
-}
-
-/**
- * The task's configuration as named members. The document schema proved
- * `config` is a JSON object; TypeBox only types it as an opaque object.
- */
-function configOf(step: WorkflowStep): Readonly<Record<string, unknown>> {
-    return (step.config ?? {}) as Readonly<Record<string, unknown>>;
 }

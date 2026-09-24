@@ -8,6 +8,7 @@ import calculationJson from "@rostrum/workflow/fixtures/valid/sequential-calcula
 import { resolveBindings } from "../engine/bindings";
 import type { PreparedWorkflow } from "./prepared-workflow";
 import { PublicationPreparer } from "./publication-preparer";
+import { createValueChecker } from "./value-checks";
 
 const preparer = new PublicationPreparer(OPERATION_CATALOG);
 
@@ -313,5 +314,50 @@ describe("refusals", () => {
             publicationOf(sequentialJson, digest),
         );
         expect(preparation.ok && preparation.workflow.publication.digest).toBe(digest);
+    });
+
+    // Proves a deeply nested input is copied and frozen without overflowing the stack.
+    test("deeply nested inputs don't escape as exceptions", () => {
+        // Nesting far deeper than a recursive freeze could follow, against a recursive schema.
+        const deep = JSON.parse(`${"[".repeat(20_000)}${"]".repeat(20_000)}`);
+        const document = calculation();
+        document.inputs = {
+            ...document.inputs,
+            payload: { schema: { type: "array", items: { $ref: "#" } }, default: [] },
+        };
+        const accepted = preparer.validateInputs(prepared(document), {
+            amount: 1,
+            people: 1,
+            payload: deep,
+        });
+        expect(accepted.ok && Object.isFrozen(accepted.inputs.get("payload"))).toBe(true);
+    });
+
+    // Proves a check that can't be evaluated refuses the run as unsupported, not as bad input.
+    test("an evaluator that throws is unsupported execution", () => {
+        // A prepared input whose check throws, as an evaluator exhausting its stack would.
+        const workflow = prepared(calculationJson);
+        const throwing = createValueChecker(() => {
+            throw new RangeError("Maximum call stack size exceeded");
+        });
+        const broken: PreparedWorkflow = {
+            ...workflow,
+            inputs: new Map([["payload", { check: throwing }]]),
+        };
+
+        // The failure is sanitized and the reason blames the release, not the caller.
+        expect(preparer.validateInputs(broken, { payload: [] })).toEqual({
+            ok: false,
+            refusal: {
+                reason: "unsupported_execution",
+                failures: [
+                    {
+                        code: "execution_error",
+                        message: "The value couldn't be checked",
+                        path: "/inputs/payload",
+                    },
+                ],
+            },
+        });
     });
 });

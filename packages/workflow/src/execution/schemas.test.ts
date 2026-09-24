@@ -171,4 +171,65 @@ describe("run snapshots", () => {
             false,
         );
     });
+
+    // Proves the step list can't contradict the run's status.
+    test("step states must agree with the run's status", () => {
+        const running: StepSnapshot = { stepId: FIRST_STEP, status: "running", startedAt: AT };
+        const failed: StepSnapshot = {
+            stepId: FIRST_STEP,
+            status: "failed",
+            completedAt: AT,
+            failure,
+        };
+        const completed: StepSnapshot = {
+            stepId: FIRST_STEP,
+            status: "completed",
+            completedAt: AT,
+            output: {},
+        };
+
+        // A completed run can't still have running or failed steps.
+        const completedRun = runSnapshot(
+            {
+                status: "completed",
+                stopping: false,
+                startedAt: AT,
+                completedAt: AT,
+                currentSteps: [],
+                waitingFor: [],
+                result: {},
+            },
+            [completed],
+        );
+        expect(Value.Check(RunSnapshotSchema, completedRun)).toBe(true);
+        expect(Value.Check(RunSnapshotSchema, { ...completedRun, steps: [running] })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...completedRun, steps: [failed] })).toBe(false);
+
+        // A queued run has reached nothing, and a run that isn't stopping has no failed step.
+        const queued = runSnapshot(
+            { status: "queued", stopping: false, currentSteps: [], waitingFor: [] },
+            [completed],
+        );
+        expect(Value.Check(RunSnapshotSchema, queued)).toBe(false);
+        const runningRun = runSnapshot(
+            { status: "running", stopping: false, startedAt: AT, currentSteps: [], waitingFor: [] },
+            [failed],
+        );
+        expect(Value.Check(RunSnapshotSchema, runningRun)).toBe(false);
+
+        // A failed run has settled, so no step is still running.
+        const failedRun = runSnapshot(
+            {
+                status: "failed",
+                stopping: false,
+                startedAt: AT,
+                completedAt: AT,
+                currentSteps: [],
+                waitingFor: [],
+                failure,
+            },
+            [running],
+        );
+        expect(Value.Check(RunSnapshotSchema, failedRun)).toBe(false);
+    });
 });

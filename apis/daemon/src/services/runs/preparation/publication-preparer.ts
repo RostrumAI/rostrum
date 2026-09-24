@@ -6,6 +6,7 @@ import {
     createDeclaredSchemaCompiler,
     type DeclaredSchemaCompiler,
     escapePointerToken,
+    getStepConfig,
     isJsonSchema,
     isReferenceObject,
     type OperationCatalog,
@@ -22,6 +23,7 @@ import type {
     RunRefusal,
 } from "@rostrum/workflow/execution";
 import { Compile } from "typebox/compile";
+import { ownedCopy } from "../owned-values";
 import type {
     PreparedBinding,
     PreparedInput,
@@ -195,10 +197,15 @@ export class PublicationPreparer {
             }
         }
 
+        // A check that couldn't be evaluated says nothing about the caller's inputs.
         if (failures.length > 0) {
+            const unchecked = failures.some((found) => found.code === "execution_error");
             return {
                 ok: false,
-                refusal: { reason: "invalid_inputs", failures: sortFailures(failures) },
+                refusal: {
+                    reason: unchecked ? "unsupported_execution" : "invalid_inputs",
+                    failures: sortFailures(failures),
+                },
             };
         }
         return { ok: true, inputs };
@@ -286,7 +293,7 @@ class PreparedWorkflowAssembly {
             return { ...base, kind: "result", inputs };
         }
 
-        const operationName = configOf(step).operation;
+        const operationName = getStepConfig(step).operation;
         const operation =
             typeof operationName === "string" ? this.catalog.get(operationName) : undefined;
         if (step.type !== "task" || !operation) {
@@ -330,7 +337,7 @@ class PreparedWorkflowAssembly {
             kind: "task",
             inputs,
             operation,
-            config: ownedCopy(configOf(step)),
+            config: ownedCopy(getStepConfig(step)),
             outputCheck: this.checkerFor(catalogSchema(operation.outputSchema)),
             declaredOutputs,
         };
@@ -579,11 +586,6 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
     return failures;
 }
 
-/** The task's configuration as named members; the document shape proved it's a JSON object. */
-function configOf(step: WorkflowStep): Readonly<Record<string, unknown>> {
-    return (step.config ?? {}) as Readonly<Record<string, unknown>>;
-}
-
 /** The JSON Pointer to one invocation input. */
 function inputPath(name: string): string {
     return `/inputs/${escapePointerToken(name)}`;
@@ -619,24 +621,4 @@ function sortFailures(failures: ExecutionFailure[]): ExecutionFailure[] {
         }
         return 0;
     });
-}
-
-/**
- * Takes an owned, deep-frozen copy of a JSON value, so nothing outside
- * the run can change it later. Author-chosen member names such as
- * `__proto__` stay ordinary own members.
- */
-function ownedCopy<T>(value: T): T {
-    return deepFreeze(structuredClone(value));
-}
-
-/** Freezes a JSON value and everything inside it. */
-function deepFreeze<T>(value: T): T {
-    if (typeof value === "object" && value !== null) {
-        for (const member of Object.values(value)) {
-            deepFreeze(member);
-        }
-        Object.freeze(value);
-    }
-    return value;
 }

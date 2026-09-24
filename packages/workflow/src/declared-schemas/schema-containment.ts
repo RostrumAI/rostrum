@@ -157,6 +157,7 @@ export function checkSchemaContainment(
 class ContainmentChecker {
     private readonly producerRefs: ReferenceResolver;
     private readonly consumerRefs: ReferenceResolver;
+    private readonly patterns = new Map<string, RE2JS>();
 
     /** Binds the checker to the documents each side's references resolve against. */
     constructor(producerRoot: JsonSchema, consumerRoot: JsonSchema) {
@@ -234,6 +235,13 @@ class ContainmentChecker {
                 continue;
             }
             const failure = this.conjunctionFits(conjunction, consumer, path);
+            if (
+                failure?.kind === "mismatch" &&
+                hasUncomparedConstraints(conjunction, failure.keyword)
+            ) {
+                // The failing value might be one the ignored constraints exclude.
+                return { ...failure, kind: "unprovable" };
+            }
             if (failure) {
                 return failure;
             }
@@ -319,20 +327,48 @@ class ContainmentChecker {
             }
         }
 
+        // Each kind of value the producer allows may fit a different member.
         const members = schemaList(consumer.anyOf);
         if (members.length === 0) {
             return undefined;
         }
-        let unprovable: Failure | undefined;
+        for (const kind of possibleKinds(producer)) {
+            const failure = this.someMemberFits(
+                [...producer, { type: typeNameOf(kind) }],
+                members,
+                path,
+            );
+            if (failure) {
+                return failure;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Requires the producer to fit at least one `anyOf` member. When none
+     * fits, the result is a mismatch only if every member rejects the
+     * producer's type outright; otherwise the producer might be split
+     * across members, which the checker can't prove either way.
+     */
+    private someMemberFits(
+        producer: Conjunction,
+        members: readonly JsonSchema[],
+        path: string,
+    ): Failure | undefined {
+        let everyTypeRejected = true;
         for (const [index, member] of members.entries()) {
             const failure = this.conjunctionFits(producer, member, `${path}/anyOf/${index}`);
             if (!failure) {
                 return undefined;
             }
-            unprovable ??= failure.kind === "unprovable" ? failure : undefined;
+            everyTypeRejected &&= failure.kind === "mismatch" && failure.keyword === "type";
         }
-        // No member fits. If one couldn't be compared, the answer is unknown, not a mismatch.
-        return unprovable ?? { kind: "mismatch", keyword: "anyOf", path: `${path}/anyOf` };
+        return {
+            kind: everyTypeRejected ? "mismatch" : "unprovable",
+            keyword: "anyOf",
+            path: `${path}/anyOf`,
+        };
     }
 
     /** Checks array keywords, which apply only when the producer can be an array. */
@@ -372,17 +408,15 @@ class ContainmentChecker {
             if (index >= producerMaxItems) {
                 break;
             }
-            const consumerElement =
-                index < consumerPrefix.length
-                    ? { schema: consumerPrefix[index], path: `${path}/prefixItems/${index}` }
-                    : { schema: consumer.items, path: `${path}/items` };
-            if (consumerElement.schema === undefined) {
+            const inPrefix = index < consumerPrefix.length;
+            const element = inPrefix ? consumerPrefix[index] : consumer.items;
+            if (!isJsonSchema(element)) {
                 continue;
             }
             const failure = this.alternativesFit(
                 this.expandAll(producer.map((conjunct) => elementSchema(conjunct, index))),
-                consumerElement.schema as JsonSchema,
-                consumerElement.path,
+                element,
+                inPrefix ? `${path}/prefixItems/${index}` : `${path}/items`,
             );
             if (failure) {
                 return failure;
@@ -452,7 +486,7 @@ class ContainmentChecker {
 
         // Members the consumer doesn't name must satisfy its additionalProperties.
         const additional = consumer.additionalProperties;
-        if (additional === undefined) {
+        if (!isJsonSchema(additional)) {
             return undefined;
         }
         const additionalPath = `${path}/additionalProperties`;
@@ -463,7 +497,7 @@ class ContainmentChecker {
             }
             const failure = this.alternativesFit(
                 this.expandAll(producer.map((conjunct) => memberSchema(conjunct, name))),
-                additional as JsonSchema,
+                additional,
                 additionalPath,
             );
             if (failure) {
@@ -476,7 +510,7 @@ class ContainmentChecker {
         // An open producer can also supply members nobody named.
         return this.alternativesFit(
             this.expandAll(producer.map((conjunct) => unnamedMemberSchema(conjunct))),
-            additional as JsonSchema,
+            additional,
             additionalPath,
         );
     }
@@ -545,8 +579,13 @@ class ContainmentChecker {
                     : mismatch;
             case "minLength":
             case "maxLength":
+                return typeof value !== "string" || lengthSatisfies(keyword, expected, value)
+                    ? undefined
+                    : mismatch;
             case "pattern":
-                return typeof value !== "string" || stringSatisfies(keyword, expected, value)
+                return typeof value !== "string" ||
+                    typeof expected !== "string" ||
+                    this.compilePattern(expected).test(value)
                     ? undefined
                     : mismatch;
             case "minItems":
@@ -596,6 +635,21 @@ class ContainmentChecker {
         }
     }
 
+    /**
+     * Compiles a pattern with the linear-time engine the runtime uses,
+     * once per check, so a finite producer with many values doesn't
+     * recompile it for each one.
+     */
+    private compilePattern(pattern: string): RE2JS {
+        const known = this.patterns.get(pattern);
+        if (known) {
+            return known;
+        }
+        const compiled = RE2JS.compile(pattern);
+        this.patterns.set(pattern, compiled);
+        return compiled;
+    }
+
     /** Evaluates `prefixItems` or `items` against a known array. */
     private evaluateElements(
         consumer: SchemaObject,
@@ -609,10 +663,11 @@ class ContainmentChecker {
             if (inPrefix !== (keyword === "prefixItems")) {
                 continue;
             }
-            const schema = inPrefix ? prefix[index] : (consumer.items as JsonSchema);
+            const schema = inPrefix ? prefix[index] : consumer.items;
             const schemaPath = inPrefix ? `${path}/prefixItems/${index}` : `${path}/items`;
-            const failure =
-                schema === undefined ? undefined : this.evaluate(schema, element, schemaPath);
+            const failure = isJsonSchema(schema)
+                ? this.evaluate(schema, element, schemaPath)
+                : undefined;
             if (failure) {
                 return failure;
             }
@@ -640,12 +695,13 @@ class ContainmentChecker {
                     return failure;
                 }
             }
-            if (keyword === "additionalProperties" && named === undefined) {
-                const failure = this.evaluate(
-                    consumer.additionalProperties as JsonSchema,
-                    member,
-                    `${path}/additionalProperties`,
-                );
+            const additional = consumer.additionalProperties;
+            if (
+                keyword === "additionalProperties" &&
+                named === undefined &&
+                isJsonSchema(additional)
+            ) {
+                const failure = this.evaluate(additional, member, `${path}/additionalProperties`);
                 if (failure) {
                     return failure;
                 }
@@ -717,13 +773,13 @@ class ReferenceResolver {
         }
         for (const token of pointer === "" ? [] : pointer.slice(1).split("/")) {
             const key = decodeURIComponent(token).replaceAll("~1", "/").replaceAll("~0", "~");
-            if (!isObject(current) && !Array.isArray(current)) {
+            if (Array.isArray(current)) {
+                current = Object.hasOwn(current, key) ? current[Number(key)] : undefined;
+            } else if (isObject(current) && Object.hasOwn(current, key)) {
+                current = current[key];
+            } else {
                 return undefined;
             }
-            if (!Object.hasOwn(current, key)) {
-                return undefined;
-            }
-            current = (current as Record<string, unknown>)[key];
         }
         return isJsonSchema(current) ? current : undefined;
     }
@@ -915,17 +971,45 @@ function finiteValues(producer: Conjunction): unknown[] | undefined {
     if (values) {
         return values.filter((value) => kinds.has(kindOf(value)));
     }
-    if ([...kinds].every((kind) => kind === "null" || kind === "boolean")) {
-        const finite: unknown[] = [];
-        if (kinds.has("null")) {
-            finite.push(null);
+    // Kinds with few values: null, booleans, a short integer range, and the empty string.
+    const finite: unknown[] = [];
+    for (const kind of kinds) {
+        const members = finiteMembersOf(producer, kind);
+        if (!members) {
+            return undefined;
         }
-        if (kinds.has("boolean")) {
-            finite.push(true, false);
-        }
-        return finite;
+        finite.push(...members);
     }
-    return undefined;
+    return finite;
+}
+
+/** The most integers a bounded integer producer is enumerated into. */
+const MAX_ENUMERATED_INTEGERS = 64;
+
+/** Lists every value of one kind the producer allows, or undefined when there are too many. */
+function finiteMembersOf(producer: Conjunction, kind: ValueKind): unknown[] | undefined {
+    switch (kind) {
+        case "null":
+            return [null];
+        case "boolean":
+            return [true, false];
+        case "integer": {
+            const lower = numericBound(producer, "minimum", "exclusiveMinimum", true);
+            const upper = numericBound(producer, "maximum", "exclusiveMaximum", true);
+            if (!lower || !upper || upper.value - lower.value >= MAX_ENUMERATED_INTEGERS) {
+                return undefined;
+            }
+            const integers: number[] = [];
+            for (let value = lower.value; value <= upper.value; value++) {
+                integers.push(value);
+            }
+            return integers;
+        }
+        case "string":
+            return upperBound(producer, "maxLength") === 0 ? [""] : undefined;
+        default:
+            return undefined;
+    }
 }
 
 /** Checks the consumer's `type` against the kinds the producer can take. */
@@ -987,14 +1071,52 @@ function numberFits(
         !(upper && exceeds(upper, exclusiveMaximum, -1))
     ) {
         failed = "exclusiveMaximum";
-    } else if (
-        typeof multipleOf === "number" &&
-        !producerMultiples(producer, integral).some((step) => isMultiple(step, multipleOf))
-    ) {
-        // A multiple of a multiple is a multiple, so one producer step size suffices.
-        failed = "multipleOf";
     }
-    return failed ? { kind: "mismatch", keyword: failed, path: `${path}/${failed}` } : undefined;
+    if (failed) {
+        return { kind: "mismatch", keyword: failed, path: `${path}/${failed}` };
+    }
+
+    // Step sizes: proven only where division is exact, so the runtime check agrees.
+    if (
+        typeof multipleOf === "number" &&
+        !multipleProven(producer, integral, lower, upper, multipleOf)
+    ) {
+        return {
+            // Any interval of fractions holds a value that isn't a multiple of anything fixed.
+            kind: integral ? "unprovable" : "mismatch",
+            keyword: "multipleOf",
+            path: `${path}/multipleOf`,
+        };
+    }
+    return undefined;
+}
+
+/**
+ * True when every producer value is provably a multiple of the consumer's
+ * step. Only integer steps are compared, and only within the safe-integer
+ * range: there, dividing an integer by an integer step is exact, which is
+ * what the runtime check requires.
+ */
+function multipleProven(
+    producer: Conjunction,
+    integral: boolean,
+    lower: NumericBound | undefined,
+    upper: NumericBound | undefined,
+    multipleOf: number,
+): boolean {
+    const bounded =
+        lower !== undefined &&
+        upper !== undefined &&
+        Math.abs(lower.value) <= Number.MAX_SAFE_INTEGER &&
+        Math.abs(upper.value) <= Number.MAX_SAFE_INTEGER;
+    return (
+        integral &&
+        bounded &&
+        Number.isInteger(multipleOf) &&
+        producerMultiples(producer, integral).some(
+            (step) => Number.isInteger(step) && step % multipleOf === 0,
+        )
+    );
 }
 
 /**
@@ -1072,10 +1194,14 @@ function producerMultiples(producer: Conjunction, integral: boolean): number[] {
     return steps;
 }
 
-/** True when `value` is a whole multiple of `step`, tolerating binary floating-point error. */
-function isMultiple(value: number, step: number): boolean {
+/**
+ * True when `value` is a multiple of `step` exactly as the runtime check
+ * decides it: the quotient must survive integer parsing unchanged, so a
+ * rounding error or an exponent-notation quotient fails.
+ */
+function isExactMultiple(value: number, step: number): boolean {
     const quotient = value / step;
-    return Math.abs(quotient - Math.round(quotient)) < 1e-9;
+    return Number.parseInt(String(quotient), 10) === quotient;
 }
 
 /** Checks one numeric keyword against a known number. */
@@ -1093,7 +1219,7 @@ function numberSatisfies(keyword: string, expected: unknown, value: number): boo
         case "exclusiveMaximum":
             return value < expected;
         default:
-            return isMultiple(value, expected);
+            return isExactMultiple(value, expected);
     }
 }
 
@@ -1128,16 +1254,17 @@ function stringFits(
     return undefined;
 }
 
-/** Checks one string keyword against a known string; lengths count code points. */
-function stringSatisfies(keyword: string, expected: unknown, value: string): boolean {
-    switch (keyword) {
-        case "minLength":
-            return typeof expected !== "number" || [...value].length >= expected;
-        case "maxLength":
-            return typeof expected !== "number" || [...value].length <= expected;
-        default:
-            return typeof expected !== "string" || RE2JS.compile(expected).test(value);
+/** Checks a length keyword against a known string, counting code points as JSON Schema does. */
+function lengthSatisfies(
+    keyword: "minLength" | "maxLength",
+    expected: unknown,
+    value: string,
+): boolean {
+    if (typeof expected !== "number") {
+        return true;
     }
+    const length = [...value].length;
+    return keyword === "minLength" ? length >= expected : length <= expected;
 }
 
 /** The largest lower bound any conjunct sets for a count keyword; 0 when none does. */
@@ -1215,4 +1342,34 @@ function unnamedMemberSchema(conjunct: SchemaObject): JsonSchema {
         return true;
     }
     return isJsonSchema(conjunct.additionalProperties) ? conjunct.additionalProperties : true;
+}
+
+/** The `type` name that selects exactly one value kind, or its nearest superset for fractions. */
+function typeNameOf(kind: ValueKind): string {
+    return kind === "fraction" ? "number" : kind;
+}
+
+/** Consumer keywords whose mismatch a producer `pattern` could explain away, since it narrows strings. */
+const PATTERN_SENSITIVE_KEYWORDS: ReadonlySet<string> = new Set([
+    "minLength",
+    "maxLength",
+    "const",
+    "enum",
+]);
+
+/**
+ * True when a producer conjunction constrains values in ways the checker
+ * doesn't reason about, so a mismatch found on `keyword` may not name a
+ * value the producer allows: a keyword outside the comparable set, or,
+ * for string keywords, a `pattern`, which the checker compares only by
+ * identity.
+ */
+function hasUncomparedConstraints(producer: Conjunction, keyword: string): boolean {
+    return producer.some((conjunct) =>
+        Object.keys(conjunct).some(
+            (member) =>
+                (member === "pattern" && PATTERN_SENSITIVE_KEYWORDS.has(keyword)) ||
+                (!COMPARABLE_KEYWORDS.has(member) && !IGNORED_KEYWORDS.has(member)),
+        ),
+    );
 }

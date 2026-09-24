@@ -41,12 +41,27 @@ describe("numbers", () => {
         expect(kindOf({ maximum: 10 }, { exclusiveMaximum: 10 })).toBe("mismatch");
     });
 
-    // Proves multipleOf holds when the producer's step size is a multiple of the consumer's.
-    test("multipleOf compares step sizes, with integers counting as multiples of 1", () => {
-        expect(kindOf({ type: "number", multipleOf: 4 }, { multipleOf: 2 })).toBe("contained");
-        expect(kindOf({ type: "number", multipleOf: 2 }, { multipleOf: 4 })).toBe("mismatch");
-        expect(kindOf({ type: "integer" }, { multipleOf: 0.5 })).toBe("contained");
+    // Proves multipleOf holds when a bounded integer producer's step is a multiple of the consumer's.
+    test("multipleOf is proven only for exact integer division", () => {
+        // Bounded integers divide exactly, so step 4 fits step 2 and integers fit step 1.
+        const bounded = { type: "integer", minimum: -1000, maximum: 1000 };
+        expect(kindOf({ ...bounded, multipleOf: 4 }, { multipleOf: 2 })).toBe("contained");
+        expect(kindOf(bounded, { multipleOf: 1 })).toBe("contained");
+        expect(kindOf({ ...bounded, multipleOf: 2 }, { multipleOf: 4 })).toBe("unprovable");
+
+        // Fractions always include a value that isn't a multiple.
         expect(kindOf({ type: "number" }, { multipleOf: 1 })).toBe("mismatch");
+    });
+
+    // Proves the rounding cases the runtime rejects are never reported as contained.
+    test("multipleOf never passes a pair the runtime check rejects", () => {
+        // 0.3 / 0.1 isn't exactly 3 in binary floating point, so the runtime rejects 0.3.
+        expect(kindOf({ type: "number", multipleOf: 0.3 }, { multipleOf: 0.1 })).toBe("mismatch");
+        expect(kindOf({ const: 0.3 }, { multipleOf: 0.1 })).toBe("mismatch");
+        expect(kindOf({ type: "integer" }, { multipleOf: 1.0000000001 })).toBe("unprovable");
+
+        // 1e21 is an integer, but its quotient prints in exponent form and fails the runtime check.
+        expect(kindOf({ type: "integer" }, { multipleOf: 1 })).toBe("unprovable");
     });
 });
 
@@ -103,6 +118,28 @@ describe("finite producers", () => {
     test("an unbounded producer doesn't fit an enum", () => {
         expect(kindOf({ type: "string" }, { enum: ["a", "b"] })).toBe("mismatch");
         expect(kindOf({ type: "boolean" }, { enum: [true, false] })).toBe("contained");
+    });
+
+    // Proves producers with few values are enumerated instead of being reported as mismatches.
+    test("short integer ranges and the empty string are finite", () => {
+        expect(kindOf({ type: "integer", minimum: 1, maximum: 2 }, { enum: [1, 2] })).toBe(
+            "contained",
+        );
+        expect(kindOf({ type: "integer", minimum: 1, maximum: 3 }, { enum: [1, 2] })).toBe(
+            "mismatch",
+        );
+        expect(kindOf({ type: "string", maxLength: 0 }, { const: "" })).toBe("contained");
+    });
+
+    // Proves a mismatch that ignored producer constraints might explain is only unprovable.
+    test("a mismatch against a producer with uncompared constraints is unprovable", () => {
+        // `not` could exclude the failing values, so the checker can't claim they exist.
+        expect(kindOf({ type: "number", not: { maximum: 0 } }, { exclusiveMinimum: 0 })).toBe(
+            "unprovable",
+        );
+        // A pattern narrows strings but never turns one into a number.
+        expect(kindOf({ type: "string", pattern: "^1$" }, { type: "number" })).toBe("mismatch");
+        expect(kindOf({ type: "string", pattern: "^a$" }, { enum: ["a"] })).toBe("unprovable");
     });
 });
 
@@ -191,6 +228,12 @@ describe("combinators and references", () => {
             keyword: "type",
             path: "/type",
         });
+
+        // A multi-type producer is split by type, so each type can fit a different member.
+        expect(kindOf({ type: ["string", "number"] }, numberOrString)).toBe("contained");
+        expect(
+            checkSchemaContainment({ type: "number" }, { anyOf: [{ minimum: 0 }, { maximum: 0 }] }),
+        ).toEqual({ kind: "unprovable", keyword: "anyOf", path: "/anyOf" });
 
         // oneOf in a producer is read as anyOf, which only widens it.
         expect(

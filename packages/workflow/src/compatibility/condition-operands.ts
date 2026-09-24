@@ -115,9 +115,15 @@ function checkLeaf(
     compiler: DeclaredSchemaCompiler,
 ): StaticCompatibilityIssue | undefined {
     const op = typeof leaf.op === "string" ? leaf.op : "";
-    const contained = (consumer: JsonSchema) =>
-        checkSchemaContainment(producer.schema, consumer, { producerRoot: producer.root }).kind ===
-        "contained";
+    // An operand the check can't compare is reported as unprovable rather than as a mismatch.
+    let unprovable = false;
+    const contained = (consumer: JsonSchema) => {
+        const kind = checkSchemaContainment(producer.schema, consumer, {
+            producerRoot: producer.root,
+        }).kind;
+        unprovable ||= kind === "unprovable";
+        return kind === "contained";
+    };
     const allows = (value: unknown) => {
         const compiled = compiler.compile(producer.schema);
         return compiled.ok && compiled.check(value).length === 0;
@@ -157,7 +163,7 @@ function checkLeaf(
         return undefined;
     }
     return {
-        kind: "operand-mismatch",
+        kind: unprovable ? "unprovable" : "operand-mismatch",
         path: leaf.path,
         message: `Condition on '${leaf.ref}' can't be meaningfully evaluated: ${rule}`,
         details: { conditionalId: leaf.conditionalId, ref: leaf.ref, operator: op },

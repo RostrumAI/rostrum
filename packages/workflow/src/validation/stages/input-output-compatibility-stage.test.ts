@@ -122,6 +122,14 @@ describe("declared schemas and defaults", () => {
         ]);
     });
 
+    // Proves a schema may refer to its own root, which makes recursive declarations possible.
+    test("a recursive reference to the schema's root is valid", () => {
+        const document = singleTask(taskStep(), {
+            inputs: { tree: { schema: { type: "array", items: { $ref: "#" } } } },
+        });
+        expect(findingsOf(document)).toEqual([]);
+    });
+
     // Proves a default must satisfy its own schema, on workflow inputs and catalog arguments.
     test("invalid defaults", () => {
         const document = singleTask(
@@ -242,6 +250,17 @@ describe("bindings", () => {
         expect(finding?.code).toBe("workflow.io.unprovable");
         expect(finding?.path).toBe("/steps/0/inputs/word");
         expect(finding?.details?.keyword).toBe("pattern");
+    });
+
+    // Proves a result step can't declare outputs, so nothing can bind to one unchecked.
+    test("a result step's declared output", () => {
+        const task = taskStep();
+        const end = resultStep({ outputs: { total: { type: "number" } } });
+        task.successors = [end.id];
+        const document = buildDocument({ steps: [task, end], firstNode: task.id });
+        expect(findingsOf(document)).toEqual([
+            ["workflow.io.undeclared-output", "/steps/1/outputs/total"],
+        ]);
     });
 
     // Proves a step output's producer is the operation's output schema, not the step's declaration.

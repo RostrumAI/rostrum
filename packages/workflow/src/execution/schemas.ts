@@ -239,8 +239,13 @@ export const StepSnapshotSchema = Type.Union([
 /** One step's current state within a run. */
 export type StepSnapshot = Static<typeof StepSnapshotSchema>;
 
-/** Every step of the publication in document order, which is display order, not execution order. */
-const StepSnapshots = Type.Array(StepSnapshotSchema, { minItems: 1 });
+/**
+ * Every step of the publication in document order, which is display order,
+ * not execution order, limited to the step states the run's status allows.
+ */
+function stepSnapshots(...allowed: (typeof StepSnapshotSchema.anyOf)[number][]) {
+    return Type.Array(Type.Union(allowed), { minItems: 1 });
+}
 
 /** An accepted run whose first advancement hasn't happened. */
 const QueuedRunSnapshot = Type.Object(
@@ -250,7 +255,8 @@ const QueuedRunSnapshot = Type.Object(
         status: Type.Literal("queued"),
         stopping: Type.Literal(false),
         acceptedAt: Timestamp,
-        steps: StepSnapshots,
+        // Nothing has been reached before the first advancement.
+        steps: stepSnapshots(PendingStepSnapshot),
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
     },
@@ -266,7 +272,14 @@ const RunningRunSnapshot = Type.Object(
         stopping: Type.Literal(false),
         acceptedAt: Timestamp,
         startedAt: Timestamp,
-        steps: StepSnapshots,
+        // A failed step would have stopped the run.
+        steps: stepSnapshots(
+            PendingStepSnapshot,
+            WaitingStepSnapshot,
+            ReadyStepSnapshot,
+            RunningStepSnapshot,
+            CompletedStepSnapshot,
+        ),
         currentSteps: Type.Array(UuidV7),
         waitingFor: Type.Array(UuidV7),
     },
@@ -286,7 +299,7 @@ const StoppingRunSnapshot = Type.Object(
         stopping: Type.Literal(true),
         acceptedAt: Timestamp,
         startedAt: Timestamp,
-        steps: StepSnapshots,
+        steps: stepSnapshots(...StepSnapshotSchema.anyOf),
         currentSteps: Type.Array(UuidV7, { minItems: 1 }),
         waitingFor: Type.Array(UuidV7),
         failure: ExecutionFailureSchema,
@@ -304,7 +317,8 @@ const CompletedRunSnapshot = Type.Object(
         acceptedAt: Timestamp,
         startedAt: Timestamp,
         completedAt: Timestamp,
-        steps: StepSnapshots,
+        // Success leaves every reached step completed and unreached ones pending.
+        steps: stepSnapshots(PendingStepSnapshot, CompletedStepSnapshot),
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
         result: NamedValues,
@@ -322,7 +336,14 @@ const FailedRunSnapshot = Type.Object(
         acceptedAt: Timestamp,
         startedAt: Timestamp,
         completedAt: Timestamp,
-        steps: StepSnapshots,
+        // Settled: work abandoned by the failure may be waiting or ready, but none is running.
+        steps: stepSnapshots(
+            PendingStepSnapshot,
+            WaitingStepSnapshot,
+            ReadyStepSnapshot,
+            CompletedStepSnapshot,
+            FailedStepSnapshot,
+        ),
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
         failure: ExecutionFailureSchema,
