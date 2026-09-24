@@ -9,7 +9,7 @@ import type { OperationCatalog } from "./operation-catalog";
 const CATALOG: OperationCatalog = new Map([[ADD_OPERATION.name, ADD_OPERATION]]);
 
 /** Checks an `add` task bound to `inputs` and returns the issue kinds and paths. */
-function issuesFor(inputs: Record<string, unknown>, outputs?: Record<string, unknown>) {
+function checkAddTask(inputs: Record<string, unknown>, outputs?: Record<string, unknown>) {
     const end = resultStep();
     const task = taskStep({ config: { operation: "add" }, inputs, successors: [end.id] });
     if (outputs) {
@@ -24,21 +24,21 @@ function issuesFor(inputs: Record<string, unknown>, outputs?: Record<string, unk
 describe("ADD_OPERATION", () => {
     // Proves `left` is required while `right` may be left to its default.
     test("requires left and defaults right", () => {
-        expect(issuesFor({ left: 1 })).toEqual([]);
-        expect(issuesFor({ right: 1 })).toEqual([["missing-argument", "/steps/0/inputs"]]);
+        expect(checkAddTask({ left: 1 })).toEqual([]);
+        expect(checkAddTask({ right: 1 })).toEqual([["missing-argument", "/steps/0/inputs"]]);
     });
 
     // Proves both arguments accept numbers only.
     test("takes numbers", () => {
-        expect(issuesFor({ left: 1, right: "2" })).toEqual([
+        expect(checkAddTask({ left: 1, right: "2" })).toEqual([
             ["type-mismatch", "/steps/0/inputs/right"],
         ]);
     });
 
     // Proves a step can bind to the sum as a number, but not as a narrower integer.
     test("returns value as any number", () => {
-        expect(issuesFor({ left: 1 }, { value: { type: "number" } })).toEqual([]);
-        expect(issuesFor({ left: 1 }, { value: { type: "integer" } })).toEqual([
+        expect(checkAddTask({ left: 1 }, { value: { type: "number" } })).toEqual([]);
+        expect(checkAddTask({ left: 1 }, { value: { type: "integer" } })).toEqual([
             ["type-mismatch", "/steps/0/outputs/value"],
         ]);
     });

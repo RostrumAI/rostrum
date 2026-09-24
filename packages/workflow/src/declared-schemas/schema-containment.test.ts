@@ -287,6 +287,16 @@ describe("combinators and references", () => {
         const pair = { anyOf: [{ type: "number" }, { type: "string" }] };
         const wide = { allOf: [pair, pair, pair, pair, pair, pair, pair] };
         expect(checkSchemaContainment(wide, true).kind).toBe("unprovable");
+
+        // The same width inside array items and object members is unprovable too, not thrown.
+        const array = { type: "array", items: wide };
+        const object = { type: "object", properties: { a: wide }, required: ["a"] };
+        expect(checkSchemaContainment(array, { type: "array", items: true }).kind).toBe(
+            "unprovable",
+        );
+        expect(
+            checkSchemaContainment(object, { type: "object", properties: { a: true } }).kind,
+        ).toBe("unprovable");
     });
 });
 

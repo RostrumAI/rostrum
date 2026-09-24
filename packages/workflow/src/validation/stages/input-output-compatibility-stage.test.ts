@@ -6,7 +6,7 @@ import { ValidationContext } from "../validation-context";
 import { InputOutputCompatibilityStage } from "./input-output-compatibility-stage";
 
 /** Runs stage 8 over a document with the release catalog. */
-function findingsOf(document: WorkflowDocument) {
+function runStage(document: WorkflowDocument) {
     return new InputOutputCompatibilityStage(OPERATION_CATALOG).run(
         new ValidationContext(document, null),
     );
@@ -17,7 +17,7 @@ describe("InputOutputCompatibilityStage", () => {
     test("a compatible document has no findings", () => {
         const end = resultStep();
         const task = taskStep({ successors: [end.id] });
-        expect(findingsOf(buildDocument({ steps: [task, end], firstNode: task.id }))).toEqual([]);
+        expect(runStage(buildDocument({ steps: [task, end], firstNode: task.id }))).toEqual([]);
     });
 
     // Proves each static compatibility issue blocks publication under its own finding code.
@@ -56,7 +56,7 @@ describe("InputOutputCompatibilityStage", () => {
         });
 
         // Each issue kind surfaces as its publication finding code, at the issue's pointer.
-        expect(findingsOf(document).map((finding) => [finding.code, finding.path])).toEqual([
+        expect(runStage(document).map((finding) => [finding.code, finding.path])).toEqual([
             ["workflow.io.invalid-default", "/inputs/amount/default"],
             ["workflow.operation.unknown", "/steps/0/config/operation"],
             ["workflow.io.undeclared-output", "/steps/1/outputs/sum"],
@@ -71,7 +71,7 @@ describe("InputOutputCompatibilityStage", () => {
     test("carries the issue's details onto the finding", () => {
         const end = resultStep();
         const task = taskStep({ inputs: { name: 1 }, successors: [end.id] });
-        const [finding] = findingsOf(buildDocument({ steps: [task, end], firstNode: task.id }));
+        const [finding] = runStage(buildDocument({ steps: [task, end], firstNode: task.id }));
         expect(finding?.details).toEqual({ stepId: task.id, argument: "name", keyword: "type" });
     });
 });

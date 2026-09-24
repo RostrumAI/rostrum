@@ -171,7 +171,7 @@ export class PublicationPreparer {
                 failures.push(
                     createFailure(
                         "undeclared_input",
-                        inputPath(name),
+                        getInputPath(name),
                         `The workflow declares no input '${name}'`,
                     ),
                 );
@@ -180,7 +180,7 @@ export class PublicationPreparer {
 
         // Every declared input is supplied and valid, or falls back to its default.
         for (const [name, declaration] of prepared.inputs) {
-            const path = inputPath(name);
+            const path = getInputPath(name);
             if (Object.hasOwn(supplied, name)) {
                 const value = supplied[name];
                 const invalid = declaration.check(value, { path, code: "invalid_input" });
@@ -597,7 +597,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
 }
 
 /** The JSON Pointer to one invocation input. */
-function inputPath(name: string): string {
+function getInputPath(name: string): string {
     return `/inputs/${escapePointerToken(name)}`;
 }
 

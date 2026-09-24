@@ -165,18 +165,21 @@ class ContainmentChecker {
         this.consumerRefs = new ReferenceResolver(consumerRoot);
     }
 
-    /** Expands the producer and requires every alternative to fit the consumer. */
+    /**
+     * Expands the producer and requires every alternative to fit the
+     * consumer. Nested array items and object members expand during the
+     * comparison, so the expansion limit can be reached anywhere in it.
+     */
     check(producer: JsonSchema, consumer: JsonSchema): ContainmentResult {
-        let alternatives: Alternatives;
         try {
-            alternatives = this.expand(producer);
+            const alternatives = this.expand(producer);
+            return this.alternativesFit(alternatives, consumer, "") ?? { kind: "contained" };
         } catch (error) {
             if (error instanceof ExpansionLimitError) {
                 return { kind: "unprovable", keyword: error.keyword, path: "" };
             }
             throw error;
         }
-        return this.alternativesFit(alternatives, consumer, "") ?? { kind: "contained" };
     }
 
     /**

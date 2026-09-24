@@ -292,6 +292,66 @@ describe("refusals", () => {
         ]);
     });
 
+    // Proves step types other than task and result, and a configured result step, are refused.
+    test("unsupported step types and result configuration", () => {
+        // Turn the division into an unknown step type and give the result step a configuration.
+        const document = calculation();
+        const [, second, third] = document.steps;
+        if (second && third) {
+            second.type = "approval";
+            third.config = { format: "table" };
+        }
+
+        // Each problem is located at the member responsible.
+        expect(refusalOf(document)).toEqual([
+            "unsupported_execution",
+            [
+                ["unsupported_step_type", "/steps/1/type"],
+                ["invalid_config", "/steps/2/config"],
+            ],
+        ]);
+    });
+
+    // Proves a loop is refused with a located control-flow failure, since this release doesn't run loops.
+    test("loops", () => {
+        // Make the division iterate over the people input, with itself as the body.
+        const document = calculation();
+        const [, second] = document.steps;
+        if (second) {
+            second.loop = {
+                collection: { ref: "inputs.people" },
+                maxIterations: 2,
+                variable: "person",
+                body: DIVIDE_STEP,
+            };
+        }
+
+        // The loop is refused at its own member, whatever else it gets wrong.
+        const [reason, failures] = refusalOf(document);
+        expect(reason).toBe("unsupported_execution");
+        expect(failures).toContainEqual(["unsupported_control_flow", "/steps/1/loop"]);
+    });
+
+    // Proves a document whose step links the engine can't follow is refused before any run.
+    test("duplicate step IDs, a missing entry step, and dangling links", () => {
+        // Repeat the add step's ID on the division, point the entry nowhere, and link to a missing step.
+        const document = calculation();
+        const [first, second] = document.steps;
+        const missing = "0192b0a0-7e1d-7000-8000-000000000199";
+        if (first && second) {
+            second.id = ADD_STEP;
+            first.dependencies = [missing];
+        }
+        document.firstNode = missing;
+
+        // Every broken link is reported where it sits.
+        const [reason, failures] = refusalOf(document);
+        expect(reason).toBe("unsupported_execution");
+        expect(failures).toContainEqual(["invalid_document", "/firstNode"]);
+        expect(failures).toContainEqual(["invalid_document", "/steps/1/id"]);
+        expect(failures).toContainEqual(["invalid_document", "/steps/0/dependencies/0"]);
+    });
+
     // Proves a publication made before the validator fix still can't start a run that would hang.
     test("self-dependency", () => {
         const document = calculation();
