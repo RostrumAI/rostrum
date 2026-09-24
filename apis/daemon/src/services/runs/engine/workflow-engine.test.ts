@@ -968,6 +968,48 @@ describe("guarded state", () => {
         expect(executor.calls.get(DIVIDE_STEP)).toBeUndefined();
     });
 
+    // Proves a resolved value that fails its consumer's check fails the visit before any work starts.
+    test("a resolved input that fails its check fails the visit without dispatching it", async () => {
+        // Preparation would refuse a divisor narrower than its producer, so the prepared step gets
+        // one directly, standing in for a value that escaped the static check.
+        const executor = new CountingExecutor();
+        const { engine, scheduler } = createEngine(executor);
+        const workflow = prepareWorkflow(calculationJson);
+        const divide = workflow.steps.get(DIVIDE_STEP);
+        const divisor = divide?.inputs.get("divisor");
+        const compiled = createDeclaredSchemaCompiler().compile({ type: "number", minimum: 1 });
+        if (!divide || !divisor || !compiled.ok) {
+            throw new Error("Expected the division's divisor and a compiled check");
+        }
+        const narrowed = relinkWorkflow(workflow, {
+            [DIVIDE_STEP]: {
+                inputs: new Map([
+                    ...divide.inputs,
+                    ["divisor", { ...divisor, check: createValueChecker(compiled.check) }],
+                ]),
+            },
+        });
+
+        // Zero people resolves to a divisor of 0, which the narrowed check rejects.
+        const runId = engine.admit(
+            narrowed,
+            validateInputs(narrowed, { amount: 1, people: 0 }),
+            createRegistration(),
+        );
+        await scheduler.runUntilIdle();
+
+        // The division fails as a type mismatch at its divisor and never reaches the executor.
+        const snapshot = inspect(engine, runId);
+        expect(snapshot.status === "failed" && snapshot.failure).toMatchObject({
+            code: "io_type_mismatch",
+            path: "/steps/1/inputs/divisor",
+            stepId: DIVIDE_STEP,
+        });
+        expect(getStepSnapshot(snapshot, DIVIDE_STEP)).not.toHaveProperty("startedAt");
+        expect(executor.calls.get(DIVIDE_STEP)).toBeUndefined();
+        expect(executor.calls.get(ADD_STEP)).toBe(1);
+    });
+
     // Proves a result can't complete a run while other reached work is unfinished.
     test("a result reached beside unfinished work fails the run instead of completing it", async () => {
         // The result binds nothing, so it's ready as soon as the addition completes, beside the division.
