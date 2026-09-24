@@ -73,6 +73,6 @@ export const OPERATION_CATALOG: OperationCatalog = new Map<string, OperationDecl
  * metadata in non-enumerable members; only its interface lacks the index
  * signature.
  */
-export function catalogSchema(schema: TSchema): JsonSchema {
+export function toJsonSchema(schema: TSchema): JsonSchema {
     return schema as JsonSchema;
 }

@@ -1,7 +1,6 @@
 /** @fileoverview Decides whether this daemon release can run a publication, and prepares it. */
 
 import {
-    catalogSchema,
     checkStaticCompatibility,
     createDeclaredSchemaCompiler,
     type DeclaredSchemaCompiler,
@@ -12,6 +11,7 @@ import {
     type OperationCatalog,
     STATIC_ISSUE_CODES,
     STEP_OUTPUT_REF_PATTERN,
+    toJsonSchema,
     type WorkflowDocument,
     WorkflowDocumentSchema,
     type WorkflowStep,
@@ -105,7 +105,7 @@ export class PublicationPreparer {
             parsed = JSON.parse(canonicalText);
         } catch {
             return refuse("corrupt_publication", [
-                failure("invalid_document", "", "The stored publication isn't valid JSON"),
+                createFailure("invalid_document", "", "The stored publication isn't valid JSON"),
             ]);
         }
 
@@ -124,7 +124,7 @@ export class PublicationPreparer {
             ...checkStructure(document),
             ...checkSupportedSteps(document),
             ...checkStaticCompatibility(document, this.catalog, compiler).map((issue) =>
-                failure(
+                createFailure(
                     STATIC_ISSUE_CODES[issue.kind].failureCode,
                     issue.path,
                     issue.message,
@@ -169,7 +169,7 @@ export class PublicationPreparer {
         for (const name of Object.keys(supplied)) {
             if (!prepared.inputs.has(name)) {
                 failures.push(
-                    failure(
+                    createFailure(
                         "undeclared_input",
                         inputPath(name),
                         `The workflow declares no input '${name}'`,
@@ -192,7 +192,7 @@ export class PublicationPreparer {
                 inputs.set(name, declaration.default.value);
             } else {
                 failures.push(
-                    failure("missing_input", path, `The required input '${name}' is missing`),
+                    createFailure("missing_input", path, `The required input '${name}' is missing`),
                 );
             }
         }
@@ -304,7 +304,7 @@ class PreparedWorkflowAssembly {
         const bindings = step.inputs ?? {};
         const inputs = new Map<string, PreparedInput>();
         for (const [name, argument] of Object.entries(operation.arguments)) {
-            const check = this.checkerFor(catalogSchema(argument.schema));
+            const check = this.checkerFor(toJsonSchema(argument.schema));
             if (Object.hasOwn(bindings, name)) {
                 const inputPointer = `${path}/inputs/${escapePointerToken(name)}`;
                 const binding = this.prepareBinding(
@@ -338,7 +338,7 @@ class PreparedWorkflowAssembly {
             inputs,
             operation,
             config: ownedCopy(getStepConfig(step)),
-            outputCheck: this.checkerFor(catalogSchema(operation.outputSchema)),
+            outputCheck: this.checkerFor(toJsonSchema(operation.outputSchema)),
             declaredOutputs,
         };
     }
@@ -376,7 +376,7 @@ class PreparedWorkflowAssembly {
             return { kind: "step-output", stepId: producer.id, outputName };
         }
         failures.push(
-            failure(
+            createFailure(
                 "unresolved_binding",
                 path,
                 `The reference '${ref}' can't be resolved by this release`,
@@ -396,7 +396,7 @@ class PreparedWorkflowAssembly {
         if (!compiled?.ok) {
             // Invalid declarations were reported as `invalid_schema`, so no run can reach this checker.
             return (_value, location) => [
-                failure(
+                createFailure(
                     "invalid_schema",
                     location.path,
                     "The declaration can't be checked",
@@ -420,7 +420,7 @@ function checkShape(parsed: unknown): ExecutionFailure[] {
             : undefined;
     if (format !== undefined && format !== SUPPORTED_FORMAT) {
         return [
-            failure(
+            createFailure(
                 "unsupported_format",
                 "/workflowFormatVersion",
                 `This release executes format '${SUPPORTED_FORMAT}' only`,
@@ -431,7 +431,7 @@ function checkShape(parsed: unknown): ExecutionFailure[] {
         return [];
     }
     return [...DOCUMENT_SHAPE.Errors(parsed)].map((error) =>
-        failure(
+        createFailure(
             "invalid_document",
             error.instancePath,
             `The document's shape is invalid: ${error.message}`,
@@ -447,12 +447,16 @@ function checkIdentity(
     const failures: ExecutionFailure[] = [];
     if (document.id !== publication.workflowId) {
         failures.push(
-            failure("publication_mismatch", "/id", "The document isn't the requested workflow"),
+            createFailure(
+                "publication_mismatch",
+                "/id",
+                "The document isn't the requested workflow",
+            ),
         );
     }
     if (document.workflowFormatVersion !== publication.workflowFormatVersion) {
         failures.push(
-            failure(
+            createFailure(
                 "publication_mismatch",
                 "/workflowFormatVersion",
                 "The document's format doesn't match its publication",
@@ -474,20 +478,26 @@ function checkStructure(document: WorkflowDocument): ExecutionFailure[] {
     for (const [index, step] of document.steps.entries()) {
         if (ids.has(step.id)) {
             failures.push(
-                failure("invalid_document", `/steps/${index}/id`, "The step ID is a duplicate"),
+                createFailure(
+                    "invalid_document",
+                    `/steps/${index}/id`,
+                    "The step ID is a duplicate",
+                ),
             );
         }
         ids.add(step.id);
     }
     if (!ids.has(document.firstNode)) {
-        failures.push(failure("invalid_document", "/firstNode", "The entry step doesn't exist"));
+        failures.push(
+            createFailure("invalid_document", "/firstNode", "The entry step doesn't exist"),
+        );
     }
     for (const [index, step] of document.steps.entries()) {
         for (const field of ["successors", "dependencies"] as const) {
             for (const [position, target] of (step[field] ?? []).entries()) {
                 if (!ids.has(target)) {
                     failures.push(
-                        failure(
+                        createFailure(
                             "invalid_document",
                             `/steps/${index}/${field}/${position}`,
                             "The linked step doesn't exist",
@@ -511,7 +521,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
     const failures: ExecutionFailure[] = [];
     if ((document.conditionals ?? []).length > 0) {
         failures.push(
-            failure(
+            createFailure(
                 "unsupported_control_flow",
                 "/conditionals",
                 "Conditionals aren't executed by this release",
@@ -522,7 +532,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
         const path = `/steps/${index}`;
         if (step.type !== "task" && step.type !== "result") {
             failures.push(
-                failure(
+                createFailure(
                     "unsupported_step_type",
                     `${path}/type`,
                     `Step type '${step.type}' isn't supported`,
@@ -532,7 +542,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
         }
         if (step.type === "result" && step.config !== undefined) {
             failures.push(
-                failure(
+                createFailure(
                     "invalid_config",
                     `${path}/config`,
                     "A result step has no configuration",
@@ -542,7 +552,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
         }
         if (step.conditional !== undefined) {
             failures.push(
-                failure(
+                createFailure(
                     "unsupported_control_flow",
                     `${path}/conditional`,
                     "Conditional routing isn't executed yet",
@@ -552,7 +562,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
         }
         if (step.loop !== undefined) {
             failures.push(
-                failure(
+                createFailure(
                     "unsupported_control_flow",
                     `${path}/loop`,
                     "Loops aren't executed yet",
@@ -562,7 +572,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
         }
         if (new Set(step.successors ?? []).size > 1) {
             failures.push(
-                failure(
+                createFailure(
                     "unsupported_control_flow",
                     `${path}/successors`,
                     "Parallel successors aren't executed yet",
@@ -573,7 +583,7 @@ function checkSupportedSteps(document: WorkflowDocument): ExecutionFailure[] {
         for (const [position, dependency] of (step.dependencies ?? []).entries()) {
             if (dependency === step.id) {
                 failures.push(
-                    failure(
+                    createFailure(
                         "self_dependency",
                         `${path}/dependencies/${position}`,
                         "The step lists itself as a dependency",
@@ -592,7 +602,7 @@ function inputPath(name: string): string {
 }
 
 /** Builds one located failure. */
-function failure(
+function createFailure(
     code: FailureCode,
     path: string,
     message: string,

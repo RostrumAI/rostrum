@@ -65,7 +65,7 @@ export type {
     OperationInputs,
     OperationOutput,
 } from "./operations/operation-catalog";
-export { catalogSchema, OPERATION_CATALOG } from "./operations/operation-catalog";
+export { OPERATION_CATALOG, toJsonSchema } from "./operations/operation-catalog";
 export type { JsonParseIssue, JsonParseResult, ParseErrorCode } from "./parse/json-source-parser";
 export { JsonSourceParser } from "./parse/json-source-parser";
 export type { ParsedWorkflow } from "./parse/parse-workflow";
