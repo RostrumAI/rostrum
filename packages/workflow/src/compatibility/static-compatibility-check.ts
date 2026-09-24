@@ -7,9 +7,9 @@ import { checkSchemaContainment } from "../declared-schemas/schema-containment";
 import type { FailureCode } from "../execution/schemas";
 import { escapePointerToken } from "../json-source-map";
 import {
-    catalogSchema,
     type OperationCatalog,
     type OperationDeclaration,
+    toJsonSchema,
 } from "../operations/operation-catalog";
 import { getStepConfig, type WorkflowDocument, type WorkflowStep } from "../schema";
 import {
@@ -258,7 +258,7 @@ class StaticCompatibilityCheck {
         pointer: string,
     ): void {
         const { operation: _name, ...config } = getStepConfig(step);
-        const compiled = this.compiler.compile(catalogSchema(operation.configSchema));
+        const compiled = this.compiler.compile(toJsonSchema(operation.configSchema));
         if (!compiled.ok) {
             throw new Error(
                 `The catalog's configuration schema for '${operation.name}' doesn't compile`,
@@ -336,7 +336,7 @@ class StaticCompatibilityCheck {
                 });
                 continue;
             }
-            this.checkBinding(step, binding, catalogSchema(argument.schema), path, name);
+            this.checkBinding(step, binding, toJsonSchema(argument.schema), path, name);
         }
 
         // Every argument must be bound or have a valid default.
@@ -355,7 +355,7 @@ class StaticCompatibilityCheck {
                 continue;
             }
             this.checkDefault(
-                catalogSchema(argument.schema),
+                toJsonSchema(argument.schema),
                 argument.default,
                 `${pointer}/config/operation`,
                 step.id,
@@ -598,5 +598,5 @@ function operationOutputMember(
     if (member === undefined || !schema.required?.includes(name)) {
         return undefined;
     }
-    return catalogSchema(member);
+    return toJsonSchema(member);
 }

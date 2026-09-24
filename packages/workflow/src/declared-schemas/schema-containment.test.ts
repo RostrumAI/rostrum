@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { catalogSchema, OPERATION_CATALOG } from "../operations/operation-catalog";
+import { OPERATION_CATALOG, toJsonSchema } from "../operations/operation-catalog";
 import type { JsonSchema } from "./declared-schema-compiler";
 import { checkSchemaContainment } from "./schema-containment";
 
@@ -314,7 +314,7 @@ describe("the operation catalog", () => {
                 ...Object.values(operation.arguments).map((argument) => argument.schema),
             ];
             for (const schema of schemas) {
-                const json = catalogSchema(schema);
+                const json = toJsonSchema(schema);
                 expect({
                     operation: operation.name,
                     result: checkSchemaContainment(json, json),

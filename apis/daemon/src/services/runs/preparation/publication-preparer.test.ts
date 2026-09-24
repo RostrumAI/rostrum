@@ -246,6 +246,28 @@ describe("refusals", () => {
         ]);
     });
 
+    // Proves a reference naming no declared input or declared step output is refused, not left for the run.
+    test("unresolved bindings", () => {
+        // Bind divide to an undeclared input and to an output the add step doesn't declare.
+        const document = calculation();
+        const [, second] = document.steps;
+        if (second) {
+            second.inputs = {
+                dividend: { ref: `step.${ADD_STEP}.unknown` },
+                divisor: { ref: "inputs.missing" },
+            };
+        }
+
+        // Each dangling reference is reported at its own binding.
+        expect(refusalOf(document)).toEqual([
+            "unsupported_execution",
+            [
+                ["unresolved_binding", "/steps/1/inputs/dividend"],
+                ["unresolved_binding", "/steps/1/inputs/divisor"],
+            ],
+        ]);
+    });
+
     // Proves conditionals, loops, and parallel successors are refused with located control-flow failures.
     test("unsupported control flow", () => {
         const [reason, failures] = refusalOf(conditionalJson, publicationOf(conditionalJson));

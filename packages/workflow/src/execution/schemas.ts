@@ -15,14 +15,14 @@ import { UUID_V7_PATTERN } from "../schema";
  * failure — fails validation.
  */
 
-/** A UUID v7 identifier, in the workflow format's one pattern. */
-const UuidV7 = Type.String({ pattern: UUID_V7_PATTERN });
+/** A workflow, step, or run identifier, in the workflow format's one pattern. */
+const Identifier = Type.String({ pattern: UUID_V7_PATTERN });
 
 /** An instant recorded when a transition happens, as an RFC 3339 timestamp. */
 const Timestamp = Type.String({ format: "date-time" });
 
 /** An empty list: terminal and queued runs carry no active or waiting work. */
-const NoStepIds = Type.Array(UuidV7, { maxItems: 0 });
+const NoStepIds = Type.Array(Identifier, { maxItems: 0 });
 
 /** A JSON object of named values: a step's committed output or a run's final result. */
 const NamedValues = Type.Record(Type.String(), Type.Unknown());
@@ -105,7 +105,7 @@ export const ExecutionFailureSchema = Type.Object(
         code: FailureCodeSchema,
         message: Type.String(),
         path: Type.String(),
-        stepId: Type.Optional(UuidV7),
+        stepId: Type.Optional(Identifier),
     },
     { additionalProperties: false },
 );
@@ -150,7 +150,7 @@ export type RunRefusal = Static<typeof RunRefusalSchema>;
 /** The exact publication a run executes, recorded at acceptance and never read again. */
 export const RunPublicationSchema = Type.Object(
     {
-        workflowId: UuidV7,
+        workflowId: Identifier,
         publicationNumber: Type.Integer({ minimum: 1 }),
         workflowFormatVersion: Type.String(),
         digest: Type.String({ pattern: "^[0-9a-f]{64}$" }),
@@ -164,7 +164,7 @@ export type RunPublication = Static<typeof RunPublicationSchema>;
 /** The acceptance payload: the run's ID and publication, queued. */
 export const RunAcceptanceSchema = Type.Object(
     {
-        runId: UuidV7,
+        runId: Identifier,
         publication: RunPublicationSchema,
         status: Type.Literal("queued"),
     },
@@ -176,36 +176,36 @@ export type RunAcceptance = Static<typeof RunAcceptanceSchema>;
 
 /** A step that has no visit yet. */
 const PendingStepSnapshot = Type.Object(
-    { stepId: UuidV7, status: Type.Literal("pending") },
+    { stepId: Identifier, status: Type.Literal("pending") },
     { additionalProperties: false },
 );
 
 /** A step whose visit exists but has at least one dependency that hasn't completed. */
 const WaitingStepSnapshot = Type.Object(
     {
-        stepId: UuidV7,
+        stepId: Identifier,
         status: Type.Literal("waiting"),
-        waitingFor: Type.Array(UuidV7, { minItems: 1 }),
+        waitingFor: Type.Array(Identifier, { minItems: 1 }),
     },
     { additionalProperties: false },
 );
 
 /** A step whose dependencies are satisfied and which may be dispatched. */
 const ReadyStepSnapshot = Type.Object(
-    { stepId: UuidV7, status: Type.Literal("ready") },
+    { stepId: Identifier, status: Type.Literal("ready") },
     { additionalProperties: false },
 );
 
 /** A step the engine has claimed and handed to the executor. */
 const RunningStepSnapshot = Type.Object(
-    { stepId: UuidV7, status: Type.Literal("running"), startedAt: Timestamp },
+    { stepId: Identifier, status: Type.Literal("running"), startedAt: Timestamp },
     { additionalProperties: false },
 );
 
 /** A step whose full output passed validation and was committed. */
 const CompletedStepSnapshot = Type.Object(
     {
-        stepId: UuidV7,
+        stepId: Identifier,
         status: Type.Literal("completed"),
         startedAt: Type.Optional(Timestamp),
         completedAt: Timestamp,
@@ -217,7 +217,7 @@ const CompletedStepSnapshot = Type.Object(
 /** A step that can't succeed. `startedAt` appears only when execution actually started. */
 const FailedStepSnapshot = Type.Object(
     {
-        stepId: UuidV7,
+        stepId: Identifier,
         status: Type.Literal("failed"),
         startedAt: Type.Optional(Timestamp),
         completedAt: Timestamp,
@@ -242,7 +242,7 @@ export type StepSnapshot = Static<typeof StepSnapshotSchema>;
 /** An accepted run whose first advancement hasn't happened. */
 const QueuedRunSnapshot = Type.Object(
     {
-        runId: UuidV7,
+        runId: Identifier,
         publication: RunPublicationSchema,
         status: Type.Literal("queued"),
         stopping: Type.Literal(false),
@@ -258,7 +258,7 @@ const QueuedRunSnapshot = Type.Object(
 /** A run that is making progress: `currentSteps` lists ready and running work. */
 const RunningRunSnapshot = Type.Object(
     {
-        runId: UuidV7,
+        runId: Identifier,
         publication: RunPublicationSchema,
         status: Type.Literal("running"),
         stopping: Type.Literal(false),
@@ -275,8 +275,8 @@ const RunningRunSnapshot = Type.Object(
             ]),
             { minItems: 1 },
         ),
-        currentSteps: Type.Array(UuidV7),
-        waitingFor: Type.Array(UuidV7),
+        currentSteps: Type.Array(Identifier),
+        waitingFor: Type.Array(Identifier),
     },
     { additionalProperties: false },
 );
@@ -288,15 +288,15 @@ const RunningRunSnapshot = Type.Object(
  */
 const StoppingRunSnapshot = Type.Object(
     {
-        runId: UuidV7,
+        runId: Identifier,
         publication: RunPublicationSchema,
         status: Type.Literal("running"),
         stopping: Type.Literal(true),
         acceptedAt: Timestamp,
         startedAt: Timestamp,
         steps: Type.Array(StepSnapshotSchema, { minItems: 1 }),
-        currentSteps: Type.Array(UuidV7, { minItems: 1 }),
-        waitingFor: Type.Array(UuidV7),
+        currentSteps: Type.Array(Identifier, { minItems: 1 }),
+        waitingFor: Type.Array(Identifier),
         failure: ExecutionFailureSchema,
     },
     { additionalProperties: false },
@@ -305,7 +305,7 @@ const StoppingRunSnapshot = Type.Object(
 /** A run that committed its result with nothing failed. The result never changes. */
 const CompletedRunSnapshot = Type.Object(
     {
-        runId: UuidV7,
+        runId: Identifier,
         publication: RunPublicationSchema,
         status: Type.Literal("completed"),
         stopping: Type.Literal(false),
@@ -326,7 +326,7 @@ const CompletedRunSnapshot = Type.Object(
 /** A run that failed and whose outstanding work has settled. It has no result. */
 const FailedRunSnapshot = Type.Object(
     {
-        runId: UuidV7,
+        runId: Identifier,
         publication: RunPublicationSchema,
         status: Type.Literal("failed"),
         stopping: Type.Literal(false),
