@@ -7,8 +7,9 @@
         {
             "id": "0192b0a0-7e1d-7000-8000-0000000000d1",
             "type": "task",
-            "config": { "operation": "evaluate" },
-            "outputs": { "score": { "type": "number" } },
+            "config": { "operation": "add" },
+            "inputs": { "left": 1 },
+            "outputs": { "value": { "type": "number" } },
             "conditional": "0192b0a0-7e1d-7000-8000-0000000000d2"
         },
         { "id": "0192b0a0-7e1d-7000-8000-0000000000d3", "type": "result", "inputs": {} }

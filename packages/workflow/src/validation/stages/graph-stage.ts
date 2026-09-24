@@ -9,8 +9,8 @@ import type { WorkflowGraph } from "../workflow-graph";
  * The combined control graph of `successors`, conditional branches, and
  * loop bodies must be acyclic, each loop body subgraph must be acyclic,
  * no step inside a loop body may declare a `loop` (no nesting in v1),
- * `maxIterations` must be a positive integer, and every dependency must
- * be reachable on all paths from `firstNode` to its dependent — the
+ * `maxIterations` must be a positive integer, no step may list itself in
+ * its own `dependencies`, and every dependency must be reachable on all paths from `firstNode` to its dependent — the
  * merge-after-branch restriction, tested with dominator sets over the
  * control graph. Dependency reachability is skipped when a cycle
  * was found: dominators are only meaningful on an acyclic graph.
@@ -24,14 +24,16 @@ export class GraphStage implements ValidationStage {
         const graph = context.graph;
         const findings: Finding[] = [];
 
-        // The stage runs four checks in order:
+        // The stage runs these checks in order:
         // 1. Loop bounds: every maxIterations is an integer >= 1.
         // 2. Nesting: no step inside a loop body declares its own loop.
-        // 3. Acyclicity: each loop body subgraph, then the whole graph.
+        // 3. Acyclicity: each loop body subgraph, then the whole graph, then
+        //    direct self-dependency, which control-edge cycles don't cover.
         this.checkLoopBounds(context, findings);
         this.checkNestedLoops(graph, context, findings);
         this.checkBodyCycles(graph, context, findings);
         this.checkWholeGraphCycles(graph, context, findings);
+        this.checkSelfDependencies(context, findings);
 
         // Dominator sets are only defined on acyclic graphs, so the final
         // dependency check runs only when no cycle was reported above.
@@ -137,6 +139,30 @@ export class GraphStage implements ValidationStage {
                     details: { cycle },
                 }),
             );
+        }
+    }
+
+    /**
+     * Reports steps that list themselves in `dependencies`, reachable or
+     * not. Such a step would wait for itself forever; the dominance check
+     * can't see it because every step trivially dominates itself.
+     */
+    private checkSelfDependencies(context: ValidationContext, findings: Finding[]): void {
+        const steps = context.typedDocument.steps;
+        for (const [index, step] of steps.entries()) {
+            for (const [dependencyIndex, dependency] of (step.dependencies ?? []).entries()) {
+                if (dependency !== step.id) {
+                    continue;
+                }
+                findings.push(
+                    context.findings.create({
+                        code: "workflow.graph.self-dependency",
+                        message: `Step '${step.id}' lists itself as a dependency`,
+                        path: `/steps/${index}/dependencies/${dependencyIndex}`,
+                        details: { stepId: step.id },
+                    }),
+                );
+            }
         }
     }
 

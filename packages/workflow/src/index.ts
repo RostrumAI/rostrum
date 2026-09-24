@@ -15,10 +15,34 @@
  *   computes its SHA-256 digest over the definitional content, with the
  *   metadata members removed.
  *
+ * - `checkStaticCompatibility` runs the input/output compatibility check
+ *   that validation stage 8 reports and daemon preparation reruns, against
+ *   the `OPERATION_CATALOG` of this release, with the declared-schema
+ *   compiler both use for author-declared JSON Schemas.
+ *
  * The machine-readable document schema lives in `./schema`; its emitted
- * JSON Schema 2020-12 artifact describes the format's document shape.
+ * JSON Schema 2020-12 artifact describes the format's document shape. The
+ * run vocabulary the daemon and the Control API share is the separate
+ * `@rostrum/workflow/execution` entry point.
  */
 
+export type {
+    StaticCompatibilityIssue,
+    StaticIssueKind,
+} from "./compatibility/static-compatibility-check";
+export {
+    checkStaticCompatibility,
+    STATIC_ISSUE_CODES,
+} from "./compatibility/static-compatibility-check";
+export type {
+    DeclaredSchemaCompiler,
+    JsonSchema,
+    ValueCheck,
+} from "./declared-schemas/declared-schema-compiler";
+export {
+    createDeclaredSchemaCompiler,
+    isJsonSchema,
+} from "./declared-schemas/declared-schema-compiler";
 export { insertWorkflowId, replaceWorkflowId } from "./document/id-splice";
 export type { Finding, FindingSpec, RelatedLocation } from "./findings";
 export {
@@ -32,6 +56,16 @@ export type {
     SourceLocation,
 } from "./json-source-map";
 export { escapePointerToken } from "./json-source-map";
+export { ADD_OPERATION } from "./operations/add";
+export { DIVIDE_OPERATION } from "./operations/divide";
+export { GREET_OPERATION } from "./operations/greet";
+export type {
+    OperationCatalog,
+    OperationDeclaration,
+    OperationInputs,
+    OperationOutput,
+} from "./operations/operation-catalog";
+export { OPERATION_CATALOG, toJsonSchema } from "./operations/operation-catalog";
 export type { JsonParseIssue, JsonParseResult, ParseErrorCode } from "./parse/json-source-parser";
 export { JsonSourceParser } from "./parse/json-source-parser";
 export type { ParsedWorkflow } from "./parse/parse-workflow";
@@ -49,7 +83,7 @@ export type {
     WorkflowDocument,
     WorkflowStep,
 } from "./schema";
-export { WorkflowDocumentSchema } from "./schema";
+export { getStepConfig, WorkflowDocumentSchema } from "./schema";
 export {
     isReferenceObject,
     LOOP_RESULTS_OUTPUT,

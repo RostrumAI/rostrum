@@ -8,12 +8,13 @@ export function testId(): string {
     return `0192b0a0-7e1d-7000-8000-${nextId.toString(16).padStart(12, "0")}`;
 }
 
-/** Builds a `task` step with a placeholder operation, overridden per test. */
+/** Builds a `task` step running the catalog's `greet` operation, overridden per test. */
 export function taskStep(overrides: Partial<WorkflowStep> = {}): WorkflowStep {
     return {
         id: overrides.id ?? testId(),
         type: "task",
-        config: { operation: "work" },
+        config: { operation: "greet" },
+        inputs: { name: "Ada" },
         ...overrides,
     };
 }

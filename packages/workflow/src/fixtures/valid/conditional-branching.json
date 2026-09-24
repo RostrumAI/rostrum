@@ -4,29 +4,32 @@
     "name": "Classify a score",
     "firstNode": "0192b0a0-7e1d-7000-8000-000000000011",
     "inputs": {
-        "score": { "type": "number" }
+        "score": { "schema": { "type": "number" } },
+        "bonus": { "schema": { "type": "number" }, "default": 0 }
     },
     "steps": [
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000011",
             "type": "task",
-            "config": { "operation": "threshold" },
-            "inputs": { "score": { "ref": "inputs.score" } },
-            "outputs": { "decision": { "type": "string" } },
+            "config": { "operation": "add" },
+            "inputs": { "left": { "ref": "inputs.score" }, "right": { "ref": "inputs.bonus" } },
+            "outputs": { "value": { "type": "number" } },
             "conditional": "0192b0a0-7e1d-7000-8000-000000000012"
         },
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000013",
             "type": "result",
             "inputs": {
-                "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision" }
+                "decision": "high",
+                "score": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.value" }
             }
         },
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000014",
             "type": "result",
             "inputs": {
-                "decision": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision" }
+                "decision": "low",
+                "score": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.value" }
             }
         }
     ],
@@ -39,9 +42,9 @@
                     "label": "high-score",
                     "priority": 0,
                     "condition": {
-                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision",
-                        "op": "eq",
-                        "value": "high"
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.value",
+                        "op": "gte",
+                        "value": 80
                     },
                     "next": "0192b0a0-7e1d-7000-8000-000000000013"
                 },
@@ -49,9 +52,9 @@
                     "label": "low-score",
                     "priority": 1,
                     "condition": {
-                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.decision",
-                        "op": "eq",
-                        "value": "low"
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000011.value",
+                        "op": "lt",
+                        "value": 80
                     },
                     "next": "0192b0a0-7e1d-7000-8000-000000000014"
                 }

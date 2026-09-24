@@ -4,7 +4,7 @@
     "name": "Conditional missing default",
     "firstNode": "0192b0a0-7e1d-7000-8000-00000000102",
     "inputs": {
-        "score": { "type": "number" }
+        "score": { "schema": { "type": "number" } }
     },
     "steps": [
         {

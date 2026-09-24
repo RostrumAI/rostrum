@@ -20,12 +20,27 @@ import { type Static, Type } from "typebox";
  * UUID v7: version nibble 7 in the third group, RFC 9562 variant (8, 9,
  * a, or b) in the fourth group, lowercase hexadecimal.
  */
-const UUID_V7_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
+export const UUID_V7_PATTERN =
+    "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
 
 const UuidV7 = Type.String({ pattern: UUID_V7_PATTERN });
 
 /** Any JSON value. Used for binding values and JSON Schema fragments. */
 const JsonValue = Type.Any({ title: "JSON value" });
+
+/**
+ * A workflow input declaration: the JSON Schema 2020-12 schema the value
+ * must satisfy, and an optional default that makes the input optional.
+ * Whether `schema` is a valid schema and `default` satisfies it are
+ * stage 8 rules, not shape rules.
+ */
+const InputDeclaration = Type.Object(
+    {
+        schema: Type.Union([Type.Object({}, { additionalProperties: true }), Type.Boolean()]),
+        default: Type.Optional(JsonValue),
+    },
+    { additionalProperties: false },
+);
 
 /** A reference object: `{ "ref": "<path>" }`. Path syntax is checked in stage 7. */
 const ReferenceObject = Type.Object({ ref: Type.String() }, { additionalProperties: false });
@@ -125,7 +140,7 @@ export const WorkflowDocumentSchema = Type.Object(
         name: Type.String(),
         description: Type.Optional(Type.String()),
         firstNode: UuidV7,
-        inputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
+        inputs: Type.Optional(Type.Record(Type.String(), InputDeclaration)),
         steps: Type.Array(Step, { minItems: 1 }),
         conditionals: Type.Optional(Type.Array(Conditional, { minItems: 1 })),
     },
@@ -135,4 +150,15 @@ export const WorkflowDocumentSchema = Type.Object(
 export type WorkflowDocument = Static<typeof WorkflowDocumentSchema>;
 
 export type WorkflowStep = Static<typeof Step>;
+/**
+ * A step's `config` as named members, or an empty object when it has none.
+ * The document schema proves `config` is a JSON object; TypeBox only
+ * types it as an opaque object.
+ */
+export function getStepConfig(step: WorkflowStep): Readonly<Record<string, unknown>> {
+    return (step.config ?? {}) as Readonly<Record<string, unknown>>;
+}
+
+/** A workflow input declaration: its value schema and optional default. */
+export type WorkflowInputDeclaration = Static<typeof InputDeclaration>;
 export type WorkflowConditional = Static<typeof Conditional>;
