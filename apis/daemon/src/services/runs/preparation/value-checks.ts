@@ -30,7 +30,7 @@ export function createValueChecker(check: ValueCheck): ValueChecker {
         } catch {
             // The evaluator's own error is dropped: it may echo the value.
             return [
-                failureAt(
+                createFailureAt(
                     location,
                     location.path,
                     "execution_error",
@@ -39,13 +39,18 @@ export function createValueChecker(check: ValueCheck): ValueChecker {
             ];
         }
         return issues.map((issue) =>
-            failureAt(location, `${location.path}${issue.path}`, location.code, issue.message),
+            createFailureAt(
+                location,
+                `${location.path}${issue.path}`,
+                location.code,
+                issue.message,
+            ),
         );
     };
 }
 
 /** Builds one failure at a location, attributing it to the location's step when there is one. */
-function failureAt(
+function createFailureAt(
     location: CheckLocation,
     path: string,
     code: FailureCode,
