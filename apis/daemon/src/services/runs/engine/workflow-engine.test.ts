@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { createDeclaredSchemaCompiler, type WorkflowDocument } from "@rostrum/workflow";
+import {
+    createDeclaredSchemaCompiler,
+    type WorkflowDocument,
+    WorkflowDocumentSchema,
+} from "@rostrum/workflow";
 import {
     type ExecutionFailure,
     type RunSnapshot,
@@ -227,10 +231,13 @@ function getStepSnapshot(snapshot: RunSnapshot, stepId: string) {
     return snapshot.steps.find((step) => step.stepId === stepId);
 }
 
-/** Returns a copy of the calculation fixture to modify. */
-function buildCalculation(): WorkflowDocument {
-    // The fixture is a valid v1 document; the validator suite proves it against the document schema.
-    return structuredClone(calculationJson) as WorkflowDocument;
+/** Returns a copy of the calculation fixture, checked as a document, to modify. */
+function copyCalculationFixture(): WorkflowDocument {
+    const copy: unknown = structuredClone(calculationJson);
+    if (!Value.Check(WorkflowDocumentSchema, copy)) {
+        throw new Error("The calculation fixture isn't a workflow document");
+    }
+    return copy;
 }
 
 /** Replacement links or inputs for one prepared step. */
@@ -356,7 +363,7 @@ describe("traversal", () => {
     test("reversed step order and repeated advancement still run each task once", async () => {
         const executor = new CountingExecutor();
         const { engine, scheduler } = createEngine(executor);
-        const document = buildCalculation();
+        const document = copyCalculationFixture();
         document.steps.reverse();
         const workflow = prepare(document);
         const runId = engine.admit(
@@ -538,7 +545,7 @@ describe("dependency gating and dead runs", () => {
     test("a pending disconnected step doesn't fail the run", async () => {
         // Add a greet step that nothing links to.
         const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
-        const document = buildCalculation();
+        const document = copyCalculationFixture();
         document.steps.push({
             id: "0192b0a0-7e1d-7000-8000-0000000001ff",
             type: "task",
@@ -1058,6 +1065,42 @@ describe("guarded state", () => {
             expect(getStepSnapshot(snapshot, ADD_STEP)?.status).toBe("failed");
             expect(held.releases).toBe(1);
         }
+    });
+
+    // Proves an unexpected throw inside an engine transition fails the run instead of stranding it.
+    test("a throwing transition fails the run with an execution error", async () => {
+        // Point the addition at a step preparation never saw, so reaching it throws.
+        const executor = new HeldExecutor();
+        const { engine, scheduler } = createEngine(executor);
+        const workflow = relinkWorkflow(prepare(calculationJson), {
+            [ADD_STEP]: { successors: ["0192b0a0-7e1d-7000-8000-0000000001fe"] },
+        });
+        const held = createRegistration();
+        const runId = engine.admit(
+            workflow,
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            held,
+        );
+        await scheduler.runUntilIdle();
+
+        // Completing the addition triggers the throwing advancement.
+        const task = executor.task(0);
+        task.settle({ runId, workId: task.work.workId, ok: true, output: { value: 1 } });
+        await scheduler.runUntilIdle();
+
+        // The run fails with the guard's execution error and releases its registration once.
+        const snapshot = inspect(engine, runId);
+        expect(snapshot.status === "failed" && snapshot.failure).toEqual({
+            code: "execution_error",
+            message: "The engine couldn't apply a run transition",
+            path: "",
+        });
+        expect(held.releases).toBe(1);
+
+        // Further advancement leaves the failed run unchanged.
+        engine.advanceWorkflow(runId);
+        await scheduler.runUntilIdle();
+        expect(inspect(engine, runId)).toEqual(snapshot);
     });
 
     // Proves a task timeout outside the range timers honor is refused at construction.

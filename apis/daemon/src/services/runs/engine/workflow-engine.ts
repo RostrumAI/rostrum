@@ -188,7 +188,7 @@ export class WorkflowEngine {
                 publication: workflow.publication,
                 workflow,
                 inputs,
-                acceptedAt: this.timestamp(),
+                acceptedAt: this.getTimestamp(),
                 visits: new Map(),
                 progress: { status: "queued" },
             },
@@ -229,7 +229,7 @@ export class WorkflowEngine {
 
         // Reach the entry visit on the first pass and the successors completions asked for.
         if (run.progress.status === "queued") {
-            run.progress = startRun(this.timestamp());
+            run.progress = startRun(this.getTimestamp());
         }
         for (const successor of entry.pendingSuccessors.splice(0)) {
             this.reachVisit(entry, successor);
@@ -272,7 +272,7 @@ export class WorkflowEngine {
         entry.advanceScheduled = true;
         this.scheduler.schedule(() => {
             entry.advanceScheduled = false;
-            this.guarded(entry, () => this.advanceWorkflow(entry.state.runId));
+            this.runGuarded(entry, () => this.advanceWorkflow(entry.state.runId));
         });
     }
 
@@ -284,7 +284,7 @@ export class WorkflowEngine {
         entry.dispatchScheduled = true;
         this.scheduler.schedule(() => {
             entry.dispatchScheduled = false;
-            this.guarded(entry, () => this.dispatchNext(entry));
+            this.runGuarded(entry, () => this.dispatchNext(entry));
         });
     }
 
@@ -322,13 +322,13 @@ export class WorkflowEngine {
 
     /** Prepares a ready visit and applies the node's decision: fail it, commit it locally, or start its task. */
     private claim(entry: RunEntry, visit: ReadyVisit): void {
-        const node = this.nodeFor(entry, visit.stepId);
+        const node = this.getNode(entry, visit.stepId);
         const preparation = node.prepareExecution(visit, this.createBindingContext(entry, visit));
         switch (preparation.kind) {
             case "failure":
                 entry.state.visits.set(
                     visit.key,
-                    failVisit(visit, preparation.failure, this.timestamp()),
+                    failVisit(visit, preparation.failure, this.getTimestamp()),
                 );
                 this.recordFailure(entry, preparation.failure);
                 return;
@@ -356,7 +356,7 @@ export class WorkflowEngine {
         // Claim the visit for new work before anything can run.
         const run = entry.state;
         const workId = this.createId();
-        run.visits.set(visit.key, claimVisit(visit, workId, this.timestamp()));
+        run.visits.set(visit.key, claimVisit(visit, workId, this.getTimestamp()));
 
         // The run's abort signal and the deadline both reach the task through its own controller.
         const controller = new AbortController();
@@ -378,7 +378,7 @@ export class WorkflowEngine {
             entry.registration.signal.addEventListener("abort", forwardAbort, { once: true });
         }
         dispatch.cancelTimer = this.scheduler.startTimer(
-            () => this.guarded(entry, () => this.expireTask(entry, dispatch)),
+            () => this.runGuarded(entry, () => this.expireTask(entry, dispatch)),
             this.runTaskTimeoutMs,
         );
 
@@ -401,8 +401,8 @@ export class WorkflowEngine {
         }
         // Deliberately not awaited: settlement comes back through `settleTask`, which handles both outcomes.
         void pending.then(
-            (result) => this.guarded(entry, () => this.settleTask(entry, dispatch, result)),
-            () => this.guarded(entry, () => this.settleTask(entry, dispatch, undefined)),
+            (result) => this.runGuarded(entry, () => this.settleTask(entry, dispatch, result)),
+            () => this.runGuarded(entry, () => this.settleTask(entry, dispatch, undefined)),
         );
     }
 
@@ -459,7 +459,7 @@ export class WorkflowEngine {
 
         const failure = dispatch.timeoutFailure ?? this.getTaskFailure(dispatch, run.runId, result);
         if (failure) {
-            run.visits.set(visit.key, failVisit(visit, failure, this.timestamp()));
+            run.visits.set(visit.key, failVisit(visit, failure, this.getTimestamp()));
             this.recordFailure(entry, failure);
         } else if (result?.ok) {
             this.commitTaskOutput(entry, dispatch, visit, result.output);
@@ -556,7 +556,7 @@ export class WorkflowEngine {
         const [first] = failures;
         if (first || !isRecord(owned)) {
             const failure = first ?? invalid("The task's output isn't an object", outputPath);
-            entry.state.visits.set(visit.key, failVisit(visit, failure, this.timestamp()));
+            entry.state.visits.set(visit.key, failVisit(visit, failure, this.getTimestamp()));
             this.recordFailure(entry, failure);
             return;
         }
@@ -576,10 +576,10 @@ export class WorkflowEngine {
         output: Readonly<Record<string, unknown>>,
     ): void {
         const run = entry.state;
-        const at = this.timestamp();
+        const at = this.getTimestamp();
         // Commit the frozen output and ask the node what it means for the run.
         const committed = deepFreeze(output);
-        const decision = this.nodeFor(entry, visit.stepId).completeExecution(visit, committed);
+        const decision = this.getNode(entry, visit.stepId).completeExecution(visit, committed);
         run.visits.set(visit.key, completeVisit(visit, committed, at));
 
         // A stopping run keeps the output visible, starts nothing, and fails once idle.
@@ -595,7 +595,7 @@ export class WorkflowEngine {
                 this.recordFailure(entry, {
                     code: "execution_error",
                     message: "The result was reached while other steps were unfinished",
-                    path: this.nodeStepPath(entry, visit.stepId),
+                    path: this.getNodeStepPath(entry, visit.stepId),
                     stepId: visit.stepId,
                 });
                 return;
@@ -628,7 +628,7 @@ export class WorkflowEngine {
         if (entry.dispatch || progress.status !== "running" || !progress.stopping) {
             return;
         }
-        entry.state.progress = failRun(progress, this.timestamp());
+        entry.state.progress = failRun(progress, this.getTimestamp());
         this.finish(entry);
     }
 
@@ -676,7 +676,7 @@ export class WorkflowEngine {
     }
 
     /** The publication pointer of a prepared step. */
-    private nodeStepPath(entry: RunEntry, stepId: string): string {
+    private getNodeStepPath(entry: RunEntry, stepId: string): string {
         return entry.state.workflow.steps.get(stepId)?.path ?? "";
     }
 
@@ -686,7 +686,7 @@ export class WorkflowEngine {
      * records an `execution_error`, a visit left running without its
      * work is failed, and the run fails once idle.
      */
-    private guarded(entry: RunEntry, action: () => void): void {
+    private runGuarded(entry: RunEntry, action: () => void): void {
         try {
             action();
         } catch {
@@ -701,7 +701,10 @@ export class WorkflowEngine {
             }
             for (const visit of entry.state.visits.values()) {
                 if (visit.status === "running" && visit.workId !== entry.dispatch?.workId) {
-                    entry.state.visits.set(visit.key, failVisit(visit, failure, this.timestamp()));
+                    entry.state.visits.set(
+                        visit.key,
+                        failVisit(visit, failure, this.getTimestamp()),
+                    );
                 }
             }
             try {
@@ -715,9 +718,9 @@ export class WorkflowEngine {
 
     /** Creates a visit unless one with the same identity exists. */
     private reachVisit(entry: RunEntry, successor: SuccessorVisit): void {
-        const visit = this.nodeFor(entry, successor.stepId).createVisit(
+        const visit = this.getNode(entry, successor.stepId).createVisit(
             successor.metadata,
-            this.timestamp(),
+            this.getTimestamp(),
         );
         if (!entry.state.visits.has(visit.key)) {
             entry.state.visits.set(visit.key, visit);
@@ -726,7 +729,7 @@ export class WorkflowEngine {
 
     /** Lists a visit's dependencies without a completed visit in the same metadata. */
     private getUnmetDependencies(entry: RunEntry, visit: VisitState): string[] {
-        return this.nodeFor(entry, visit.stepId).getUnmetDependencies(
+        return this.getNode(entry, visit.stepId).getUnmetDependencies(
             (stepId) =>
                 entry.state.visits.get(getVisitKey(stepId, visit.metadata))?.status === "completed",
         );
@@ -744,7 +747,7 @@ export class WorkflowEngine {
     }
 
     /** Returns the node for a prepared step; preparation guarantees one exists. */
-    private nodeFor(entry: RunEntry, stepId: string): ExecutionNode {
+    private getNode(entry: RunEntry, stepId: string): ExecutionNode {
         const node = entry.nodes.get(stepId);
         if (!node) {
             throw new Error(
@@ -764,7 +767,7 @@ export class WorkflowEngine {
     }
 
     /** The current instant as an RFC 3339 timestamp. */
-    private timestamp(): string {
+    private getTimestamp(): string {
         return this.clock.now().toISOString();
     }
 }

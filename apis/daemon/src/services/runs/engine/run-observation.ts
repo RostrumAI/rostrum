@@ -50,7 +50,7 @@ export function observeRun(run: RunState): RunSnapshot {
                 ...identity,
                 status: "queued",
                 stopping: false,
-                steps: onlyStates(steps, ["pending"], progress.status),
+                steps: assertOnlyStates(steps, ["pending"], progress.status),
                 currentSteps: [],
                 waitingFor: [],
             };
@@ -71,7 +71,7 @@ export function observeRun(run: RunState): RunSnapshot {
                       status: "running",
                       stopping: false,
                       startedAt: progress.startedAt,
-                      steps: onlyStates(
+                      steps: assertOnlyStates(
                           steps,
                           ["pending", "waiting", "ready", "running", "completed"],
                           progress.status,
@@ -86,7 +86,7 @@ export function observeRun(run: RunState): RunSnapshot {
                 stopping: false,
                 startedAt: progress.startedAt,
                 completedAt: progress.completedAt,
-                steps: onlyStates(steps, ["pending", "completed"], progress.status),
+                steps: assertOnlyStates(steps, ["pending", "completed"], progress.status),
                 currentSteps: [],
                 waitingFor: [],
                 result: progress.result,
@@ -98,7 +98,7 @@ export function observeRun(run: RunState): RunSnapshot {
                 stopping: false,
                 startedAt: progress.startedAt,
                 completedAt: progress.completedAt,
-                steps: onlyStates(
+                steps: assertOnlyStates(
                     steps,
                     ["pending", "waiting", "ready", "completed", "failed"],
                     progress.status,
@@ -111,11 +111,12 @@ export function observeRun(run: RunState): RunSnapshot {
 }
 
 /**
- * Narrows a run's step list to the states its status allows. The engine's
- * transitions guarantee this, so a step in any other state means run
- * state was corrupted, and inspection refuses to describe it.
+ * Narrows a run's step list to the states its status allows, throwing
+ * when a step is in any other state. The engine's transitions guarantee
+ * this, so a step in any other state means run state was corrupted, and
+ * inspection refuses to describe it.
  */
-function onlyStates<Status extends StepSnapshot["status"]>(
+function assertOnlyStates<Status extends StepSnapshot["status"]>(
     steps: readonly StepSnapshot[],
     allowed: readonly Status[],
     runStatus: string,
