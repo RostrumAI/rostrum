@@ -57,6 +57,21 @@ export type CompletionDecision =
           readonly result: Readonly<Record<string, unknown>>;
       };
 
+/** The outcome of resolving and checking a step's inputs before dispatch. */
+type InputResolution =
+    | {
+          /** Every binding resolved and every value passed its consumer's check. */
+          readonly ok: true;
+          /** The resolved values by input name. */
+          readonly values: Readonly<Record<string, unknown>>;
+      }
+    | {
+          /** A binding didn't resolve or a value failed its check. */
+          readonly ok: false;
+          /** The first located failure, which stops the step before dispatch. */
+          readonly failure: ExecutionFailure;
+      };
+
 /**
  * How one kind of step behaves: how it creates a visit, prepares a ready
  * visit's work, and interprets a committed output. Nodes read the run but
@@ -103,11 +118,7 @@ export abstract class ExecutionNode<Step extends PreparedStep = PreparedStep> {
      * Resolves the step's bindings and checks each value its consumer
      * declares. A value that fails its check can't be dispatched.
      */
-    protected resolveInputs(
-        context: BindingContext,
-    ):
-        | { ok: true; values: Readonly<Record<string, unknown>> }
-        | { ok: false; failure: ExecutionFailure } {
+    protected resolveInputs(context: BindingContext): InputResolution {
         const resolved = resolveBindings(this.step.inputs, context, this.step.id);
         if (!resolved.ok) {
             return resolved;
