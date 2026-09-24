@@ -20,7 +20,10 @@ export function deepFreeze<T>(value: T): T {
         const current = pending.pop();
         if (typeof current === "object" && current !== null && !Object.isFrozen(current)) {
             Object.freeze(current);
-            pending.push(...Object.values(current));
+            // One push per member: spreading a very wide value could pass the engine's argument limit.
+            for (const child of Object.values(current)) {
+                pending.push(child);
+            }
         }
     }
     return value;
