@@ -1,6 +1,7 @@
 /** @fileoverview Run state, visit states, and the pure transitions the engine applies to them. */
 
 import type { ExecutionFailure, RunPublication } from "@rostrum/workflow/execution";
+import { deepFreeze } from "../owned-values";
 import type { PreparedWorkflow } from "../preparation/prepared-workflow";
 import type { RunInputs } from "../preparation/publication-preparer";
 
@@ -215,7 +216,7 @@ export function failVisit(
     const failed: FailedVisit = {
         ...identityOf(visit),
         status: "failed",
-        failure,
+        failure: deepFreeze(failure),
         completedAt: at,
     };
     return visit.status === "running" ? { ...failed, startedAt: visit.startedAt } : failed;

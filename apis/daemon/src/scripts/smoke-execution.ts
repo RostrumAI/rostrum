@@ -21,6 +21,9 @@ const engine = new WorkflowEngine({
     runTaskTimeoutMs: 30_000,
 });
 
+/** How long one smoke run may take before the smoke fails. */
+const SMOKE_DEADLINE_MS = 10_000;
+
 /** Prepares a fixture publication, admits one run, and resolves with its snapshot once it's done. */
 async function run(
     document: { id: string },
@@ -42,7 +45,13 @@ async function run(
         signal: new AbortController().signal,
         release: () => released.resolve(),
     });
-    await released.promise;
+    // A run that never settles fails the smoke instead of hanging it.
+    const deadline = setTimeout(
+        () =>
+            released.reject(new Error(`run ${runId} didn't finish within ${SMOKE_DEADLINE_MS} ms`)),
+        SMOKE_DEADLINE_MS,
+    );
+    await released.promise.finally(() => clearTimeout(deadline));
     const snapshot = engine.inspectRun(runId);
     assert.ok(snapshot, "an admitted run must be inspectable");
     return snapshot;

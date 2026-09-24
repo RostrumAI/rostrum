@@ -1,7 +1,7 @@
 /** @fileoverview The decisions one kind of step contributes to execution. */
 
 import type { ExecutionFailure } from "@rostrum/workflow/execution";
-import type { PreparedStep } from "../../preparation/prepared-workflow";
+import type { PreparedStep, PreparedTaskStep } from "../../preparation/prepared-workflow";
 import { type BindingContext, resolveBindings } from "../bindings";
 import {
     createWaitingVisit,
@@ -16,8 +16,8 @@ export type ExecutionPreparation =
     | {
           /** Hand the work to the task executor. */
           readonly kind: "task";
-          /** The task's configuration. */
-          readonly config: Readonly<Record<string, unknown>>;
+          /** The prepared task step the work runs. */
+          readonly step: PreparedTaskStep;
           /** The resolved, checked inputs. */
           readonly inputs: Readonly<Record<string, unknown>>;
       }

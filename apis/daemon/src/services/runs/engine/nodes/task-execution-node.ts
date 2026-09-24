@@ -17,7 +17,7 @@ export class TaskExecutionNode extends ExecutionNode<PreparedTaskStep> {
         if (!inputs.ok) {
             return { kind: "failure", failure: inputs.failure };
         }
-        return { kind: "task", config: this.step.config, inputs: inputs.values };
+        return { kind: "task", step: this.step, inputs: inputs.values };
     }
 
     /** Continues to every successor, carrying the visit's metadata along. */

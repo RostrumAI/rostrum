@@ -8,7 +8,7 @@ import {
 import minimumJson from "@rostrum/workflow/fixtures/valid/minimum.json";
 import calculationJson from "@rostrum/workflow/fixtures/valid/sequential-calculation.json";
 import { Value } from "typebox/value";
-import type { PreparedWorkflow } from "../preparation/prepared-workflow";
+import type { PreparedInput, PreparedWorkflow } from "../preparation/prepared-workflow";
 import { PublicationPreparer, type RunInputs } from "../preparation/publication-preparer";
 import { createValueChecker } from "../preparation/value-checks";
 import { LocalTaskExecutor } from "../tasks/local-task-executor";
@@ -229,14 +229,22 @@ function stepOf(snapshot: RunSnapshot, stepId: string) {
 
 /** Returns a copy of the calculation fixture to modify. */
 function calculation(): WorkflowDocument {
+    // The fixture is a valid v1 document; the validator suite proves it against the document schema.
     return structuredClone(calculationJson) as WorkflowDocument;
 }
 
-/** Returns a prepared workflow whose task step has different links than preparation allows. */
-function relinked(
-    workflow: PreparedWorkflow,
-    links: Record<string, { successors?: string[]; dependencies?: string[] }>,
-): PreparedWorkflow {
+/** Replacement links or inputs for one prepared step. */
+interface StepRelink {
+    /** The step's new successors. */
+    successors?: string[];
+    /** The step's new dependencies. */
+    dependencies?: string[];
+    /** The step's new inputs. */
+    inputs?: Map<string, PreparedInput>;
+}
+
+/** Returns a prepared workflow whose steps have different links or inputs than preparation allows. */
+function relinked(workflow: PreparedWorkflow, links: Record<string, StepRelink>): PreparedWorkflow {
     const steps = new Map(workflow.steps);
     for (const [stepId, change] of Object.entries(links)) {
         const step = steps.get(stepId);
@@ -792,31 +800,62 @@ describe("task deadlines", () => {
         expect(scheduler.pendingTimers).toBe(0);
     });
 
-    // Proves the deadline starts at the claim and is cancelled when the task settles in time.
-    test("a task that settles in time clears its deadline", async () => {
+    // Proves the deadline starts at the claim, not at admission, and is cancelled when the task settles.
+    test("a task that settles in time clears its deadline and abort forwarding", async () => {
         const executor = new HeldExecutor();
         const { engine, scheduler } = engineWith(executor);
         const workflow = prepare(calculationJson);
-        const runId = engine.admit(
-            workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
-        );
-        await scheduler.runUntilIdle();
-        scheduler.advanceTime(TIMEOUT_MS - 1);
-        executor.task(0).settle({
-            runId,
-            workId: executor.task(0).work.workId,
-            ok: true,
-            output: { value: 1 },
-        });
-        await scheduler.runUntilIdle();
+        const held = registration();
+        const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
 
-        // The next task has its own full deadline.
+        // Time spent queued before the claim doesn't count against the task.
+        scheduler.advanceTime(TIMEOUT_MS * 5);
+        await scheduler.runUntilIdle();
         scheduler.advanceTime(TIMEOUT_MS - 1);
         await scheduler.runUntilIdle();
         expect(inspect(engine, runId).status).toBe("running");
-        expect(scheduler.pendingTimers).toBe(1);
+
+        // Settling in time cancels the deadline before any later claim starts another.
+        const first = executor.task(0);
+        first.settle({ runId, workId: first.work.workId, ok: true, output: { value: 1 } });
+        await flushPromises();
+        expect(scheduler.pendingTimers).toBe(0);
+
+        // The settled task no longer hears the run's abort; the next task does.
+        await scheduler.runUntilIdle();
+        held.controller.abort();
+        expect(first.signal.aborted).toBe(false);
+        expect(executor.task(1).signal.aborted).toBe(true);
+    });
+
+    // Proves a failure reported after the deadline doesn't replace the timeout.
+    test("the timeout wins over a later failure or rejection", async () => {
+        for (const late of ["failure", "rejection"] as const) {
+            const executor = new HeldExecutor();
+            const { engine, scheduler } = engineWith(executor);
+            const workflow = prepare(calculationJson);
+            const runId = engine.admit(
+                workflow,
+                inputs(workflow, { amount: 1, people: 1 }),
+                registration(),
+            );
+            await scheduler.runUntilIdle();
+            scheduler.advanceTime(TIMEOUT_MS);
+            const task = executor.task(0);
+            if (late === "failure") {
+                task.settle({
+                    runId,
+                    workId: task.work.workId,
+                    ok: false,
+                    failure: { code: "numeric_overflow", message: "late", path: "/outputs/value" },
+                });
+            } else {
+                task.fail(new Error("late"));
+            }
+            await scheduler.runUntilIdle();
+            const snapshot = inspect(engine, runId);
+            expect(snapshot.status === "failed" && snapshot.failure.code).toBe("task_timeout");
+        }
     });
 
     // Proves the process's abort reaches executing work without releasing the run.
@@ -830,5 +869,137 @@ describe("task deadlines", () => {
         held.controller.abort();
         expect(executor.task(0).signal.aborted).toBe(true);
         expect(held.releases).toBe(0);
+    });
+});
+
+describe("guarded state", () => {
+    // Proves a binding that can't resolve fails its visit before any work starts.
+    test("an unresolved binding fails the visit without dispatching it", async () => {
+        const executor = new CountingExecutor();
+        const { engine, scheduler } = engineWith(executor);
+        const workflow = prepare(calculationJson);
+        // The run's inputs lack `people`, which only a broken admission could allow.
+        const runId = engine.admit(
+            workflow,
+            new Map<string, unknown>([
+                ["amount", 1],
+                ["surcharge", 0],
+            ]),
+            registration(),
+        );
+        await scheduler.runUntilIdle();
+
+        const snapshot = inspect(engine, runId);
+        expect(snapshot.status === "failed" && snapshot.failure).toEqual({
+            code: "unresolved_binding",
+            message: "The value bound to 'divisor' isn't available",
+            path: "/steps/1/inputs/divisor",
+            stepId: DIVIDE_STEP,
+        });
+        expect(stepOf(snapshot, DIVIDE_STEP)).not.toHaveProperty("startedAt");
+        expect(executor.calls.get(DIVIDE_STEP)).toBeUndefined();
+    });
+
+    // Proves a result can't complete a run while other reached work is unfinished.
+    test("a result reached beside unfinished work fails the run instead of completing it", async () => {
+        // The result binds nothing, so it's ready as soon as the addition completes, beside the division.
+        const executor = new HeldExecutor();
+        const { engine, scheduler } = engineWith(executor);
+        const workflow = relinked(prepare(calculationJson), {
+            [ADD_STEP]: { successors: [RESULT_STEP, DIVIDE_STEP] },
+            [RESULT_STEP]: { inputs: new Map() },
+        });
+        const runId = engine.admit(
+            workflow,
+            inputs(workflow, { amount: 1, people: 1 }),
+            registration(),
+        );
+        await scheduler.runUntilIdle();
+        executor.task(0).settle({
+            runId,
+            workId: executor.task(0).work.workId,
+            ok: true,
+            output: { value: 1 },
+        });
+        await scheduler.runUntilIdle();
+
+        // Inspection still describes the run: failed, with the division left ready.
+        const snapshot = inspect(engine, runId);
+        expect(snapshot.status === "failed" && snapshot.failure.code).toBe("execution_error");
+        expect(stepOf(snapshot, DIVIDE_STEP)?.status).toBe("ready");
+    });
+
+    // Proves nothing a caller does with a snapshot can change the run.
+    test("snapshots can't change committed results or failures", async () => {
+        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        const workflow = prepare(calculationJson);
+        const completed = engine.admit(
+            workflow,
+            inputs(workflow, { amount: 90, people: 4 }),
+            registration(),
+        );
+        const failed = engine.admit(
+            workflow,
+            inputs(workflow, { amount: 90, people: 0 }),
+            registration(),
+        );
+        await scheduler.runUntilIdle();
+
+        // Writing into the returned objects throws, and later snapshots are unchanged.
+        const result = inspect(engine, completed);
+        const failure = inspect(engine, failed);
+        expect(() => {
+            if (result.status === "completed") {
+                result.result.total = 0;
+            }
+        }).toThrow();
+        expect(() => {
+            if (failure.status === "failed") {
+                failure.failure.code = "task_error";
+            }
+        }).toThrow();
+        const again = inspect(engine, completed);
+        expect(again.status === "completed" && again.result).toEqual({
+            total: 90,
+            perPerson: 22.5,
+        });
+        const againFailed = inspect(engine, failed);
+        expect(againFailed.status === "failed" && againFailed.failure.code).toBe(
+            "division_by_zero",
+        );
+    });
+
+    // Proves an executor result the engine can't interpret fails the run instead of stranding it.
+    test("a malformed or undeclared task failure fails the run with an execution error", async () => {
+        const malformed = { ok: false } as const;
+        const undeclared = {
+            ok: false,
+            failure: { code: "division_by_zero", message: "nope", path: "/inputs/left" },
+        } as const;
+        for (const shape of [malformed, undeclared]) {
+            const executor = new HeldExecutor();
+            const { engine, scheduler } = engineWith(executor);
+            const workflow = prepare(calculationJson);
+            const held = registration();
+            const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
+            await scheduler.runUntilIdle();
+            // The malformed result breaks the executor contract on purpose.
+            const task = executor.task(0);
+            task.settle({ runId, workId: task.work.workId, ...shape } as unknown as TaskWorkResult);
+            await scheduler.runUntilIdle();
+
+            const snapshot = inspect(engine, runId);
+            expect(snapshot.status === "failed" && snapshot.failure.code).toBe("execution_error");
+            expect(stepOf(snapshot, ADD_STEP)?.status).toBe("failed");
+            expect(held.releases).toBe(1);
+        }
+    });
+
+    // Proves a task timeout outside the range timers honor is refused at construction.
+    test("an unusable task timeout is refused", () => {
+        const executor = new LocalTaskExecutor(registry);
+        for (const runTaskTimeoutMs of [0, -1, 1.5, Number.NaN, 2 ** 31]) {
+            expect(() => new WorkflowEngine({ executor, runTaskTimeoutMs })).toThrow(RangeError);
+        }
     });
 });

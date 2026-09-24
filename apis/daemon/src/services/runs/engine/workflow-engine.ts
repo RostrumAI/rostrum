@@ -120,6 +120,9 @@ const SYSTEM_SCHEDULER: EngineScheduler = {
     },
 };
 
+/** The longest delay a runtime timer honors; longer delays fire almost at once. */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+
 /** The default clock. */
 const SYSTEM_CLOCK: EngineClock = { now: () => new Date() };
 
@@ -144,6 +147,16 @@ export class WorkflowEngine {
 
     /** Builds the engine from its startup dependencies. */
     constructor(options: WorkflowEngineOptions) {
+        // Timers treat anything outside this range as roughly 1 ms, which would time out every task.
+        if (
+            !Number.isInteger(options.runTaskTimeoutMs) ||
+            options.runTaskTimeoutMs < 1 ||
+            options.runTaskTimeoutMs > MAX_TIMER_DELAY_MS
+        ) {
+            throw new RangeError(
+                `The task timeout must be an integer from 1 to ${MAX_TIMER_DELAY_MS} ms`,
+            );
+        }
         this.executor = options.executor;
         this.runTaskTimeoutMs = options.runTaskTimeoutMs;
         this.clock = options.clock ?? SYSTEM_CLOCK;
@@ -158,6 +171,7 @@ export class WorkflowEngine {
      * released once it is terminal and its work has settled.
      */
     admit(workflow: PreparedWorkflow, inputs: RunInputs, registration: RunRegistration): string {
+        // One node per prepared step describes how each step behaves.
         const runId = this.createId();
         const nodes = new Map<string, ExecutionNode>();
         for (const step of workflow.steps.values()) {
@@ -166,6 +180,8 @@ export class WorkflowEngine {
                 step.kind === "task" ? new TaskExecutionNode(step) : new ResultExecutionNode(step),
             );
         }
+
+        // The run starts queued, with the entry step as its first visit to reach.
         const entry: RunEntry = {
             state: {
                 runId,
@@ -256,7 +272,7 @@ export class WorkflowEngine {
         entry.advanceScheduled = true;
         this.scheduler.schedule(() => {
             entry.advanceScheduled = false;
-            this.advanceWorkflow(entry.state.runId);
+            this.guarded(entry, () => this.advanceWorkflow(entry.state.runId));
         });
     }
 
@@ -268,7 +284,7 @@ export class WorkflowEngine {
         entry.dispatchScheduled = true;
         this.scheduler.schedule(() => {
             entry.dispatchScheduled = false;
-            this.dispatchNext(entry);
+            this.guarded(entry, () => this.dispatchNext(entry));
         });
     }
 
@@ -320,7 +336,7 @@ export class WorkflowEngine {
                 this.commitOutput(entry, visit, preparation.output);
                 return;
             case "task":
-                this.startTask(entry, visit, preparation.config, preparation.inputs);
+                this.startTask(entry, visit, preparation.step, preparation.inputs);
                 return;
         }
     }
@@ -334,14 +350,11 @@ export class WorkflowEngine {
     private startTask(
         entry: RunEntry,
         visit: ReadyVisit,
-        config: Readonly<Record<string, unknown>>,
+        step: PreparedTaskStep,
         inputs: Readonly<Record<string, unknown>>,
     ): void {
+        // Claim the visit for new work before anything can run.
         const run = entry.state;
-        const step = run.workflow.steps.get(visit.stepId);
-        if (step?.kind !== "task") {
-            throw new Error(`Step '${visit.stepId}' prepared task work but isn't a task`);
-        }
         const workId = this.createId();
         run.visits.set(visit.key, claimVisit(visit, workId, this.timestamp()));
 
@@ -365,7 +378,7 @@ export class WorkflowEngine {
             entry.registration.signal.addEventListener("abort", forwardAbort, { once: true });
         }
         dispatch.cancelTimer = this.scheduler.startTimer(
-            () => this.expireTask(entry, dispatch),
+            () => this.guarded(entry, () => this.expireTask(entry, dispatch)),
             this.runTaskTimeoutMs,
         );
 
@@ -378,7 +391,7 @@ export class WorkflowEngine {
                     workId,
                     stepId: step.id,
                     workflowFormatVersion: run.publication.workflowFormatVersion,
-                    config,
+                    config: step.config,
                     inputs,
                 },
                 controller.signal,
@@ -388,8 +401,8 @@ export class WorkflowEngine {
         }
         // Deliberately not awaited: settlement comes back through `settleTask`, which handles both outcomes.
         void pending.then(
-            (result) => this.settleTask(entry, dispatch, result),
-            () => this.settleTask(entry, dispatch, undefined),
+            (result) => this.guarded(entry, () => this.settleTask(entry, dispatch, result)),
+            () => this.guarded(entry, () => this.settleTask(entry, dispatch, undefined)),
         );
     }
 
@@ -425,6 +438,7 @@ export class WorkflowEngine {
         dispatch: Dispatch,
         result: TaskWorkResult | undefined,
     ): void {
+        // Settle each dispatch once, releasing its deadline and abort forwarding.
         if (dispatch.settled) {
             return;
         }
@@ -476,15 +490,22 @@ export class WorkflowEngine {
                 stepId: step.id,
             };
         }
-        if (!result.ok) {
+        if (result.ok) {
+            return undefined;
+        }
+
+        // Only codes the operation declares, and pointers relative to the step, are trusted.
+        const { code, message, path } = result.failure;
+        const declared = code === "task_error" || step.operation.failureCodes.includes(code);
+        if (!declared || (path !== "" && !path.startsWith("/"))) {
             return {
-                code: result.failure.code,
-                message: result.failure.message,
-                path: `${step.path}${result.failure.path}`,
+                code: "execution_error",
+                message: "The task reported a failure its operation doesn't declare",
+                path: step.path,
                 stepId: step.id,
             };
         }
-        return undefined;
+        return { code, message, path: `${step.path}${path}`, stepId: step.id };
     }
 
     /**
@@ -556,14 +577,29 @@ export class WorkflowEngine {
     ): void {
         const run = entry.state;
         const at = this.timestamp();
-        const decision = this.nodeFor(entry, visit.stepId).completeExecution(visit, output);
-        run.visits.set(visit.key, completeVisit(visit, output, at));
+        // Commit the frozen output and ask the node what it means for the run.
+        const committed = deepFreeze(output);
+        const decision = this.nodeFor(entry, visit.stepId).completeExecution(visit, committed);
+        run.visits.set(visit.key, completeVisit(visit, committed, at));
 
+        // A stopping run keeps the output visible, starts nothing, and fails once idle.
         const progress = run.progress;
         if (progress.status !== "running" || progress.stopping) {
+            this.failIfIdle(entry);
             return;
         }
+        // Finish with the result, or queue the successors for the next advancement.
         if (decision.kind === "finish") {
+            // A result can only end a run that has nothing else reached and unfinished.
+            if (this.hasUnfinishedVisits(entry)) {
+                this.recordFailure(entry, {
+                    code: "execution_error",
+                    message: "The result was reached while other steps were unfinished",
+                    path: this.nodeStepPath(entry, visit.stepId),
+                    stepId: visit.stepId,
+                });
+                return;
+            }
             run.progress = completeRun(progress, decision.result, at);
             this.finish(entry);
             return;
@@ -581,7 +617,7 @@ export class WorkflowEngine {
         if (progress.status !== "running") {
             return;
         }
-        entry.state.progress = stopRun(progress, failure);
+        entry.state.progress = stopRun(progress, deepFreeze(failure));
         this.queue.clear(entry.state.runId);
         this.failIfIdle(entry);
     }
@@ -623,6 +659,58 @@ export class WorkflowEngine {
             message: "The run stopped without reaching a result",
             path: "",
         };
+    }
+
+    /** True when some visit is waiting, ready, or running. */
+    private hasUnfinishedVisits(entry: RunEntry): boolean {
+        for (const visit of entry.state.visits.values()) {
+            if (
+                visit.status === "waiting" ||
+                visit.status === "ready" ||
+                visit.status === "running"
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The publication pointer of a prepared step. */
+    private nodeStepPath(entry: RunEntry, stepId: string): string {
+        return entry.state.workflow.steps.get(stepId)?.path ?? "";
+    }
+
+    /**
+     * Runs one engine turn, settlement, or deadline. An unexpected throw
+     * can't escape into the event loop or leave the run stuck: the run
+     * records an `execution_error`, a visit left running without its
+     * work is failed, and the run fails once idle.
+     */
+    private guarded(entry: RunEntry, action: () => void): void {
+        try {
+            action();
+        } catch {
+            // The thrown error is dropped: it may describe run data, and the failure below reports it.
+            const failure: ExecutionFailure = {
+                code: "execution_error",
+                message: "The engine couldn't apply a run transition",
+                path: "",
+            };
+            if (entry.dispatch?.settled) {
+                entry.dispatch = undefined;
+            }
+            for (const visit of entry.state.visits.values()) {
+                if (visit.status === "running" && visit.workId !== entry.dispatch?.workId) {
+                    entry.state.visits.set(visit.key, failVisit(visit, failure, this.timestamp()));
+                }
+            }
+            try {
+                this.recordFailure(entry, failure);
+            } catch {
+                // Recording failed too, for example in the registration's release. Nothing more can
+                // be done for this run, and throwing would only crash the process.
+            }
+        }
     }
 
     /** Creates a visit unless one with the same identity exists. */
