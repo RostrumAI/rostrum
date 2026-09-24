@@ -25,7 +25,7 @@ const engine = new WorkflowEngine({
 const SMOKE_DEADLINE_MS = 10_000;
 
 /** Prepares a fixture publication, admits one run, and resolves with its snapshot once it's done. */
-async function run(
+async function runFixturePublication(
     document: { id: string },
     supplied: Record<string, unknown>,
 ): Promise<RunSnapshot> {
@@ -58,7 +58,7 @@ async function run(
 }
 
 /** Describes a finished run's outcome: its result, or its failure and location. */
-function outcomeOf(snapshot: RunSnapshot): string {
+function describeOutcome(snapshot: RunSnapshot): string {
     switch (snapshot.status) {
         case "completed":
             return JSON.stringify(snapshot.result);
@@ -70,23 +70,23 @@ function outcomeOf(snapshot: RunSnapshot): string {
 }
 
 /** Prints one scenario's outcome. */
-function report(name: string, snapshot: RunSnapshot): void {
-    console.log(`${name}: ${snapshot.status} ${outcomeOf(snapshot)}`);
+function reportOutcome(name: string, snapshot: RunSnapshot): void {
+    console.log(`${name}: ${snapshot.status} ${describeOutcome(snapshot)}`);
 }
 
-const full = await run(calculationJson, { amount: 90, surcharge: 10, people: 4 });
-report("calculation 90/10/4", full);
+const full = await runFixturePublication(calculationJson, { amount: 90, surcharge: 10, people: 4 });
+reportOutcome("calculation 90/10/4", full);
 assert.deepEqual(full.status === "completed" && full.result, { total: 100, perPerson: 25 });
 
-const defaulted = await run(calculationJson, { amount: 90, people: 4 });
-report("calculation 90/4, default surcharge", defaulted);
+const defaulted = await runFixturePublication(calculationJson, { amount: 90, people: 4 });
+reportOutcome("calculation 90/4, default surcharge", defaulted);
 assert.deepEqual(defaulted.status === "completed" && defaulted.result, {
     total: 90,
     perPerson: 22.5,
 });
 
-const divisionByZero = await run(calculationJson, { amount: 90, people: 0 });
-report("calculation with people 0", divisionByZero);
+const divisionByZero = await runFixturePublication(calculationJson, { amount: 90, people: 0 });
+reportOutcome("calculation with people 0", divisionByZero);
 assert.ok(divisionByZero.status === "failed", "a division by zero fails the run");
 assert.deepEqual(
     [divisionByZero.failure.code, divisionByZero.failure.path],
@@ -99,12 +99,12 @@ console.log(
     `  addition still inspectable: ${JSON.stringify(addition?.status === "completed" && addition.output)}`,
 );
 
-const minimum = await run(minimumJson, {});
-report("minimum.json", minimum);
+const minimum = await runFixturePublication(minimumJson, {});
+reportOutcome("minimum.json", minimum);
 assert.deepEqual(minimum.status === "completed" && minimum.result, {});
 
-const greeting = await run(sequentialJson, { name: "Ada" });
-report("sequential.json", greeting);
+const greeting = await runFixturePublication(sequentialJson, { name: "Ada" });
+reportOutcome("sequential.json", greeting);
 assert.deepEqual(greeting.status === "completed" && greeting.result, { greeting: "Hello, Ada!" });
 
 console.log("smoke:execution ok: preparation, operations, bindings, traversal, and results agree");
