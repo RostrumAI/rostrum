@@ -163,7 +163,7 @@ class CountingExecutor implements TaskExecutor {
 }
 
 /** A registration that records its release and can be aborted by the test. */
-function registration(): RunRegistration & { releases: number; controller: AbortController } {
+function createRegistration(): RunRegistration & { releases: number; controller: AbortController } {
     const controller = new AbortController();
     const held = {
         releases: 0,
@@ -177,7 +177,7 @@ function registration(): RunRegistration & { releases: number; controller: Abort
 }
 
 /** Builds an engine over the manual scheduler and clock with the given executor. */
-function engineWith(executor: TaskExecutor, scheduler = new ManualScheduler()) {
+function createEngine(executor: TaskExecutor, scheduler = new ManualScheduler()) {
     let ids = 0;
     const engine = new WorkflowEngine({
         executor,
@@ -204,7 +204,7 @@ function prepare(document: object & { id: string }): PreparedWorkflow {
 }
 
 /** Validates inputs for a prepared workflow, failing the test if they're refused. */
-function inputs(workflow: PreparedWorkflow, supplied: Record<string, unknown>): RunInputs {
+function validateInputs(workflow: PreparedWorkflow, supplied: Record<string, unknown>): RunInputs {
     const validation = preparer.validateInputs(workflow, supplied);
     if (!validation.ok) {
         throw new Error(`Inputs refused: ${JSON.stringify(validation.refusal)}`);
@@ -223,12 +223,12 @@ function inspect(engine: WorkflowEngine, runId: string): RunSnapshot {
 }
 
 /** Returns one step's snapshot from a run snapshot. */
-function stepOf(snapshot: RunSnapshot, stepId: string) {
+function getStepSnapshot(snapshot: RunSnapshot, stepId: string) {
     return snapshot.steps.find((step) => step.stepId === stepId);
 }
 
 /** Returns a copy of the calculation fixture to modify. */
-function calculation(): WorkflowDocument {
+function buildCalculation(): WorkflowDocument {
     // The fixture is a valid v1 document; the validator suite proves it against the document schema.
     return structuredClone(calculationJson) as WorkflowDocument;
 }
@@ -244,7 +244,10 @@ interface StepRelink {
 }
 
 /** Returns a prepared workflow whose steps have different links or inputs than preparation allows. */
-function relinked(workflow: PreparedWorkflow, links: Record<string, StepRelink>): PreparedWorkflow {
+function relinkWorkflow(
+    workflow: PreparedWorkflow,
+    links: Record<string, StepRelink>,
+): PreparedWorkflow {
     const steps = new Map(workflow.steps);
     for (const [stepId, change] of Object.entries(links)) {
         const step = steps.get(stepId);
@@ -258,12 +261,12 @@ function relinked(workflow: PreparedWorkflow, links: Record<string, StepRelink>)
 describe("the worked example", () => {
     // Proves the calculation runs to its exact result through real preparation, operations, and bindings.
     test("90 plus 10, split 4 ways, is total 100 and 25 each", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepare(calculationJson);
-        const held = registration();
+        const held = createRegistration();
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, surcharge: 10, people: 4 }),
+            validateInputs(workflow, { amount: 90, surcharge: 10, people: 4 }),
             held,
         );
 
@@ -282,14 +285,17 @@ describe("the worked example", () => {
 
     // Proves an omitted optional input runs with its declared default.
     test("without a surcharge the default of 0 applies", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        // Run the calculation with the optional surcharge omitted.
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepare(calculationJson);
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 4 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 4 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
+
+        // The total is the amount unchanged, so the surcharge counted as 0.
         const snapshot = inspect(engine, runId);
         expect(snapshot.status === "completed" && snapshot.result).toEqual({
             total: 90,
@@ -299,12 +305,12 @@ describe("the worked example", () => {
 
     // Proves a failing division is located, keeps the addition inspectable, and produces no result.
     test("people 0 fails the division without a result", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepare(calculationJson);
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 0 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 0 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
 
@@ -320,20 +326,26 @@ describe("the worked example", () => {
         expect(snapshot).not.toHaveProperty("result");
 
         // The addition's output stays visible, and the result step was never reached.
-        expect(stepOf(snapshot, ADD_STEP)).toMatchObject({
+        expect(getStepSnapshot(snapshot, ADD_STEP)).toMatchObject({
             status: "completed",
             output: { value: 90 },
         });
-        expect(stepOf(snapshot, DIVIDE_STEP)).toMatchObject({ status: "failed", failure });
-        expect(stepOf(snapshot, RESULT_STEP)).toEqual({ stepId: RESULT_STEP, status: "pending" });
+        expect(getStepSnapshot(snapshot, DIVIDE_STEP)).toMatchObject({ status: "failed", failure });
+        expect(getStepSnapshot(snapshot, RESULT_STEP)).toEqual({
+            stepId: RESULT_STEP,
+            status: "pending",
+        });
     });
 
     // Proves a result step with no inputs returns an empty object as the final result.
     test("the minimum workflow returns an empty result", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        // Run a workflow that is only a result step with no bindings.
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepare(minimumJson);
-        const runId = engine.admit(workflow, new Map(), registration());
+        const runId = engine.admit(workflow, new Map(), createRegistration());
         await scheduler.runUntilIdle();
+
+        // The run completes with an empty object, not a missing result.
         const snapshot = inspect(engine, runId);
         expect(snapshot.status === "completed" && snapshot.result).toEqual({});
     });
@@ -343,14 +355,14 @@ describe("traversal", () => {
     // Proves execution follows the graph, not the step array, and each reached task runs once.
     test("reversed step order and repeated advancement still run each task once", async () => {
         const executor = new CountingExecutor();
-        const { engine, scheduler } = engineWith(executor);
-        const document = calculation();
+        const { engine, scheduler } = createEngine(executor);
+        const document = buildCalculation();
         document.steps.reverse();
         const workflow = prepare(document);
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, surcharge: 10, people: 4 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, surcharge: 10, people: 4 }),
+            createRegistration(),
         );
 
         // Advancement requested far more often than needed changes nothing.
@@ -379,12 +391,12 @@ describe("traversal", () => {
     // Proves an immediately resolved task still yields: no turn starts more than one task.
     test("immediate results don't recurse or skip scheduling", async () => {
         const executor = new CountingExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
         );
 
         // Run turn by turn, letting results arrive between turns; each turn starts at most one task.
@@ -405,12 +417,12 @@ describe("traversal", () => {
     // Proves a successor binds only to committed output, never to the object the task returned.
     test("mutating a returned output doesn't change what later steps see", async () => {
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 4 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 4 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
 
@@ -424,7 +436,9 @@ describe("traversal", () => {
 
         // The division received the committed 90, and the snapshot still shows it.
         expect(executor.task(1).work.inputs).toEqual({ dividend: 90, divisor: 4 });
-        expect(stepOf(inspect(engine, runId), ADD_STEP)).toMatchObject({ output: { value: 90 } });
+        expect(getStepSnapshot(inspect(engine, runId), ADD_STEP)).toMatchObject({
+            output: { value: 90 },
+        });
     });
 });
 
@@ -432,16 +446,16 @@ describe("dependency gating and dead runs", () => {
     // Proves a visit with an unmet dependency waits, then is dispatched exactly once when it's met.
     test("a waiting visit is dispatched once its dependency completes", async () => {
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         // The addition leads to both the division and the result; the result also waits for the division.
-        const workflow = relinked(prepare(calculationJson), {
+        const workflow = relinkWorkflow(prepare(calculationJson), {
             [ADD_STEP]: { successors: [RESULT_STEP, DIVIDE_STEP] },
             [RESULT_STEP]: { dependencies: [DIVIDE_STEP] },
         });
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 4 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 4 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
         executor.task(0).settle({
@@ -454,7 +468,7 @@ describe("dependency gating and dead runs", () => {
 
         // The result waits on the division, which is now running.
         const waiting = inspect(engine, runId);
-        expect(stepOf(waiting, RESULT_STEP)).toEqual({
+        expect(getStepSnapshot(waiting, RESULT_STEP)).toEqual({
             stepId: RESULT_STEP,
             status: "waiting",
             waitingFor: [DIVIDE_STEP],
@@ -477,15 +491,15 @@ describe("dependency gating and dead runs", () => {
 
     // Proves a run whose waiting visit can never be satisfied fails at the unmet dependency.
     test("an unmet dependency with nothing left to run fails with its location", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         // The division waits for the result step, which only it leads to.
-        const workflow = relinked(prepare(calculationJson), {
+        const workflow = relinkWorkflow(prepare(calculationJson), {
             [DIVIDE_STEP]: { dependencies: [ADD_STEP, RESULT_STEP] },
         });
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
         const snapshot = inspect(engine, runId);
@@ -499,14 +513,19 @@ describe("dependency gating and dead runs", () => {
 
     // Proves a run that stops without reaching a result fails as missing_result, not as success.
     test("no continuation and no result fails as missing_result", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
-        const workflow = relinked(prepare(calculationJson), { [DIVIDE_STEP]: { successors: [] } });
+        // Cut the link from the division to the result step, so the run ends after dividing.
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
+        const workflow = relinkWorkflow(prepare(calculationJson), {
+            [DIVIDE_STEP]: { successors: [] },
+        });
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
+
+        // Both tasks succeeded, but with no result the run fails.
         const snapshot = inspect(engine, runId);
         expect(snapshot.status === "failed" && snapshot.failure).toEqual({
             code: "missing_result",
@@ -517,8 +536,9 @@ describe("dependency gating and dead runs", () => {
 
     // Proves a declared but unreachable step stays pending and doesn't fail a successful run.
     test("a pending disconnected step doesn't fail the run", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
-        const document = calculation();
+        // Add a greet step that nothing links to.
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
+        const document = buildCalculation();
         document.steps.push({
             id: "0192b0a0-7e1d-7000-8000-0000000001ff",
             type: "task",
@@ -528,13 +548,17 @@ describe("dependency gating and dead runs", () => {
         const workflow = prepare(document);
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
+
+        // The run completes while the unreachable step is still pending.
         const snapshot = inspect(engine, runId);
         expect(snapshot.status).toBe("completed");
-        expect(stepOf(snapshot, "0192b0a0-7e1d-7000-8000-0000000001ff")?.status).toBe("pending");
+        expect(getStepSnapshot(snapshot, "0192b0a0-7e1d-7000-8000-0000000001ff")?.status).toBe(
+            "pending",
+        );
     });
 });
 
@@ -542,17 +566,17 @@ describe("completions", () => {
     // Proves a result carrying another run's identity fails that dispatch instead of committing.
     test("a result for different work is an execution error and can't touch the other run", async () => {
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
         const first = engine.admit(
             workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
         );
         const second = engine.admit(
             workflow,
-            inputs(workflow, { amount: 2, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 2, people: 1 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
 
@@ -571,12 +595,13 @@ describe("completions", () => {
         const failed = inspect(engine, first);
         expect(failed.status === "failed" && failed.failure.code).toBe("execution_error");
         const other = inspect(engine, second);
-        expect(stepOf(other, ADD_STEP)?.status).toBe("running");
+        expect(getStepSnapshot(other, ADD_STEP)?.status).toBe("running");
         expect(other.status).toBe("running");
     });
 
     // Proves an executor that rejects or throws can't leave a run stuck.
     test("a rejecting or throwing executor fails the run", async () => {
+        // One executor fails asynchronously and the other synchronously.
         const rejecting: TaskExecutor = { execute: () => Promise.reject(new Error("boom")) };
         const throwing: TaskExecutor = {
             execute: () => {
@@ -584,11 +609,17 @@ describe("completions", () => {
             },
         };
         for (const executor of [rejecting, throwing]) {
-            const { engine, scheduler } = engineWith(executor);
+            const { engine, scheduler } = createEngine(executor);
             const workflow = prepare(calculationJson);
-            const held = registration();
-            const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
+            const held = createRegistration();
+            const runId = engine.admit(
+                workflow,
+                validateInputs(workflow, { amount: 1, people: 1 }),
+                held,
+            );
             await scheduler.runUntilIdle();
+
+            // Either way the run fails at the first task and releases its registration once.
             const snapshot = inspect(engine, runId);
             expect(snapshot.status === "failed" && snapshot.failure).toEqual({
                 code: "execution_error",
@@ -602,6 +633,7 @@ describe("completions", () => {
 
     // Proves invalid output never reaches a successor: wrong type, missing member, or a non-finite number.
     test("invalid outputs fail the step and stop the run", async () => {
+        // Outputs add's declaration rejects: wrong type, missing, non-finite, and an extra member.
         const outputs = [
             { value: "90" },
             {},
@@ -610,22 +642,25 @@ describe("completions", () => {
         ];
         for (const output of outputs) {
             const executor = new HeldExecutor();
-            const { engine, scheduler } = engineWith(executor);
+            const { engine, scheduler } = createEngine(executor);
             const workflow = prepare(calculationJson);
             const runId = engine.admit(
                 workflow,
-                inputs(workflow, { amount: 1, people: 1 }),
-                registration(),
+                validateInputs(workflow, { amount: 1, people: 1 }),
+                createRegistration(),
             );
             await scheduler.runUntilIdle();
+
+            // The add task answers with the invalid output.
             executor
                 .task(0)
                 .settle({ runId, workId: executor.task(0).work.workId, ok: true, output });
             await scheduler.runUntilIdle();
 
+            // The step and run fail, and the division is never dispatched.
             const snapshot = inspect(engine, runId);
             expect(snapshot.status === "failed" && snapshot.failure.code).toBe("invalid_output");
-            expect(stepOf(snapshot, ADD_STEP)?.status).toBe("failed");
+            expect(getStepSnapshot(snapshot, ADD_STEP)?.status).toBe("failed");
             expect(executor.received).toHaveLength(1);
         }
     });
@@ -635,7 +670,7 @@ describe("completions", () => {
         // Preparation would refuse a declaration narrower than the operation's output, so the
         // prepared step gets one directly, standing in for an operation that breaks its declaration.
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
         const add = workflow.steps.get(ADD_STEP);
         const compiled = createDeclaredSchemaCompiler().compile({ type: "number", maximum: 10 });
@@ -657,8 +692,8 @@ describe("completions", () => {
         };
         const runId = engine.admit(
             narrowed,
-            inputs(narrowed, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(narrowed, { amount: 1, people: 1 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
         executor.task(0).settle({
@@ -680,12 +715,19 @@ describe("completions", () => {
 
     // Proves a terminal run never changes, however often it's advanced or inspected.
     test("terminal state is stable under repeated advancement and inspection", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        // Drive a run to failure by dividing by zero, and record its snapshot.
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepare(calculationJson);
-        const held = registration();
-        const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 0 }), held);
+        const held = createRegistration();
+        const runId = engine.admit(
+            workflow,
+            validateInputs(workflow, { amount: 1, people: 0 }),
+            held,
+        );
         await scheduler.runUntilIdle();
         const first = inspect(engine, runId);
+
+        // Advancing the finished run again changes nothing and releases nothing more.
         for (let index = 0; index < 5; index++) {
             engine.advanceWorkflow(runId);
         }
@@ -699,22 +741,22 @@ describe("independent runs", () => {
     // Proves a held run doesn't block or leak into another run of the same publication.
     test("one run completes and another fails while a third is held", async () => {
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
         const held = engine.admit(
             workflow,
-            inputs(workflow, { amount: 5, people: 5 }),
-            registration(),
+            validateInputs(workflow, { amount: 5, people: 5 }),
+            createRegistration(),
         );
         const succeeds = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 4 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 4 }),
+            createRegistration(),
         );
         const fails = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 0 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 0 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
 
@@ -758,10 +800,14 @@ describe("task deadlines", () => {
     // Proves a timeout stops dispatch, waits for the task to settle, and discards its late output.
     test("a timed-out task keeps the run stopping until it settles, then fails it", async () => {
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
-        const held = registration();
-        const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
+        const held = createRegistration();
+        const runId = engine.admit(
+            workflow,
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            held,
+        );
         await scheduler.runUntilIdle();
 
         // The deadline passes while the task is still executing.
@@ -780,7 +826,7 @@ describe("task deadlines", () => {
             failure: timeout,
             currentSteps: [ADD_STEP],
         });
-        expect(stepOf(stopping, ADD_STEP)?.status).toBe("running");
+        expect(getStepSnapshot(stopping, ADD_STEP)?.status).toBe("running");
         expect(executor.task(0).signal.aborted).toBe(true);
         expect(held.releases).toBe(0);
 
@@ -794,7 +840,10 @@ describe("task deadlines", () => {
         await scheduler.runUntilIdle();
         const failed = inspect(engine, runId);
         expect(failed.status === "failed" && failed.failure).toEqual(timeout);
-        expect(stepOf(failed, ADD_STEP)).toMatchObject({ status: "failed", failure: timeout });
+        expect(getStepSnapshot(failed, ADD_STEP)).toMatchObject({
+            status: "failed",
+            failure: timeout,
+        });
         expect(executor.received).toHaveLength(1);
         expect(held.releases).toBe(1);
         expect(scheduler.pendingTimers).toBe(0);
@@ -803,10 +852,14 @@ describe("task deadlines", () => {
     // Proves the deadline starts at the claim, not at admission, and is cancelled when the task settles.
     test("a task that settles in time clears its deadline and abort forwarding", async () => {
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
-        const held = registration();
-        const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
+        const held = createRegistration();
+        const runId = engine.admit(
+            workflow,
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            held,
+        );
 
         // Time spent queued before the claim doesn't count against the task.
         scheduler.advanceTime(TIMEOUT_MS * 5);
@@ -830,16 +883,19 @@ describe("task deadlines", () => {
 
     // Proves a failure reported after the deadline doesn't replace the timeout.
     test("the timeout wins over a later failure or rejection", async () => {
+        // Try a late domain failure and a late rejection in turn.
         for (const late of ["failure", "rejection"] as const) {
             const executor = new HeldExecutor();
-            const { engine, scheduler } = engineWith(executor);
+            const { engine, scheduler } = createEngine(executor);
             const workflow = prepare(calculationJson);
             const runId = engine.admit(
                 workflow,
-                inputs(workflow, { amount: 1, people: 1 }),
-                registration(),
+                validateInputs(workflow, { amount: 1, people: 1 }),
+                createRegistration(),
             );
             await scheduler.runUntilIdle();
+
+            // Let the deadline pass, then have the held task settle anyway.
             scheduler.advanceTime(TIMEOUT_MS);
             const task = executor.task(0);
             if (late === "failure") {
@@ -853,6 +909,8 @@ describe("task deadlines", () => {
                 task.fail(new Error("late"));
             }
             await scheduler.runUntilIdle();
+
+            // The recorded failure is still the timeout.
             const snapshot = inspect(engine, runId);
             expect(snapshot.status === "failed" && snapshot.failure.code).toBe("task_timeout");
         }
@@ -860,12 +918,15 @@ describe("task deadlines", () => {
 
     // Proves the process's abort reaches executing work without releasing the run.
     test("aborting the registration aborts the executing task", async () => {
+        // Start a run whose first task stays in flight.
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
-        const held = registration();
-        engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
+        const held = createRegistration();
+        engine.admit(workflow, validateInputs(workflow, { amount: 1, people: 1 }), held);
         await scheduler.runUntilIdle();
+
+        // The abort reaches the task's signal, and the registration isn't released by it.
         held.controller.abort();
         expect(executor.task(0).signal.aborted).toBe(true);
         expect(held.releases).toBe(0);
@@ -876,7 +937,7 @@ describe("guarded state", () => {
     // Proves a binding that can't resolve fails its visit before any work starts.
     test("an unresolved binding fails the visit without dispatching it", async () => {
         const executor = new CountingExecutor();
-        const { engine, scheduler } = engineWith(executor);
+        const { engine, scheduler } = createEngine(executor);
         const workflow = prepare(calculationJson);
         // The run's inputs lack `people`, which only a broken admission could allow.
         const runId = engine.admit(
@@ -885,7 +946,7 @@ describe("guarded state", () => {
                 ["amount", 1],
                 ["surcharge", 0],
             ]),
-            registration(),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
 
@@ -896,7 +957,7 @@ describe("guarded state", () => {
             path: "/steps/1/inputs/divisor",
             stepId: DIVIDE_STEP,
         });
-        expect(stepOf(snapshot, DIVIDE_STEP)).not.toHaveProperty("startedAt");
+        expect(getStepSnapshot(snapshot, DIVIDE_STEP)).not.toHaveProperty("startedAt");
         expect(executor.calls.get(DIVIDE_STEP)).toBeUndefined();
     });
 
@@ -904,15 +965,15 @@ describe("guarded state", () => {
     test("a result reached beside unfinished work fails the run instead of completing it", async () => {
         // The result binds nothing, so it's ready as soon as the addition completes, beside the division.
         const executor = new HeldExecutor();
-        const { engine, scheduler } = engineWith(executor);
-        const workflow = relinked(prepare(calculationJson), {
+        const { engine, scheduler } = createEngine(executor);
+        const workflow = relinkWorkflow(prepare(calculationJson), {
             [ADD_STEP]: { successors: [RESULT_STEP, DIVIDE_STEP] },
             [RESULT_STEP]: { inputs: new Map() },
         });
         const runId = engine.admit(
             workflow,
-            inputs(workflow, { amount: 1, people: 1 }),
-            registration(),
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
         executor.task(0).settle({
@@ -926,22 +987,22 @@ describe("guarded state", () => {
         // Inspection still describes the run: failed, with the division left ready.
         const snapshot = inspect(engine, runId);
         expect(snapshot.status === "failed" && snapshot.failure.code).toBe("execution_error");
-        expect(stepOf(snapshot, DIVIDE_STEP)?.status).toBe("ready");
+        expect(getStepSnapshot(snapshot, DIVIDE_STEP)?.status).toBe("ready");
     });
 
     // Proves nothing a caller does with a snapshot can change the run.
     test("snapshots can't change committed results or failures", async () => {
-        const { engine, scheduler } = engineWith(new LocalTaskExecutor(registry));
+        const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepare(calculationJson);
         const completed = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 4 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 4 }),
+            createRegistration(),
         );
         const failed = engine.admit(
             workflow,
-            inputs(workflow, { amount: 90, people: 0 }),
-            registration(),
+            validateInputs(workflow, { amount: 90, people: 0 }),
+            createRegistration(),
         );
         await scheduler.runUntilIdle();
 
@@ -978,10 +1039,14 @@ describe("guarded state", () => {
         } as const;
         for (const shape of [malformed, undeclared]) {
             const executor = new HeldExecutor();
-            const { engine, scheduler } = engineWith(executor);
+            const { engine, scheduler } = createEngine(executor);
             const workflow = prepare(calculationJson);
-            const held = registration();
-            const runId = engine.admit(workflow, inputs(workflow, { amount: 1, people: 1 }), held);
+            const held = createRegistration();
+            const runId = engine.admit(
+                workflow,
+                validateInputs(workflow, { amount: 1, people: 1 }),
+                held,
+            );
             await scheduler.runUntilIdle();
             // The malformed result breaks the executor contract on purpose.
             const task = executor.task(0);
@@ -990,7 +1055,7 @@ describe("guarded state", () => {
 
             const snapshot = inspect(engine, runId);
             expect(snapshot.status === "failed" && snapshot.failure.code).toBe("execution_error");
-            expect(stepOf(snapshot, ADD_STEP)?.status).toBe("failed");
+            expect(getStepSnapshot(snapshot, ADD_STEP)?.status).toBe("failed");
             expect(held.releases).toBe(1);
         }
     });
@@ -998,6 +1063,8 @@ describe("guarded state", () => {
     // Proves a task timeout outside the range timers honor is refused at construction.
     test("an unusable task timeout is refused", () => {
         const executor = new LocalTaskExecutor(registry);
+
+        // Zero, negative, fractional, NaN, and beyond the timer maximum are each refused.
         for (const runTaskTimeoutMs of [0, -1, 1.5, Number.NaN, 2 ** 31]) {
             expect(() => new WorkflowEngine({ executor, runTaskTimeoutMs })).toThrow(RangeError);
         }

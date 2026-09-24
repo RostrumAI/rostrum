@@ -5,7 +5,7 @@ import { createOperationRegistry, type OperationRegistry } from "./operations/op
 import type { TaskWorkItem } from "./task-executor";
 
 /** Builds a work item for an operation with the given inputs. */
-function work(operation: string, inputs: Record<string, unknown>): TaskWorkItem {
+function createWorkItem(operation: string, inputs: Record<string, unknown>): TaskWorkItem {
     return {
         runId: "0192b0a0-7e1d-7000-8000-000000000401",
         workId: "0192b0a0-7e1d-7000-8000-000000000402",
@@ -30,7 +30,7 @@ describe("LocalTaskExecutor", () => {
 
         // The quotient comes back tagged with the run and work it answers.
         expect(
-            await executor.execute(work("divide", { dividend: 90, divisor: 4 }), signal),
+            await executor.execute(createWorkItem("divide", { dividend: 90, divisor: 4 }), signal),
         ).toEqual({
             ...identity,
             ok: true,
@@ -45,7 +45,7 @@ describe("LocalTaskExecutor", () => {
         // Positive and negative zero both keep divide's own code, located at the divisor.
         for (const divisor of [0, -0]) {
             expect(
-                await executor.execute(work("divide", { dividend: 1, divisor }), signal),
+                await executor.execute(createWorkItem("divide", { dividend: 1, divisor }), signal),
             ).toEqual({
                 ...identity,
                 ok: false,
@@ -71,7 +71,7 @@ describe("LocalTaskExecutor", () => {
             ],
         ]);
         const result = await new LocalTaskExecutor(registry).execute(
-            work("divide", { dividend: 1, divisor: 1 }),
+            createWorkItem("divide", { dividend: 1, divisor: 1 }),
             signal,
         );
 
@@ -88,7 +88,7 @@ describe("LocalTaskExecutor", () => {
     test("reports an unregistered operation as a task error", async () => {
         // The release registry has no multiply operation.
         const result = await new LocalTaskExecutor(createOperationRegistry()).execute(
-            work("multiply", {}),
+            createWorkItem("multiply", {}),
             signal,
         );
 
