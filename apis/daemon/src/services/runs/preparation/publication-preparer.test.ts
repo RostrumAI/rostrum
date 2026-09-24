@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { OPERATION_CATALOG, type WorkflowDocument } from "@rostrum/workflow";
+import {
+    OPERATION_CATALOG,
+    type WorkflowDocument,
+    WorkflowDocumentSchema,
+} from "@rostrum/workflow";
 import type { RunPublication } from "@rostrum/workflow/execution";
 import digestVectors from "@rostrum/workflow/fixtures/digest-vectors.json";
 import conditionalJson from "@rostrum/workflow/fixtures/valid/conditional-branching.json";
 import sequentialJson from "@rostrum/workflow/fixtures/valid/sequential.json";
 import calculationJson from "@rostrum/workflow/fixtures/valid/sequential-calculation.json";
+import { Compile } from "typebox/compile";
 import { resolveBindings } from "../engine/bindings";
 import type { PreparedWorkflow } from "./prepared-workflow";
 import { PublicationPreparer } from "./publication-preparer";
@@ -18,18 +23,28 @@ const DIVIDE_STEP = "0192b0a0-7e1d-7000-8000-000000000102";
 const RESULT_STEP = "0192b0a0-7e1d-7000-8000-000000000103";
 
 /** Builds the publication a stored copy of the document would have. */
-function publicationOf(document: { id: string }, digest = "0".repeat(64)): RunPublication {
+function buildPublication(document: { id: string }, digest = "0".repeat(64)): RunPublication {
     return { workflowId: document.id, publicationNumber: 1, workflowFormatVersion: "v1", digest };
 }
 
-/** Returns a deep copy of the calculation fixture to modify for one test. */
-function calculation(): WorkflowDocument {
-    return structuredClone(calculationJson) as WorkflowDocument;
+/** Checks that a value has the workflow document shape. */
+const DOCUMENT_SHAPE = Compile(WorkflowDocumentSchema);
+
+/** Returns a deep copy of the calculation fixture, checked as a document, to modify for one test. */
+function copyCalculationFixture(): WorkflowDocument {
+    const copy: unknown = structuredClone(calculationJson);
+    if (!DOCUMENT_SHAPE.Check(copy)) {
+        throw new Error("The calculation fixture isn't a workflow document");
+    }
+    return copy;
 }
 
 /** Prepares a document and fails the test when preparation refuses it. */
-function prepared(document: object): PreparedWorkflow {
-    const preparation = preparer.prepare(JSON.stringify(document), publicationOf(calculationJson));
+function prepareOrFail(document: object): PreparedWorkflow {
+    const preparation = preparer.prepare(
+        JSON.stringify(document),
+        buildPublication(calculationJson),
+    );
     if (!preparation.ok) {
         throw new Error(`Expected preparation to succeed: ${JSON.stringify(preparation.refusal)}`);
     }
@@ -37,7 +52,7 @@ function prepared(document: object): PreparedWorkflow {
 }
 
 /** Prepares a document and returns its refusal as `[reason, [code, path][]]`. */
-function refusalOf(document: object, publication = publicationOf(calculationJson)) {
+function getRefusal(document: object, publication = buildPublication(calculationJson)) {
     const preparation = preparer.prepare(JSON.stringify(document), publication);
     if (preparation.ok) {
         throw new Error("Expected preparation to refuse the document");
@@ -49,12 +64,12 @@ function refusalOf(document: object, publication = publicationOf(calculationJson
 }
 
 describe("the worked example", () => {
-    const workflow = prepared(calculationJson);
+    const workflow = prepareOrFail(calculationJson);
 
     // Proves the calculation prepares and binds the add step to the run's inputs, defaults included.
     test("prepares the calculation and resolves the first step's bindings", () => {
         // The prepared workflow keeps the publication, entry, and document order.
-        expect(workflow.publication).toEqual(publicationOf(calculationJson));
+        expect(workflow.publication).toEqual(buildPublication(calculationJson));
         expect(workflow.entryStepId).toBe(ADD_STEP);
         expect(workflow.stepOrder).toHaveLength(3);
 
@@ -92,12 +107,12 @@ describe("the worked example", () => {
 
     // Proves an operation outside this release's catalog refuses the publication before any run.
     test("refuses an unknown operation", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [first] = document.steps;
         if (first) {
             first.config = { operation: "multiply" };
         }
-        expect(refusalOf(document)).toEqual([
+        expect(getRefusal(document)).toEqual([
             "unsupported_execution",
             [["unknown_operation", "/steps/0/config/operation"]],
         ]);
@@ -107,7 +122,7 @@ describe("the worked example", () => {
 describe("declared schemas", () => {
     // Proves a number declaration rejects a numeric string instead of converting it.
     test("a number declaration rejects a string without coercion", () => {
-        const refusal = preparer.validateInputs(prepared(calculationJson), {
+        const refusal = preparer.validateInputs(prepareOrFail(calculationJson), {
             amount: "90",
             people: 4,
         });
@@ -118,13 +133,13 @@ describe("declared schemas", () => {
 
     // Proves malformed declarations and references outside the schema refuse the publication.
     test("a malformed schema and an unresolved external reference are refused", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         document.inputs = {
             ...document.inputs,
             amount: { schema: { type: "strng" } },
             people: { schema: { $ref: "https://example.com/people.json" } },
         };
-        const [reason, failures] = refusalOf(document);
+        const [reason, failures] = getRefusal(document);
         expect(reason).toBe("unsupported_execution");
         expect(failures).toContainEqual(["invalid_schema", "/inputs/amount/schema/type"]);
         expect(failures).toContainEqual(["invalid_schema", "/inputs/people/schema"]);
@@ -132,7 +147,7 @@ describe("declared schemas", () => {
 
     // Proves local references work and `format` is an annotation, not a constraint.
     test("local references resolve and formats don't reject values", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         document.inputs = {
             ...document.inputs,
             amount: {
@@ -140,7 +155,7 @@ describe("declared schemas", () => {
             },
             note: { schema: { type: "string", format: "email" }, default: "none" },
         };
-        const workflow = prepared(document);
+        const workflow = prepareOrFail(document);
 
         // The referenced definition applies, and a non-email string passes.
         expect(
@@ -153,12 +168,12 @@ describe("declared schemas", () => {
 describe("defaults and literals", () => {
     // Proves only an omitted input receives its default; an explicit null is a supplied value.
     test("defaults apply to omitted inputs, not to explicit null", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         document.inputs = {
             ...document.inputs,
             label: { schema: { type: ["string", "null"] }, default: "none" },
         };
-        const workflow = prepared(document);
+        const workflow = prepareOrFail(document);
 
         // Omitted: the default. Explicit null: kept as null.
         const omitted = preparer.validateInputs(workflow, { amount: 1, people: 1 });
@@ -177,7 +192,7 @@ describe("defaults and literals", () => {
                 '"inputs":{"constructor":1,"__proto__":{"polluted":true},"a.b":"dotted","total"',
             ),
         );
-        const workflow = prepared(document);
+        const workflow = prepareOrFail(document);
         const result = workflow.steps.get(RESULT_STEP);
         const outputs = new Map([
             [ADD_STEP, { value: 100 }],
@@ -210,12 +225,14 @@ describe("defaults and literals", () => {
 
     // Proves a prepared literal can't be changed by anyone holding the prepared workflow.
     test("prepared literals are deep-frozen copies", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         const result = document.steps[2];
         if (result) {
             result.inputs = { summary: { rows: [{ total: 1 }] } };
         }
-        const binding = prepared(document).steps.get(RESULT_STEP)?.inputs.get("summary")?.binding;
+        const binding = prepareOrFail(document)
+            .steps.get(RESULT_STEP)
+            ?.inputs.get("summary")?.binding;
         const value = binding?.kind === "literal" ? binding.value : undefined;
 
         // The literal and everything inside it are frozen, and detached from the parsed document.
@@ -230,13 +247,13 @@ describe("defaults and literals", () => {
 describe("refusals", () => {
     // Proves a refusal reports every failure found, not only the first.
     test("a refusal lists every failure", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [first, second] = document.steps;
         if (first && second) {
             first.config = { operation: "multiply" };
             second.inputs = { dividend: "ten", divisor: { ref: "inputs.people" }, extra: 1 };
         }
-        expect(refusalOf(document)).toEqual([
+        expect(getRefusal(document)).toEqual([
             "unsupported_execution",
             [
                 ["unknown_operation", "/steps/0/config/operation"],
@@ -249,7 +266,7 @@ describe("refusals", () => {
     // Proves a reference naming no declared input or declared step output is refused, not left for the run.
     test("unresolved bindings", () => {
         // Bind divide to an undeclared input and to an output the add step doesn't declare.
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [, second] = document.steps;
         if (second) {
             second.inputs = {
@@ -259,7 +276,7 @@ describe("refusals", () => {
         }
 
         // Each dangling reference is reported at its own binding.
-        expect(refusalOf(document)).toEqual([
+        expect(getRefusal(document)).toEqual([
             "unsupported_execution",
             [
                 ["unresolved_binding", "/steps/1/inputs/dividend"],
@@ -270,7 +287,7 @@ describe("refusals", () => {
 
     // Proves conditionals, loops, and parallel successors are refused with located control-flow failures.
     test("unsupported control flow", () => {
-        const [reason, failures] = refusalOf(conditionalJson, publicationOf(conditionalJson));
+        const [reason, failures] = getRefusal(conditionalJson, buildPublication(conditionalJson));
         expect(reason).toBe("unsupported_execution");
         expect(failures).toEqual([
             ["unsupported_control_flow", "/conditionals"],
@@ -278,7 +295,7 @@ describe("refusals", () => {
         ]);
 
         // Two distinct successors are parallel paths, which this release doesn't run.
-        const parallel = calculation();
+        const parallel = copyCalculationFixture();
         const [first] = parallel.steps;
         if (first) {
             first.successors = [
@@ -286,7 +303,7 @@ describe("refusals", () => {
                 "0192b0a0-7e1d-7000-8000-000000000103",
             ];
         }
-        expect(refusalOf(parallel)).toEqual([
+        expect(getRefusal(parallel)).toEqual([
             "unsupported_execution",
             [["unsupported_control_flow", "/steps/0/successors"]],
         ]);
@@ -295,7 +312,7 @@ describe("refusals", () => {
     // Proves step types other than task and result, and a configured result step, are refused.
     test("unsupported step types and result configuration", () => {
         // Turn the division into an unknown step type and give the result step a configuration.
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [, second, third] = document.steps;
         if (second && third) {
             second.type = "approval";
@@ -303,7 +320,7 @@ describe("refusals", () => {
         }
 
         // Each problem is located at the member responsible.
-        expect(refusalOf(document)).toEqual([
+        expect(getRefusal(document)).toEqual([
             "unsupported_execution",
             [
                 ["unsupported_step_type", "/steps/1/type"],
@@ -315,7 +332,7 @@ describe("refusals", () => {
     // Proves a loop is refused with a located control-flow failure, since this release doesn't run loops.
     test("loops", () => {
         // Make the division iterate over the people input, with itself as the body.
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [, second] = document.steps;
         if (second) {
             second.loop = {
@@ -327,7 +344,7 @@ describe("refusals", () => {
         }
 
         // The loop is refused at its own member, whatever else it gets wrong.
-        const [reason, failures] = refusalOf(document);
+        const [reason, failures] = getRefusal(document);
         expect(reason).toBe("unsupported_execution");
         expect(failures).toContainEqual(["unsupported_control_flow", "/steps/1/loop"]);
     });
@@ -335,7 +352,7 @@ describe("refusals", () => {
     // Proves a document whose step links the engine can't follow is refused before any run.
     test("duplicate step IDs, a missing entry step, and dangling links", () => {
         // Repeat the add step's ID on the division, point the entry nowhere, and link to a missing step.
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [first, second] = document.steps;
         const missing = "0192b0a0-7e1d-7000-8000-000000000199";
         if (first && second) {
@@ -345,7 +362,7 @@ describe("refusals", () => {
         document.firstNode = missing;
 
         // Every broken link is reported where it sits.
-        const [reason, failures] = refusalOf(document);
+        const [reason, failures] = getRefusal(document);
         expect(reason).toBe("unsupported_execution");
         expect(failures).toContainEqual(["invalid_document", "/firstNode"]);
         expect(failures).toContainEqual(["invalid_document", "/steps/1/id"]);
@@ -354,12 +371,12 @@ describe("refusals", () => {
 
     // Proves a publication made before the validator fix still can't start a run that would hang.
     test("self-dependency", () => {
-        const document = calculation();
+        const document = copyCalculationFixture();
         const [first] = document.steps;
         if (first) {
             first.dependencies = [ADD_STEP];
         }
-        expect(refusalOf(document)).toEqual([
+        expect(getRefusal(document)).toEqual([
             "unsupported_execution",
             [["self_dependency", "/steps/0/dependencies/0"]],
         ]);
@@ -367,11 +384,11 @@ describe("refusals", () => {
 
     // Proves a stored document that can't be trusted is corrupt, not merely unsupported.
     test("invalid stored JSON and a mismatched identity are corrupt", () => {
-        const invalid = preparer.prepare("{", publicationOf(calculationJson));
+        const invalid = preparer.prepare("{", buildPublication(calculationJson));
         expect(invalid.ok ? undefined : invalid.refusal.reason).toBe("corrupt_publication");
 
         // The stored document is a different workflow than the run recorded.
-        expect(refusalOf(sequentialJson, publicationOf(calculationJson))).toEqual([
+        expect(getRefusal(sequentialJson, buildPublication(calculationJson))).toEqual([
             "corrupt_publication",
             [["publication_mismatch", "/id"]],
         ]);
@@ -379,11 +396,11 @@ describe("refusals", () => {
 
     // Proves another format or a malformed document is unsupported by this release.
     test("an unsupported format and an invalid shape", () => {
-        expect(refusalOf({ ...calculation(), workflowFormatVersion: "v2" })).toEqual([
+        expect(getRefusal({ ...copyCalculationFixture(), workflowFormatVersion: "v2" })).toEqual([
             "unsupported_execution",
             [["unsupported_format", "/workflowFormatVersion"]],
         ]);
-        const [reason, failures] = refusalOf({ ...calculation(), steps: [] });
+        const [reason, failures] = getRefusal({ ...copyCalculationFixture(), steps: [] });
         expect(reason).toBe("unsupported_execution");
         expect(failures).toContainEqual(["invalid_document", "/steps"]);
     });
@@ -393,7 +410,7 @@ describe("refusals", () => {
         const digest = digestVectors["valid/sequential.json"];
         const preparation = preparer.prepare(
             JSON.stringify(sequentialJson),
-            publicationOf(sequentialJson, digest),
+            buildPublication(sequentialJson, digest),
         );
         expect(preparation.ok && preparation.workflow.publication.digest).toBe(digest);
     });
@@ -402,12 +419,12 @@ describe("refusals", () => {
     test("deeply nested inputs don't escape as exceptions", () => {
         // Nesting far deeper than a recursive freeze could follow, against a recursive schema.
         const deep = JSON.parse(`${"[".repeat(20_000)}${"]".repeat(20_000)}`);
-        const document = calculation();
+        const document = copyCalculationFixture();
         document.inputs = {
             ...document.inputs,
             payload: { schema: { type: "array", items: { $ref: "#" } }, default: [] },
         };
-        const accepted = preparer.validateInputs(prepared(document), {
+        const accepted = preparer.validateInputs(prepareOrFail(document), {
             amount: 1,
             people: 1,
             payload: deep,
@@ -418,7 +435,7 @@ describe("refusals", () => {
     // Proves a check that can't be evaluated refuses the run as unsupported, not as bad input.
     test("an evaluator that throws is unsupported execution", () => {
         // A prepared input whose check throws, as an evaluator exhausting its stack would.
-        const workflow = prepared(calculationJson);
+        const workflow = prepareOrFail(calculationJson);
         const throwing = createValueChecker(() => {
             throw new RangeError("Maximum call stack size exceeded");
         });
