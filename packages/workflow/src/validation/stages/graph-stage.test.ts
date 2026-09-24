@@ -43,7 +43,7 @@ describe("GraphStage", () => {
             buildDocument({
                 steps: [loop, bodyFirst, bodySecond, end],
                 firstNode: loop.id,
-                inputs: { f: { type: "array" } },
+                inputs: { f: { schema: { type: "array" } } },
             }),
         );
         const finding = findings.find((candidate) => candidate.code === "workflow.graph.cycle");
@@ -69,7 +69,7 @@ describe("GraphStage", () => {
             buildDocument({
                 steps: [outer, inner, end],
                 firstNode: outer.id,
-                inputs: { f: { type: "array" } },
+                inputs: { f: { schema: { type: "array" } } },
             }),
         );
         const finding = findings.find((candidate) => candidate.code === "workflow.loop.nested");
@@ -91,7 +91,7 @@ describe("GraphStage", () => {
             buildDocument({
                 steps: [loop, end],
                 firstNode: loop.id,
-                inputs: { f: { type: "array" } },
+                inputs: { f: { schema: { type: "array" } } },
             }),
         );
         expect(
@@ -149,5 +149,45 @@ describe("GraphStage", () => {
             buildDocument({ steps: [trigger, ...reviewers, join, end], firstNode: trigger.id }),
         );
         expect(findings).toEqual([]);
+    });
+    // Proves a reachable step listing itself as a dependency is reported at that array member.
+    test("reports a reachable self-dependency at the offending dependency", () => {
+        // The task sits on the path from firstNode and depends on a real predecessor and itself.
+        const end = resultStep();
+        const first = taskStep({ successors: [] });
+        const selfDependent = taskStep({ successors: [end.id] });
+        first.successors = [selfDependent.id];
+        selfDependent.dependencies = [first.id, selfDependent.id];
+        const findings = run(
+            buildDocument({ steps: [first, selfDependent, end], firstNode: first.id }),
+        );
+
+        // Only the self-reference is reported, pointing at its own array index.
+        const selfDependencies = findings.filter(
+            (finding) => finding.code === "workflow.graph.self-dependency",
+        );
+        expect(selfDependencies.map((finding) => finding.path)).toEqual([
+            "/steps/1/dependencies/1",
+        ]);
+        expect(selfDependencies[0]?.details).toEqual({ stepId: selfDependent.id });
+        expect(findings.map((finding) => finding.code)).not.toContain(
+            "workflow.graph.unreachable-dependency",
+        );
+    });
+
+    // Proves self-dependency is rejected even on a step no path from firstNode reaches.
+    test("reports a self-dependency on an unreachable step", () => {
+        // The orphan has no incoming edge, so the dominance check skips it.
+        const end = resultStep();
+        const orphan = taskStep({ successors: [end.id] });
+        orphan.dependencies = [orphan.id];
+        const findings = run(buildDocument({ steps: [end, orphan], firstNode: end.id }));
+
+        // The finding still points at the orphan's dependency entry.
+        expect(
+            findings
+                .filter((finding) => finding.code === "workflow.graph.self-dependency")
+                .map((finding) => finding.path),
+        ).toEqual(["/steps/1/dependencies/0"]);
     });
 });

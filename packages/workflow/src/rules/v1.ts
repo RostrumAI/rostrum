@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { OPERATION_CATALOG } from "../operations/operation-catalog";
 import { WorkflowDocumentSchema } from "../schema";
 import { ConditionalStage } from "../validation/stages/conditional-stage";
 import { GraphStage } from "../validation/stages/graph-stage";
@@ -44,6 +45,6 @@ export const V1_WORKFLOW_FORMAT_RULE_SET: WorkflowFormatRuleSet = Object.freeze(
         new ConditionalStage(),
         new TerminationStage(),
         new ReferencesStage(),
-        new InputOutputCompatibilityStage(),
+        new InputOutputCompatibilityStage(OPERATION_CATALOG),
     ]),
 });

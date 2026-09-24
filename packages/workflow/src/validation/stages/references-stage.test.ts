@@ -27,7 +27,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [task, end],
             firstNode: task.id,
-            inputs: { name: { type: "string" } },
+            inputs: { name: { schema: { type: "string" } } },
         });
         expect(run(document)).toEqual([]);
     });
@@ -87,7 +87,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, consumer],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         const findings = run(document);
         const undeclared = findings.find(
@@ -158,7 +158,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, after, resultStep()],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(codesFor(document)).toEqual([]);
     });
@@ -178,7 +178,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, after],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(codesFor(document)).toContain("workflow.reference.not-upstream");
     });
@@ -198,7 +198,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, after],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(codesFor(document)).toEqual([]);
 
@@ -222,7 +222,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyStep, after, resultStep()],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         const finding = run(document).find(
             (candidate) => candidate.code === "workflow.reference.loop-out-of-scope",

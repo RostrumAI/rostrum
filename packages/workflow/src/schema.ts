@@ -28,6 +28,20 @@ const UuidV7 = Type.String({ pattern: UUID_V7_PATTERN });
 /** Any JSON value. Used for binding values and JSON Schema fragments. */
 const JsonValue = Type.Any({ title: "JSON value" });
 
+/**
+ * A workflow input declaration: the JSON Schema 2020-12 schema the value
+ * must satisfy, and an optional default that makes the input optional.
+ * Whether `schema` is a valid schema and `default` satisfies it are
+ * stage 8 rules, not shape rules.
+ */
+const InputDeclaration = Type.Object(
+    {
+        schema: Type.Union([Type.Object({}, { additionalProperties: true }), Type.Boolean()]),
+        default: Type.Optional(JsonValue),
+    },
+    { additionalProperties: false },
+);
+
 /** A reference object: `{ "ref": "<path>" }`. Path syntax is checked in stage 7. */
 const ReferenceObject = Type.Object({ ref: Type.String() }, { additionalProperties: false });
 
@@ -126,7 +140,7 @@ export const WorkflowDocumentSchema = Type.Object(
         name: Type.String(),
         description: Type.Optional(Type.String()),
         firstNode: UuidV7,
-        inputs: Type.Optional(Type.Record(Type.String(), JsonValue)),
+        inputs: Type.Optional(Type.Record(Type.String(), InputDeclaration)),
         steps: Type.Array(Step, { minItems: 1 }),
         conditionals: Type.Optional(Type.Array(Conditional, { minItems: 1 })),
     },
@@ -136,4 +150,6 @@ export const WorkflowDocumentSchema = Type.Object(
 export type WorkflowDocument = Static<typeof WorkflowDocumentSchema>;
 
 export type WorkflowStep = Static<typeof Step>;
+/** A workflow input declaration: its value schema and optional default. */
+export type WorkflowInputDeclaration = Static<typeof InputDeclaration>;
 export type WorkflowConditional = Static<typeof Conditional>;

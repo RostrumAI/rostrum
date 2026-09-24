@@ -4,7 +4,6 @@ import { V1_WORKFLOW_FORMAT_RULE_SET } from "../rules/v1";
 import { WorkflowFormatRegistry } from "../rules/workflow-format-rule-set";
 import { buildDocument, resultStep, taskStep } from "../testing/documents";
 import { FormatVersionStage } from "./stages/format-version-stage";
-import { InputOutputCompatibilityStage } from "./stages/input-output-compatibility-stage";
 import { ValidationContext } from "./validation-context";
 import { ValidationPipeline } from "./validation-stage";
 
@@ -63,10 +62,5 @@ describe("ValidationPipeline", () => {
         const findings = run(document);
         const paths = sortFindings(findings).map((finding) => finding.path);
         expect(paths).toEqual([...paths].sort());
-    });
-
-    test("compatibility stage emits nothing in v1", () => {
-        const stage = new InputOutputCompatibilityStage();
-        expect(stage.run(new ValidationContext(buildDocument(), null))).toEqual([]);
     });
 });

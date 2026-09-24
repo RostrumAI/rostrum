@@ -4,29 +4,35 @@
     "name": "Conditional with grouped logic",
     "firstNode": "0192b0a0-7e1d-7000-8000-000000000041",
     "inputs": {
-        "score": { "type": "number" }
+        "score": { "schema": { "type": "number" } },
+        "weight": { "schema": { "type": "number" } }
     },
     "steps": [
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000041",
             "type": "task",
-            "config": { "operation": "evaluate" },
-            "inputs": { "score": { "ref": "inputs.score" } },
-            "outputs": { "score": { "type": "number" }, "category": { "type": "string" } },
+            "config": { "operation": "divide" },
+            "inputs": {
+                "dividend": { "ref": "inputs.score" },
+                "divisor": { "ref": "inputs.weight" }
+            },
+            "outputs": { "value": { "type": "number" } },
             "conditional": "0192b0a0-7e1d-7000-8000-000000000042"
         },
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000043",
             "type": "result",
             "inputs": {
-                "category": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category" }
+                "category": "critical",
+                "score": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.value" }
             }
         },
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000044",
             "type": "result",
             "inputs": {
-                "category": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category" }
+                "category": "standard",
+                "score": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.value" }
             }
         }
     ],
@@ -36,26 +42,26 @@
             "dependencies": ["0192b0a0-7e1d-7000-8000-000000000041"],
             "branches": [
                 {
-                    "label": "critical-security",
+                    "label": "critical",
                     "priority": 0,
                     "condition": {
                         "all": [
                             {
-                                "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.score",
+                                "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.value",
                                 "op": "gte",
                                 "value": 80
                             },
                             {
                                 "any": [
                                     {
-                                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category",
+                                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.value",
                                         "op": "eq",
-                                        "value": "security"
+                                        "value": 90
                                     },
                                     {
-                                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.category",
-                                        "op": "eq",
-                                        "value": "critical"
+                                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.value",
+                                        "op": "in",
+                                        "value": [95, 100]
                                     }
                                 ]
                             }
@@ -67,7 +73,7 @@
                     "label": "standard",
                     "priority": 1,
                     "condition": {
-                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.score",
+                        "ref": "step.0192b0a0-7e1d-7000-8000-000000000041.value",
                         "op": "lt",
                         "value": 80
                     },

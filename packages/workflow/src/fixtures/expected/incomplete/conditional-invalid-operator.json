@@ -5,7 +5,7 @@
             "code": "workflow.conditional.invalid-operator",
             "blocking": true,
             "path": "/conditionals/0/branches/0/condition",
-            "line": 24,
+            "line": 25,
             "column": 34,
             "details": {
                 "conditionalId": "0192b0a0-7e1d-7000-8000-0000000000c6",

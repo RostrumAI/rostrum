@@ -1,51 +1,45 @@
 {
     "workflowFormatVersion": "v1",
     "id": "0192b0a0-7e1d-7000-8000-000000000030",
-    "name": "Batch file analysis",
-    "description": "Loop over files, analyze each, summarize all.",
+    "name": "Offset a list of numbers",
+    "description": "Loop over numbers, add an offset to each, return the collected sums.",
     "firstNode": "0192b0a0-7e1d-7000-8000-000000000031",
     "inputs": {
-        "files": { "type": "array", "items": { "type": "string" } }
+        "numbers": { "schema": { "type": "array", "items": { "type": "number" } } },
+        "offset": { "schema": { "type": "number" } }
     },
     "steps": [
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000031",
             "type": "task",
-            "config": { "operation": "list-files" },
-            "inputs": { "files": { "ref": "inputs.files" } },
+            "config": { "operation": "add" },
+            "inputs": { "left": { "ref": "inputs.offset" } },
             "outputs": {
-                "fileList": { "type": "array", "items": { "type": "string" } },
-                "results": { "type": "array", "items": { "type": "string" } }
+                "value": { "type": "number" },
+                "results": { "type": "array", "items": { "type": "object" } }
             },
             "loop": {
-                "collection": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.fileList" },
+                "collection": { "ref": "inputs.numbers" },
                 "maxIterations": 50,
-                "variable": "file",
+                "variable": "number",
                 "body": "0192b0a0-7e1d-7000-8000-000000000032"
             },
-            "successors": ["0192b0a0-7e1d-7000-8000-000000000033"]
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000034"]
         },
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000032",
             "type": "task",
-            "config": { "operation": "analyze-file" },
-            "inputs": { "file": { "ref": "loop.file" } },
-            "outputs": { "analysis": { "type": "string" } }
-        },
-        {
-            "id": "0192b0a0-7e1d-7000-8000-000000000033",
-            "type": "task",
-            "config": { "operation": "summarize" },
+            "config": { "operation": "add" },
             "inputs": {
-                "analyses": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.results" }
+                "left": { "ref": "loop.number" },
+                "right": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.value" }
             },
-            "outputs": { "summary": { "type": "string" } },
-            "successors": ["0192b0a0-7e1d-7000-8000-000000000034"]
+            "outputs": { "value": { "type": "number" } }
         },
         {
             "id": "0192b0a0-7e1d-7000-8000-000000000034",
             "type": "result",
-            "inputs": { "summary": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000033.summary" } }
+            "inputs": { "sums": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000031.results" } }
         }
     ]
 }
