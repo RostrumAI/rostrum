@@ -55,14 +55,17 @@ const TEST_CATALOG: OperationCatalog = new Map([
 ]);
 
 /** Runs the check over a document and returns `[kind, path]` pairs. */
-function issuesOf(document: WorkflowDocument, catalog: OperationCatalog = TEST_CATALOG) {
+function checkDocument(document: WorkflowDocument, catalog: OperationCatalog = TEST_CATALOG) {
     return checkStaticCompatibility(document, catalog, createDeclaredSchemaCompiler()).map(
         (issue) => [issue.kind, issue.path],
     );
 }
 
 /** Builds a task followed by a result step, the smallest document a task can appear in. */
-function singleTask(task: ReturnType<typeof taskStep>, overrides: Partial<WorkflowDocument> = {}) {
+function buildSingleTaskDocument(
+    task: ReturnType<typeof taskStep>,
+    overrides: Partial<WorkflowDocument> = {},
+) {
     const end = resultStep();
     task.successors = [end.id];
     return buildDocument({ steps: [task, end], firstNode: task.id, ...overrides });
@@ -73,7 +76,7 @@ describe("operations and configuration", () => {
     test("an unknown operation", () => {
         const task = taskStep({ config: { operation: "threshold" }, inputs: {} });
         const [issue] = checkStaticCompatibility(
-            singleTask(task),
+            buildSingleTaskDocument(task),
             OPERATION_CATALOG,
             createDeclaredSchemaCompiler(),
         );
@@ -90,16 +93,16 @@ describe("operations and configuration", () => {
 
     // Proves a task with no configuration at all names no operation.
     test("a task without an operation", () => {
-        const document = singleTask(taskStep({ config: undefined, inputs: {} }));
-        expect(issuesOf(document)).toEqual([["unknown-operation", "/steps/0"]]);
+        const document = buildSingleTaskDocument(taskStep({ config: undefined, inputs: {} }));
+        expect(checkDocument(document)).toEqual([["unknown-operation", "/steps/0"]]);
     });
 
     // Proves configuration members the operation doesn't declare are located individually.
     test("invalid configuration", () => {
-        const document = singleTask(
+        const document = buildSingleTaskDocument(
             taskStep({ config: { operation: "add", precision: 2 }, inputs: { left: 1 } }),
         );
-        expect(issuesOf(document)).toEqual([["invalid-config", "/steps/0/config/precision"]]);
+        expect(checkDocument(document)).toEqual([["invalid-config", "/steps/0/config/precision"]]);
     });
 });
 
@@ -107,10 +110,10 @@ describe("declared schemas and defaults", () => {
     // Proves malformed input and output declarations are located inside the schema.
     test("invalid declarations", () => {
         const task = taskStep({ outputs: { greeting: { type: "strng" } } });
-        const document = singleTask(task, {
+        const document = buildSingleTaskDocument(task, {
             inputs: { amount: { schema: { type: "number", minimum: "zero" } } },
         });
-        expect(issuesOf(document)).toEqual([
+        expect(checkDocument(document)).toEqual([
             ["invalid-schema", "/inputs/amount/schema/minimum"],
             ["invalid-schema", "/steps/0/outputs/greeting/type"],
         ]);
@@ -118,13 +121,13 @@ describe("declared schemas and defaults", () => {
 
     // Proves references that leave the schema, and patterns a linear-time engine refuses, are invalid.
     test("unresolved references and unsupported patterns are invalid declarations", () => {
-        const document = singleTask(taskStep(), {
+        const document = buildSingleTaskDocument(taskStep(), {
             inputs: {
                 remote: { schema: { $ref: "https://example.com/schema.json" } },
                 lookbehind: { schema: { type: "string", pattern: "(?<=a)b" } },
             },
         });
-        expect(issuesOf(document)).toEqual([
+        expect(checkDocument(document)).toEqual([
             ["invalid-schema", "/inputs/remote/schema"],
             ["invalid-schema", "/inputs/lookbehind/schema"],
         ]);
@@ -132,19 +135,19 @@ describe("declared schemas and defaults", () => {
 
     // Proves a schema may refer to its own root, which makes recursive declarations possible.
     test("a recursive reference to the schema's root is valid", () => {
-        const document = singleTask(taskStep(), {
+        const document = buildSingleTaskDocument(taskStep(), {
             inputs: { tree: { schema: { type: "array", items: { $ref: "#" } } } },
         });
-        expect(issuesOf(document)).toEqual([]);
+        expect(checkDocument(document)).toEqual([]);
     });
 
     // Proves a default must satisfy its own schema, on workflow inputs and catalog arguments.
     test("invalid defaults", () => {
-        const document = singleTask(
+        const document = buildSingleTaskDocument(
             taskStep({ config: { operation: "broken-default" }, inputs: {}, outputs: {} }),
             { inputs: { amount: { schema: { type: "number" }, default: "ten" } } },
         );
-        expect(issuesOf(document)).toEqual([
+        expect(checkDocument(document)).toEqual([
             ["invalid-default", "/inputs/amount/default"],
             ["invalid-default", "/steps/0/config/operation"],
         ]);
@@ -152,64 +155,68 @@ describe("declared schemas and defaults", () => {
 
     // Proves an explicit null default is a value and must satisfy the schema like any other.
     test("a null default is checked like any other value", () => {
-        const document = singleTask(taskStep(), {
+        const document = buildSingleTaskDocument(taskStep(), {
             inputs: {
                 nullable: { schema: { type: ["number", "null"] }, default: null },
                 strict: { schema: { type: "number" }, default: null },
             },
         });
-        expect(issuesOf(document)).toEqual([["invalid-default", "/inputs/strict/default"]]);
+        expect(checkDocument(document)).toEqual([["invalid-default", "/inputs/strict/default"]]);
     });
 });
 
 describe("arguments and declared outputs", () => {
     // Proves a required argument must be bound, and optional ones may be left out.
     test("a missing argument", () => {
-        const withoutLeft = singleTask(
+        const withoutLeft = buildSingleTaskDocument(
             taskStep({ config: { operation: "add" }, inputs: { right: 2 } }),
         );
-        expect(issuesOf(withoutLeft)).toEqual([["missing-argument", "/steps/0/inputs"]]);
+        expect(checkDocument(withoutLeft)).toEqual([["missing-argument", "/steps/0/inputs"]]);
 
         // A task without an `inputs` member is located at the step itself.
-        const withoutInputs = singleTask(taskStep({ config: { operation: "add" } }));
+        const withoutInputs = buildSingleTaskDocument(taskStep({ config: { operation: "add" } }));
         delete withoutInputs.steps[0]?.inputs;
-        expect(issuesOf(withoutInputs)).toEqual([["missing-argument", "/steps/0"]]);
+        expect(checkDocument(withoutInputs)).toEqual([["missing-argument", "/steps/0"]]);
 
         // `right` has a default, so binding only `left` is complete.
-        const withoutRight = singleTask(
+        const withoutRight = buildSingleTaskDocument(
             taskStep({ config: { operation: "add" }, inputs: { left: 2 } }),
         );
-        expect(issuesOf(withoutRight)).toEqual([]);
+        expect(checkDocument(withoutRight)).toEqual([]);
     });
 
     // Proves a binding for an argument the operation doesn't declare is reported at the binding.
     test("an undeclared argument", () => {
-        const document = singleTask(taskStep({ inputs: { name: "Ada", nickname: "A" } }));
-        expect(issuesOf(document)).toEqual([["undeclared-argument", "/steps/0/inputs/nickname"]]);
+        const document = buildSingleTaskDocument(
+            taskStep({ inputs: { name: "Ada", nickname: "A" } }),
+        );
+        expect(checkDocument(document)).toEqual([
+            ["undeclared-argument", "/steps/0/inputs/nickname"],
+        ]);
     });
 
     // Proves a step can only declare outputs its operation always returns.
     test("an undeclared output", () => {
-        const document = singleTask(
+        const document = buildSingleTaskDocument(
             taskStep({
                 config: { operation: "add" },
                 inputs: { left: 1 },
                 outputs: { sum: { type: "number" } },
             }),
         );
-        expect(issuesOf(document)).toEqual([["undeclared-output", "/steps/0/outputs/sum"]]);
+        expect(checkDocument(document)).toEqual([["undeclared-output", "/steps/0/outputs/sum"]]);
     });
 
     // Proves an output declaration must admit every value the operation can return for it.
     test("divide declaring value as a string", () => {
-        const document = singleTask(
+        const document = buildSingleTaskDocument(
             taskStep({
                 config: { operation: "divide" },
                 inputs: { dividend: 1, divisor: 2 },
                 outputs: { value: { type: "string" } },
             }),
         );
-        expect(issuesOf(document)).toEqual([["type-mismatch", "/steps/0/outputs/value"]]);
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/outputs/value"]]);
     });
 
     // Proves a result step can't declare outputs, so nothing can bind to one unchecked.
@@ -218,17 +225,17 @@ describe("arguments and declared outputs", () => {
         const end = resultStep({ outputs: { total: { type: "number" } } });
         task.successors = [end.id];
         const document = buildDocument({ steps: [task, end], firstNode: task.id });
-        expect(issuesOf(document)).toEqual([["undeclared-output", "/steps/1/outputs/total"]]);
+        expect(checkDocument(document)).toEqual([["undeclared-output", "/steps/1/outputs/total"]]);
     });
 });
 
 describe("bindings", () => {
     // Proves a literal is validated against the argument's full schema.
     test("a string literal bound to add's left", () => {
-        const document = singleTask(
+        const document = buildSingleTaskDocument(
             taskStep({ config: { operation: "add" }, inputs: { left: "1" } }),
         );
-        expect(issuesOf(document)).toEqual([["type-mismatch", "/steps/0/inputs/left"]]);
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/inputs/left"]]);
     });
 
     // Proves a workflow input must be declared at least as tightly as the argument it feeds.
@@ -237,19 +244,21 @@ describe("bindings", () => {
             config: { operation: "square-root" },
             inputs: { radicand: { ref: "inputs.amount" } },
         });
-        const loose = singleTask(task, { inputs: { amount: { schema: { type: "number" } } } });
-        expect(issuesOf(loose)).toEqual([["type-mismatch", "/steps/0/inputs/radicand"]]);
+        const loose = buildSingleTaskDocument(task, {
+            inputs: { amount: { schema: { type: "number" } } },
+        });
+        expect(checkDocument(loose)).toEqual([["type-mismatch", "/steps/0/inputs/radicand"]]);
 
         // Declaring the input with minimum 1 proves every value fits.
-        const tight = singleTask(task, {
+        const tight = buildSingleTaskDocument(task, {
             inputs: { amount: { schema: { type: "number", minimum: 1 } } },
         });
-        expect(issuesOf(tight)).toEqual([]);
+        expect(checkDocument(tight)).toEqual([]);
     });
 
     // Proves a binding the check can't compare is unprovable and names the keyword responsible.
     test("an unprovable binding", () => {
-        const document = singleTask(
+        const document = buildSingleTaskDocument(
             taskStep({ config: { operation: "shout" }, inputs: { word: { ref: "inputs.word" } } }),
             { inputs: { word: { schema: { type: "string", pattern: "^[A-Z]{2,}$" } } } },
         );
@@ -265,8 +274,10 @@ describe("bindings", () => {
 
     // Proves references that don't resolve are left to the references stage.
     test("an unresolved reference is skipped", () => {
-        const document = singleTask(taskStep({ inputs: { name: { ref: "inputs.missing" } } }));
-        expect(issuesOf(document)).toEqual([]);
+        const document = buildSingleTaskDocument(
+            taskStep({ inputs: { name: { ref: "inputs.missing" } } }),
+        );
+        expect(checkDocument(document)).toEqual([]);
     });
 
     // Proves a step output's producer is the operation's output schema, not the step's declaration.
@@ -285,7 +296,7 @@ describe("bindings", () => {
         const document = buildDocument({ steps: [root, add, greet, end], firstNode: root.id });
 
         // A non-negative number fits add's left but not greet's string name.
-        expect(issuesOf(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
     });
 
     // Proves a loop variable's producer is the element schema of its collection.
@@ -309,14 +320,14 @@ describe("bindings", () => {
             firstNode: loop.id,
             inputs: { items: { schema: { type: "array", items: { type: "number" } } } },
         });
-        expect(issuesOf(numbers)).toEqual([]);
+        expect(checkDocument(numbers)).toEqual([]);
 
         // Strings in the collection can't feed add's left.
         const strings = {
             ...numbers,
             inputs: { items: { schema: { type: "array", items: { type: "string" } } } },
         };
-        expect(issuesOf(strings)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+        expect(checkDocument(strings)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
 
         // A string among the tuple's leading items is a possible element too.
         const tuple = {
@@ -331,7 +342,7 @@ describe("bindings", () => {
                 },
             },
         };
-        expect(issuesOf(tuple)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+        expect(checkDocument(tuple)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
     });
 
     // Proves result steps have no consumer, so any binding fits them.
@@ -346,7 +357,7 @@ describe("bindings", () => {
             firstNode: task.id,
             inputs: { whatever: { schema: true } },
         });
-        expect(issuesOf(document)).toEqual([]);
+        expect(checkDocument(document)).toEqual([]);
     });
 });
 
@@ -356,7 +367,7 @@ describe("condition operands", () => {
         // Build a greet step whose output a single conditional leaf tests.
         const end = resultStep();
         const task = taskStep({ outputs: { greeting: { type: "string" } } });
-        const leafOn = (leaf: { op: string; value?: unknown }) => {
+        const buildLeafDocument = (leaf: { op: string; value?: unknown }) => {
             const routing = conditional({
                 dependencies: [task.id],
                 branches: [
@@ -378,10 +389,10 @@ describe("condition operands", () => {
         };
 
         // A greeting always starts with "Hello, ", so only a matching value can be equal.
-        expect(issuesOf(leafOn({ op: "neq", value: "hi" }))).toEqual([
+        expect(checkDocument(buildLeafDocument({ op: "neq", value: "hi" }))).toEqual([
             ["operand-mismatch", "/conditionals/0/branches/0/condition"],
         ]);
-        expect(issuesOf(leafOn({ op: "eq", value: "Hello, Ada!" }))).toEqual([]);
+        expect(checkDocument(buildLeafDocument({ op: "eq", value: "Hello, Ada!" }))).toEqual([]);
     });
 });
 
@@ -389,7 +400,7 @@ describe("issue attribution", () => {
     // Proves step-level issues carry the responsible step, and workflow-level ones don't.
     test("issues name the responsible step", () => {
         const task = taskStep({ inputs: { name: 1 } });
-        const document = singleTask(task, {
+        const document = buildSingleTaskDocument(task, {
             inputs: { amount: { schema: { type: "number" }, default: "ten" } },
         });
         const issues = checkStaticCompatibility(
