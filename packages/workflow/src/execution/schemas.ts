@@ -239,14 +239,6 @@ export const StepSnapshotSchema = Type.Union([
 /** One step's current state within a run. */
 export type StepSnapshot = Static<typeof StepSnapshotSchema>;
 
-/**
- * Every step of the publication in document order, which is display order,
- * not execution order, limited to the step states the run's status allows.
- */
-function stepSnapshots(...allowed: (typeof StepSnapshotSchema.anyOf)[number][]) {
-    return Type.Array(Type.Union(allowed), { minItems: 1 });
-}
-
 /** An accepted run whose first advancement hasn't happened. */
 const QueuedRunSnapshot = Type.Object(
     {
@@ -256,7 +248,7 @@ const QueuedRunSnapshot = Type.Object(
         stopping: Type.Literal(false),
         acceptedAt: Timestamp,
         // Nothing has been reached before the first advancement.
-        steps: stepSnapshots(PendingStepSnapshot),
+        steps: Type.Array(PendingStepSnapshot, { minItems: 1 }),
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
     },
@@ -273,12 +265,15 @@ const RunningRunSnapshot = Type.Object(
         acceptedAt: Timestamp,
         startedAt: Timestamp,
         // A failed step would have stopped the run.
-        steps: stepSnapshots(
-            PendingStepSnapshot,
-            WaitingStepSnapshot,
-            ReadyStepSnapshot,
-            RunningStepSnapshot,
-            CompletedStepSnapshot,
+        steps: Type.Array(
+            Type.Union([
+                PendingStepSnapshot,
+                WaitingStepSnapshot,
+                ReadyStepSnapshot,
+                RunningStepSnapshot,
+                CompletedStepSnapshot,
+            ]),
+            { minItems: 1 },
         ),
         currentSteps: Type.Array(UuidV7),
         waitingFor: Type.Array(UuidV7),
@@ -299,7 +294,7 @@ const StoppingRunSnapshot = Type.Object(
         stopping: Type.Literal(true),
         acceptedAt: Timestamp,
         startedAt: Timestamp,
-        steps: stepSnapshots(...StepSnapshotSchema.anyOf),
+        steps: Type.Array(StepSnapshotSchema, { minItems: 1 }),
         currentSteps: Type.Array(UuidV7, { minItems: 1 }),
         waitingFor: Type.Array(UuidV7),
         failure: ExecutionFailureSchema,
@@ -318,7 +313,9 @@ const CompletedRunSnapshot = Type.Object(
         startedAt: Timestamp,
         completedAt: Timestamp,
         // Success leaves every reached step completed and unreached ones pending.
-        steps: stepSnapshots(PendingStepSnapshot, CompletedStepSnapshot),
+        steps: Type.Array(Type.Union([PendingStepSnapshot, CompletedStepSnapshot]), {
+            minItems: 1,
+        }),
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
         result: NamedValues,
@@ -337,12 +334,15 @@ const FailedRunSnapshot = Type.Object(
         startedAt: Timestamp,
         completedAt: Timestamp,
         // Settled: work abandoned by the failure may be waiting or ready, but none is running.
-        steps: stepSnapshots(
-            PendingStepSnapshot,
-            WaitingStepSnapshot,
-            ReadyStepSnapshot,
-            CompletedStepSnapshot,
-            FailedStepSnapshot,
+        steps: Type.Array(
+            Type.Union([
+                PendingStepSnapshot,
+                WaitingStepSnapshot,
+                ReadyStepSnapshot,
+                CompletedStepSnapshot,
+                FailedStepSnapshot,
+            ]),
+            { minItems: 1 },
         ),
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
@@ -352,7 +352,10 @@ const FailedRunSnapshot = Type.Object(
 );
 
 /**
- * The inspection snapshot of one run. `waitingFor` lists the dependency
+ * The inspection snapshot of one run. Every variant lists all of the
+ * publication's steps in document order, which is display order, not
+ * execution order, limited to the step states the run's status allows.
+ * `waitingFor` lists the dependency
  * step IDs that waiting visits still need; each waiting step also names
  * its own.
  */
