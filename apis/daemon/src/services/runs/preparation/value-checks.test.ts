@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { ValueIssue } from "@rostrum/workflow";
+import type { ValueCheck } from "@rostrum/workflow";
 import { createValueChecker } from "./value-checks";
 
 /** A compiled check that reports the given issues for every value. */
-function createFixedCheck(issues: ValueIssue[]): (value: unknown) => ValueIssue[] {
+function createFixedCheck(issues: ReturnType<ValueCheck>): ValueCheck {
     return () => issues;
 }
 
