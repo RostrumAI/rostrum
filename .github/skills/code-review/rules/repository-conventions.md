@@ -506,6 +506,19 @@ package's published exports and import it by relative path.
 **Flag:** An export subpath added only so a test can import a fixture; test-only data listed in `exports`.
 **Evidence:** PR #9 `packages/workflow/src/fixtures/...json:1` reply — "this puts test-only fixture data into the package's *published* export surface. If we want fixtures internal, the cleaner fix is to drop the `./fixtures/*.json` export".
 
+### REPO-FIXTURE-03 — Prove a rejected workflow document with a fixture, not a unit test
+A workflow document the validator should reject is an `incomplete/`, `invalid-shape/`, or
+`invalid-parse/` fixture with a committed expected manifest under `fixtures/expected/`. The fixture
+suite asserts the validator's complete output for it: every finding's code, pointer, details, and
+source position, and that no other finding appears. A stage or schema unit test that builds the same
+kind of document inline and asserts one finding repeats that coverage with a weaker assertion.
+Variants of one finding, such as the offending entry at a non-zero index or on an unreachable step,
+are separate fixtures. Unit tests remain the place for what the validator's output cannot show:
+documents a stage or the schema accepts, stage gating and ordering, and inputs that are not documents.
+**Applies to:** `packages/workflow/src/**/*.test.ts`, `packages/workflow/src/fixtures/**` · **Check:** judgment · **Severity:** low
+**Flag:** A new test that builds a workflow document and asserts a finding code or schema error for it; a new test that restates, for one fixture, what that fixture's expected manifest already asserts.
+**Evidence:** PR #69 `packages/workflow/src/fixtures/expected/incomplete/self-dependency.json:1` — "This seems like it should be an assertion within the test file rather than a 'fixture'"; resolution: the two `GraphStage` self-dependency unit tests became the `incomplete/self-dependency-*` fixtures.
+
 ## 11. Database and migrations
 
 ### REPO-DB-01 — Migrations are typed modules, not SQL files
@@ -677,6 +690,7 @@ a file whose purpose changed is renamed to match.
 | REPO-TEST-11 | Maintainer direction: the comment above a test states its subject, with succinct inner comments for setup and assertions |
 | REPO-FIXTURE-01 | #9 `packages/workflow/src/fixtures/expected/incomplete/conditional-invalid-operator.json:1` |
 | REPO-FIXTURE-02 | #9 `packages/workflow/src/fixtures/expected/incomplete/conditional-invalid-operator.json:1` reply |
+| REPO-FIXTURE-03 | #69 `packages/workflow/src/fixtures/expected/incomplete/self-dependency.json:1` |
 | REPO-DB-01 | #9 `packages/storage/migrations/001_workflows.sql:1`; #9 `packages/storage/src/migrator.ts:22` |
 | REPO-DB-02 | #9 `packages/database/migrations/README.md:1` reply |
 | REPO-DB-03 | #9 `packages/storage/migrations/001_workflows.sql:1` reply |

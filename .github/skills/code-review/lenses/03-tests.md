@@ -41,7 +41,8 @@ Everything else that runs in production or in the test suite owes a test.
 5. **No duplication.** A test that restates a case an existing suite already covers is a finding.
    Locate the existing suite before claiming coverage is missing.
 6. **Fixtures over literals.** Documents under test come from the shared fixtures rather than being
-   written inline in the test.
+   written inline in the test. A workflow document the validator rejects is a fixture with an
+   expected manifest, not a stage or schema unit test that asserts the finding (`REPO-FIXTURE-03`).
 7. **Real dependencies.** Integration tests use a real database, skipping with a message when it is
    unreachable, rather than substituting an in-memory fake.
 8. **Type-level assertions are not tests.** A file whose only content asserts that a type compiles
@@ -65,4 +66,4 @@ gap when the test is absent. When the test is present, read what it asserts and 
 plausible bug would fail it; report when the answer is no. Then check the test against items 11 and
 12: are its comments and its edge cases what the change owes?
 
-Report `REPO-TEST-*` rule ids.
+Report `REPO-TEST-*` and `REPO-FIXTURE-*` rule ids.

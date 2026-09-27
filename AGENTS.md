@@ -87,5 +87,6 @@ Every test documents what it proves.
 - Cover the edge cases, not only the happy path: empty collections, malformed input, conflicting state, values at a boundary, repeated invocations, and every documented failure outcome.
 - Assert observable behavior that would fail for a plausible implementation bug, not a mock's canned response, a compile-time type, or a schema's literal shape.
 - Find existing coverage before adding cases, and remove suites made redundant by the change. Keep tests beside the code they exercise and reuse shared document fixtures rather than embedding workflow documents.
+- Prove that the validator rejects a workflow document with an `incomplete/`, `invalid-shape/`, or `invalid-parse/` fixture and its expected manifest, not a stage or schema unit test. Unit tests cover what the validator's output cannot show, such as documents a stage accepts and stage gating.
 
 The [repository review rules](.github/skills/code-review/rules/repository-conventions.md#9-tests-coverage-and-quality) state the detailed test requirements and exceptions.
