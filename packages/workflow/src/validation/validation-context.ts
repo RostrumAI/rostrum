@@ -7,7 +7,7 @@ import { WorkflowGraph } from "./workflow-graph";
 /**
  * State shared by the stages of one validation run.
  *
- * The context carries the parsed document, the source map from stage 0,
+ * The context carries the parsed document, the source map from the parse stage,
  * and the finding factory that attaches line and column numbers. The
  * format stage selects the workflow-format rule set, and stages that build
  * graph structures share one lazily constructed {@link WorkflowGraph}.
@@ -15,7 +15,7 @@ import { WorkflowGraph } from "./workflow-graph";
 export class ValidationContext {
     /** The parsed document, or the caller-supplied document for `validateDocument`. */
     readonly document: unknown;
-    /** Pointer-to-location map from stage 0, or null when validating a parsed document. */
+    /** Pointer-to-location map from the parse stage, or null when validating a parsed document. */
     readonly sourceMap: JsonSourceMap | null;
     /** Finding factory bound to the source map. */
     readonly findings: FindingFactory;

@@ -24,7 +24,7 @@ const ALLOWED_OPERATORS: Record<string, true> = {
 const COMPOSITE_KEYS = ["all", "any"] as const;
 
 /**
- * Stage 5: conditional semantics.
+ * The conditional semantics stage.
  *
  * Each conditional keeps at least one branch and a default (the schema
  * enforces both; the stage re-checks defensively), every step referenced

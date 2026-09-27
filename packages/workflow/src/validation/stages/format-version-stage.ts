@@ -4,8 +4,8 @@ import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 
 /**
- * Stage 1: selects the workflow-format rule set for the declared
- * `workflowFormatVersion` by exact match.
+ * The format version stage: selects the workflow-format rule set for the
+ * declared `workflowFormatVersion` by exact match.
  *
  * A missing `workflowFormatVersion` is `workflow.format.missing`; a token no
  * registered rule set claims is `workflow.format.unknown` with the

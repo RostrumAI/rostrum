@@ -1,7 +1,7 @@
 /**
  * Source locations for JSON documents.
  *
- * Validation stage 0 builds a source map while parsing, and findings attach
+ * The parse stage builds a source map while parsing, and findings attach
  * the location of their JSON Pointer when the map is available. Lines and
  * columns are one-based, matching the finding contract.
  */

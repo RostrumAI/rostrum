@@ -3,7 +3,7 @@ import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 
 /**
- * Stage 6: path and termination.
+ * The path and termination stage.
  *
  * Every reachable path from `firstNode` must end at a terminal `result`
  * step or at a conditional branch or default whose `next` is omitted

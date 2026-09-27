@@ -4,7 +4,7 @@ import type { ValidationStage } from "../validation-stage";
 import type { WorkflowGraph } from "../workflow-graph";
 
 /**
- * Stage 4: graph topology.
+ * The graph topology stage.
  *
  * The combined control graph of `successors`, conditional branches, and
  * loop bodies must be acyclic, each loop body subgraph must be acyclic,

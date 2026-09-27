@@ -3,10 +3,10 @@ import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 
 /**
- * Stage 8: input and output compatibility.
+ * The input/output compatibility stage.
  *
  * Static compatibility in v1 is limited to the existence and ordering
- * checks stage 7 performs: the validator never compares the producer's
+ * checks the data references stage performs: the validator never compares the producer's
  * and consumer's JSON Schema fragments, so a run may still fail when a
  * produced value does not satisfy a consumer. The stage exists
  * to hold that boundary and reserves the code

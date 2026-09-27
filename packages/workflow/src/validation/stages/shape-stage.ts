@@ -26,8 +26,8 @@ const CODE_BY_KEYWORD: Record<string, string> = {
 };
 
 /**
- * Stage 2: document shape, enforced by the workflow-format version's TypeBox
- * schema through `Schema.Compile` (JSON Schema 2020-12).
+ * The document shape stage, enforced by the workflow-format version's
+ * TypeBox schema through `Schema.Compile` (JSON Schema 2020-12).
  *
  * Required fields, types, UUID v7 formats, `additionalProperties: false`,
  * array bounds, and `maxIterations >= 1` are schema-level rules. Each

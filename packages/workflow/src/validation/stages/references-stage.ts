@@ -20,7 +20,7 @@ interface ReferenceConsumer {
 }
 
 /**
- * Stage 7: data references.
+ * The data references stage.
  *
  * Every binding value with the exact shape `{ "ref": "<path>" }` must be
  * syntactically valid and resolve: `inputs.<name>` to a declared

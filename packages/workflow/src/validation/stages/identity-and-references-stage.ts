@@ -6,7 +6,7 @@ import type { ValidationContext } from "../validation-context";
 import type { ValidationStage } from "../validation-stage";
 
 /**
- * Stage 3: identity and reference integrity.
+ * The identity and references stage.
  *
  * Step and conditional ids must be unique, `firstNode` and every
  * `successors`, `dependencies`, `loop.body`, `branches[].next`, and
