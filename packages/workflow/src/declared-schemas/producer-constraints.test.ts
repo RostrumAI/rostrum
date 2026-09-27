@@ -9,17 +9,20 @@
  *   out fractions and a fractional one doesn't.
  * - finite values: const and enum intersect and drop values the type
  *   excludes; null, booleans, a range under 64 integers, and the empty
- *   string are enumerated; unbounded or wider producers are not.
+ *   string are enumerated; unbounded, wider, or unsafe-integer ranges
+ *   are not.
  *
  * type and enumeration:
  * - typeFits: every producer kind must be in the consumer's type.
- * - enumerationFits: an infinite producer never fits a const or enum.
+ * - enumerationFits: an infinite producer never fits a const or enum; a
+ *   finite one too large to enumerate is unprovable.
  *
  * numbers and strings:
  * - bounds: the producer's tightest bound must sit inside the consumer's;
  *   integer bounds round inward; an unbounded side fails.
  * - multipleOf: proven only for bounded integers with a dividing step,
- *   otherwise unprovable; a fractional producer is a mismatch.
+ *   otherwise unprovable; a proper interval of fractions is a mismatch,
+ *   and a stepped or single-point fractional producer is unprovable.
  * - non-numbers: numeric keywords pass vacuously.
  * - lengths: the producer's tightest length bounds are compared.
  * - pattern: only an identical producer pattern proves it.
@@ -95,6 +98,11 @@ describe("finite values", () => {
         expect(getFiniteValues([{ type: "integer", minimum: 0 }])).toBeUndefined();
         expect(getFiniteValues([{ type: "integer", minimum: 0, maximum: 64 }])).toBeUndefined();
         expect(getFiniteValues([{ type: "integer", minimum: 0, maximum: 63 }])).toHaveLength(64);
+
+        // A range beyond the safe integers can't be counted through, so it isn't enumerated.
+        expect(
+            getFiniteValues([{ type: "integer", minimum: 2 ** 60, maximum: 2 ** 60 }]),
+        ).toBeUndefined();
     });
 });
 
@@ -112,9 +120,21 @@ describe("type and enumeration", () => {
 
     // Proves an infinite producer never fits a consumer const or enum.
     test("enumerationFits", () => {
-        expect(enumerationFits({ enum: [1] }, "")?.keyword).toBe("enum");
-        expect(enumerationFits({ const: 1 }, "")?.keyword).toBe("const");
-        expect(enumerationFits({ type: "number" }, "")).toBeUndefined();
+        expect(enumerationFits([{ type: "number" }], { enum: [1] }, "")).toEqual({
+            kind: "mismatch",
+            keyword: "enum",
+            path: "/enum",
+        });
+        expect(enumerationFits([{}], { const: 1 }, "")?.keyword).toBe("const");
+        expect(enumerationFits([{}], { type: "number" }, "")).toBeUndefined();
+    });
+
+    // Proves a finite producer too large to enumerate might still fit, so it's unprovable.
+    test("enumerationFits for a wide finite producer", () => {
+        const wideRange = [{ type: "integer", minimum: 0, maximum: 99 }];
+        const shortStrings = [{ type: ["string", "null"], maxLength: 3 }];
+        expect(enumerationFits(wideRange, { enum: [0] }, "")?.kind).toBe("unprovable");
+        expect(enumerationFits(shortStrings, { enum: [""] }, "")?.kind).toBe("unprovable");
     });
 });
 
@@ -142,7 +162,7 @@ describe("numbers", () => {
         });
     });
 
-    // Proves multipleOf is proven only for bounded integers, and fractions always mismatch.
+    // Proves multipleOf is proven only for bounded integers, and an unstepped fraction interval mismatches.
     test("multipleOf", () => {
         const bounded = { type: "integer", minimum: 0, maximum: 1000 };
         expect(numberFits([{ ...bounded, multipleOf: 6 }], { multipleOf: 3 }, "")).toBeUndefined();
@@ -151,6 +171,14 @@ describe("numbers", () => {
         );
         expect(numberFits([{ type: "integer" }], { multipleOf: 1 }, "")?.kind).toBe("unprovable");
         expect(numberFits([{ type: "number" }], { multipleOf: 1 }, "")?.kind).toBe("mismatch");
+
+        // A fractional step of its own, or a single point, might divide evenly.
+        expect(
+            numberFits([{ type: "number", multipleOf: 0.5 }], { multipleOf: 0.5 }, "")?.kind,
+        ).toBe("unprovable");
+        expect(
+            numberFits([{ type: "number", minimum: 0, maximum: 0 }], { multipleOf: 3 }, "")?.kind,
+        ).toBe("unprovable");
     });
 
     // Proves numeric keywords don't apply when the producer can't be a number.
