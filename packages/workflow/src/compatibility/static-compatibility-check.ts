@@ -12,7 +12,7 @@ import {
     type OperationDeclaration,
     toJsonSchema,
 } from "../operations/operation-catalog";
-import type { WorkflowDocument, WorkflowStep } from "../schema";
+import { getStepConfig, type WorkflowDocument, type WorkflowStep } from "../schema";
 import {
     isReferenceObject,
     LOOP_RESULTS_OUTPUT,
@@ -630,13 +630,4 @@ function getOperationOutputMember(
         return undefined;
     }
     return toJsonSchema(member);
-}
-
-/**
- * A step's `config` as named members, or an empty object when it has none.
- * The document schema proves `config` is a JSON object; TypeBox only
- * types it as an opaque object.
- */
-function getStepConfig(step: WorkflowStep): Readonly<Record<string, unknown>> {
-    return (step.config ?? {}) as Readonly<Record<string, unknown>>;
 }
