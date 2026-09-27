@@ -16,6 +16,10 @@
  * - carries the issue's details onto the finding: a numeric `name` for
  *   `greet` produces a finding whose details name the step, the argument,
  *   and the failing `type` keyword.
+ * - checks each run against the schemas as they are then: one stage instance
+ *   accepts a string default under a `string` schema, then reports it once
+ *   the same schema object declares `number`, and accepts it again after
+ *   the schema changes back.
  */
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG } from "../../operations/operation-catalog";
@@ -96,5 +100,32 @@ describe("InputOutputCompatibilityStage", () => {
         const task = taskStep({ inputs: { name: 1 }, successors: [end.id] });
         const [finding] = runStage(buildDocument({ steps: [task, end], firstNode: task.id }));
         expect(finding?.details).toEqual({ stepId: task.id, argument: "name", keyword: "type" });
+    });
+
+    // Proves a stage instance compiles declarations afresh on every run instead of reusing earlier ones.
+    test("checks each run against the schemas as they are then", () => {
+        // One stage and one document whose input schema is edited between runs.
+        const stage = new InputOutputCompatibilityStage(OPERATION_CATALOG);
+        const end = resultStep();
+        const task = taskStep({ successors: [end.id] });
+        const schema: Record<string, unknown> = { type: "string" };
+        const document = buildDocument({
+            steps: [task, end],
+            firstNode: task.id,
+            inputs: { amount: { schema, default: "ten" } },
+        });
+        const runOnce = () =>
+            stage.run(new ValidationContext(document, null)).map((finding) => finding.code);
+
+        // The string default fits the first declaration.
+        expect(runOnce()).toEqual([]);
+
+        // After the declaration changes, the next run reports the default against the new schema.
+        schema.type = "number";
+        expect(runOnce()).toEqual(["workflow.io.invalid-default"]);
+
+        // Restoring the declaration clears the finding on the following run.
+        schema.type = "string";
+        expect(runOnce()).toEqual([]);
     });
 });

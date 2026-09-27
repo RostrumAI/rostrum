@@ -18,7 +18,8 @@
  * - refuses recursive references: direct self-reference and a cycle through
  *   another definition both resolve to undefined.
  * - finds recursion through properties named like keywords: a member called
- *   `title` or matching `^const$` is still walked as a schema.
+ *   `title`, matching `^const$`, or a dependent schema keyed `examples` is still
+ *   walked as a schema.
  * - ignores references that can't apply: a `$ref` inside `const` or `examples`
  *   doesn't make a definition recursive.
  * - answers repeated lookups consistently: cached recursion answers match the
@@ -100,10 +101,14 @@ describe("ReferenceResolver", () => {
             $defs: {
                 node: { type: "object", properties: { title: { $ref: "#/$defs/node" } } },
                 leaf: { patternProperties: { "^const$": { $ref: "#/$defs/leaf" } } },
+                pair: { dependentSchemas: { examples: { $ref: "#/$defs/pair" } } },
             },
         });
+
+        // Each cycle runs through a member whose name would be skipped as a keyword.
         expect(resolver.resolve("#/$defs/node")).toBeUndefined();
         expect(resolver.resolve("#/$defs/leaf")).toBeUndefined();
+        expect(resolver.resolve("#/$defs/pair")).toBeUndefined();
     });
 
     // Proves literal values and annotations that mention a reference don't make it recursive.
