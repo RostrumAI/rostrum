@@ -111,7 +111,11 @@ describe("LocalTaskExecutor", () => {
             signal,
         );
 
-        // The executor resolves with a task error rather than rejecting.
-        expect(result.ok ? undefined : result.failure.code).toBe("task_error");
+        // The executor resolves with a task error at the operation name rather than rejecting.
+        expect(result.ok ? undefined : result.failure).toEqual({
+            code: "task_error",
+            message: "The operation isn't registered",
+            path: "/config/operation",
+        });
     });
 });
