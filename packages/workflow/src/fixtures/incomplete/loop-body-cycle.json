@@ -4,7 +4,7 @@
     "name": "Loop body cycle",
     "firstNode": "0192b0a0-7e1d-7000-8000-000000000093",
     "inputs": {
-        "files": { "type": "array", "items": { "type": "string" } }
+        "files": { "schema": { "type": "array", "items": { "type": "string" } } }
     },
     "steps": [
         {

@@ -72,7 +72,7 @@ describe("ShapeStage", () => {
         });
         const document = buildDocument({
             steps: [looper, step],
-            inputs: { files: { type: "array" } },
+            inputs: { files: { schema: { type: "array" } } },
         });
         const findings = run(document);
         expect(

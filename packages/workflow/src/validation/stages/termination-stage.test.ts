@@ -95,7 +95,7 @@ describe("TerminationStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, afterLoop],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(run(document)).toEqual([]);
     });
