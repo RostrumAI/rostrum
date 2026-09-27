@@ -5,6 +5,8 @@
  *
  * DIVIDE_OPERATION declaration:
  * - requires both arguments: neither has a default.
+ * - takes a numeric dividend: a negative fraction passes and a numeric
+ *   string fails `type`.
  * - takes any number, including a zero divisor, which fails at run time
  *   rather than at binding; a numeric string fails `type`.
  * - returns only a numeric value: a null value or an extra member fails.
@@ -32,6 +34,13 @@ describe("DIVIDE_OPERATION declaration", () => {
     test("requires both arguments", () => {
         expect(Object.hasOwn(DIVIDE_OPERATION.arguments.dividend, "default")).toBe(false);
         expect(Object.hasOwn(DIVIDE_OPERATION.arguments.divisor, "default")).toBe(false);
+    });
+
+    // Proves the dividend accepts numbers and nothing else.
+    test("takes a numeric dividend", () => {
+        const dividend = toJsonSchema(DIVIDE_OPERATION.arguments.dividend.schema);
+        expect(getFailedKeywords(dividend, -7.5)).toEqual([]);
+        expect(getFailedKeywords(dividend, "7")).toEqual(["type"]);
     });
 
     // Proves the divisor schema admits zero, which is a run-time failure, not a binding error.
