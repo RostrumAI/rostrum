@@ -33,6 +33,7 @@ import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG, toJsonSchema } from "../operations/operation-catalog";
 import type { JsonSchema } from "./declared-schema-compiler";
 import { checkSchemaContainment } from "./schema-containment";
+import type { ContainmentResult } from "./schema-keywords";
 
 /** Returns just the outcome kind, for cases where the location doesn't matter. */
 function kindOf(producer: JsonSchema, consumer: JsonSchema): string {
@@ -250,7 +251,11 @@ describe("objects and arrays", () => {
 
     // Proves each length and member-count bound fails when the producer can fall outside it.
     test("length and count bounds that the producer can break", () => {
-        const at = (keyword: string) => ({ kind: "mismatch", keyword, path: `/${keyword}` });
+        const at = (keyword: string): ContainmentResult => ({
+            kind: "mismatch",
+            keyword,
+            path: `/${keyword}`,
+        });
         expect(checkSchemaContainment({ type: "array" }, { minItems: 1 })).toEqual(at("minItems"));
         expect(checkSchemaContainment({ type: "array" }, { maxItems: 3 })).toEqual(at("maxItems"));
         expect(checkSchemaContainment({ type: "object" }, { minProperties: 1 })).toEqual(
