@@ -11,7 +11,7 @@
  *   with an invalid input default, an unknown operation, an undeclared
  *   output, a wrong-typed argument, an undeclared argument, a missing
  *   argument, and a string operand compared with `gt` yields exactly those
- *   seven findings, each with its `workflow.*` code and JSON Pointer, in
+ *   seven findings, each blocking, with its `workflow.*` code and JSON Pointer, in
  *   check order.
  * - carries the issue's details onto the finding: a numeric `name` for
  *   `greet` produces a finding whose details name the step, the argument,
@@ -75,7 +75,8 @@ describe("InputOutputCompatibilityStage", () => {
         });
 
         // Each issue kind surfaces as its publication finding code, at the issue's pointer.
-        expect(runStage(document).map((finding) => [finding.code, finding.path])).toEqual([
+        const findings = runStage(document);
+        expect(findings.map((finding) => [finding.code, finding.path])).toEqual([
             ["workflow.io.invalid-default", "/inputs/amount/default"],
             ["workflow.operation.unknown", "/steps/0/config/operation"],
             ["workflow.io.undeclared-output", "/steps/1/outputs/sum"],
@@ -84,6 +85,9 @@ describe("InputOutputCompatibilityStage", () => {
             ["workflow.io.missing-argument", "/steps/2/inputs"],
             ["workflow.condition.operand-mismatch", "/conditionals/0/branches/0/condition"],
         ]);
+
+        // Every one of them blocks publication.
+        expect(findings.every((finding) => finding.blocking)).toBe(true);
     });
 
     // Proves the structured details an automated author repairs from reach the finding.
