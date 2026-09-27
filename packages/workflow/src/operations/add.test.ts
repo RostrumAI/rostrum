@@ -1,20 +1,66 @@
 /**
- * @fileoverview Tests the `add` operation's catalog declaration through the
- * static compatibility check, with a catalog holding only `add`. Publication
- * relies on these argument and output schemas to accept or refuse a workflow.
+ * @fileoverview Tests `add`'s declaration. Publication and preparation
+ * bind and check tasks against it, so a wrong default, argument schema,
+ * output schema, or failure list would let a bad workflow publish.
  *
- * ADD_OPERATION:
- * - `left` is required and `right` may be left to its default.
- * - Both arguments accept numbers only; a string literal is a `type-mismatch`.
- * - A step may declare `value` as a number, but not as an integer.
- * - `numeric_overflow` is a declared failure code.
+ * ADD_OPERATION declaration:
+ * - requires left and defaults right to 0.
+ * - takes numbers: a fraction passes and a numeric string fails `type`.
+ * - returns only a numeric value: any number passes; a string value, an
+ *   extra member, or a missing value fails.
+ * - declares numeric overflow as its only failure code.
+ *
+ * ADD_OPERATION in the static check (a catalog holding only `add`):
+ * - an unbound `left` is a missing argument at the task's inputs.
+ * - a step may declare `value` as a number, but not as an integer.
  */
 import { describe, expect, test } from "bun:test";
 import { checkStaticCompatibility } from "../compatibility/static-compatibility-check";
-import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";
+import {
+    createDeclaredSchemaCompiler,
+    type JsonSchema,
+} from "../declared-schemas/declared-schema-compiler";
 import { buildDocument, resultStep, taskStep } from "../testing/documents";
 import { ADD_OPERATION } from "./add";
-import type { OperationCatalog } from "./operation-catalog";
+import { type OperationCatalog, toJsonSchema } from "./operation-catalog";
+
+/** Compiles one of the declaration's schemas and returns the keywords a value fails. */
+function getFailedKeywords(schema: JsonSchema, value: unknown): string[] {
+    const compiled = createDeclaredSchemaCompiler().compile(schema);
+    if (!compiled.ok) {
+        throw new Error("Expected the declaration's schema to compile");
+    }
+    return compiled.check(value).map((issue) => issue.keyword);
+}
+
+describe("ADD_OPERATION declaration", () => {
+    // Proves left must be bound while right falls back to a default of 0.
+    test("requires left and defaults right to 0", () => {
+        expect(Object.hasOwn(ADD_OPERATION.arguments.left, "default")).toBe(false);
+        expect(ADD_OPERATION.arguments.right.default).toBe(0);
+    });
+
+    // Proves both arguments accept numbers and nothing else.
+    test("takes numbers", () => {
+        const left = toJsonSchema(ADD_OPERATION.arguments.left.schema);
+        expect(getFailedKeywords(left, 1.5)).toEqual([]);
+        expect(getFailedKeywords(left, "1")).toEqual(["type"]);
+    });
+
+    // Proves the output is exactly a numeric value member.
+    test("returns only a numeric value", () => {
+        const output = toJsonSchema(ADD_OPERATION.outputSchema);
+        expect(getFailedKeywords(output, { value: -2.5 })).toEqual([]);
+        expect(getFailedKeywords(output, { value: "3" })).toEqual(["type"]);
+        expect(getFailedKeywords(output, { value: 3, sum: 3 })).toEqual(["additionalProperties"]);
+        expect(getFailedKeywords(output, {})).toEqual(["required"]);
+    });
+
+    // Proves an overflowing sum is the only failure the operation declares.
+    test("declares numeric overflow", () => {
+        expect(ADD_OPERATION.failureCodes).toEqual(["numeric_overflow"]);
+    });
+});
 
 /** A catalog holding only `add`, so each case exercises its declaration alone. */
 const CATALOG: OperationCatalog = new Map([[ADD_OPERATION.name, ADD_OPERATION]]);
@@ -32,18 +78,11 @@ function checkAddTask(inputs: Record<string, unknown>, outputs?: Record<string, 
     );
 }
 
-describe("ADD_OPERATION", () => {
-    // Proves `left` is required while `right` may be left to its default.
-    test("requires left and defaults right", () => {
+describe("ADD_OPERATION in the static check", () => {
+    // Proves a missing required argument is located at the task's inputs.
+    test("requires left", () => {
         expect(checkAddTask({ left: 1 })).toEqual([]);
         expect(checkAddTask({ right: 1 })).toEqual([["missing-argument", "/steps/0/inputs"]]);
-    });
-
-    // Proves both arguments accept numbers only.
-    test("takes numbers", () => {
-        expect(checkAddTask({ left: 1, right: "2" })).toEqual([
-            ["type-mismatch", "/steps/0/inputs/right"],
-        ]);
     });
 
     // Proves a step can bind to the sum as a number, but not as a narrower integer.
@@ -52,10 +91,5 @@ describe("ADD_OPERATION", () => {
         expect(checkAddTask({ left: 1 }, { value: { type: "integer" } })).toEqual([
             ["type-mismatch", "/steps/0/outputs/value"],
         ]);
-    });
-
-    // Proves an overflowing sum is a declared failure the daemon may report.
-    test("declares numeric overflow", () => {
-        expect(ADD_OPERATION.failureCodes).toContain("numeric_overflow");
     });
 });

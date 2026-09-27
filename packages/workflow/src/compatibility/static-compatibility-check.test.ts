@@ -23,6 +23,7 @@
  * - A binding for an undeclared argument is reported at the binding.
  * - A task output its operation doesn't always return, and any result step output, is undeclared.
  * - An output declaration that rejects values the operation returns is a `type-mismatch`.
+ * - A loop step may declare its reserved `results` output, which its operation never returns.
  *
  * bindings:
  * - A literal is validated against the argument's full schema.
@@ -252,6 +253,28 @@ describe("arguments and declared outputs", () => {
             }),
         );
         expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/outputs/value"]]);
+    });
+
+    // Proves a loop step's reserved results output is exempt from the undeclared-output rule.
+    test("a loop step may declare its results output", () => {
+        // greet never returns `results`, but the loop step exposes it as its iteration results.
+        const end = resultStep();
+        const body = taskStep();
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 2,
+                variable: "item",
+                body: body.id,
+            },
+            { outputs: { results: { type: "array" } }, successors: [end.id] },
+        );
+        const document = buildDocument({
+            steps: [loop, body, end],
+            firstNode: loop.id,
+            inputs: { items: { schema: { type: "array" } } },
+        });
+        expect(checkDocument(document)).toEqual([]);
     });
 
     // Proves a result step can't declare outputs, so nothing can bind to one unchecked.
