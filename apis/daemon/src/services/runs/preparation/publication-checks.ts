@@ -159,7 +159,8 @@ export function checkSupportedSteps(document: WorkflowDocument): ExecutionFailur
                 createFailure(
                     "unsupported_step_type",
                     `${path}/type`,
-                    `Step type '${step.type}' isn't supported`,
+                    // The type is author-supplied text, so the path locates it instead of the message.
+                    "The step type isn't supported",
                     step.id,
                 ),
             );

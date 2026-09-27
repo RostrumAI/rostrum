@@ -25,22 +25,16 @@ export function observeRun(run: RunState): RunSnapshot {
     // Every step in document order.
     const steps = visits.map(({ stepId, visit }) => observeStep(stepId, visit, unmetDependencies));
 
-    // Current work: ready and running visits, or only running work while stopping.
+    // Current work: ready and running steps, or only running work while stopping.
     const progress = run.progress;
     const stopping = progress.status === "running" && progress.stopping;
-    const currentSteps = visits
-        .filter(
-            ({ visit }) => visit?.status === "running" || (!stopping && visit?.status === "ready"),
-        )
+    const currentSteps = steps
+        .filter((step) => step.status === "running" || (!stopping && step.status === "ready"))
         .map(({ stepId }) => stepId);
 
-    // What waiting visits still need, each dependency listed once.
+    // What waiting steps still need, each dependency listed once.
     const waitingFor = [
-        ...new Set(
-            visits
-                .filter(({ visit }) => visit?.status === "waiting")
-                .flatMap(({ stepId }) => unmetDependencies(stepId)),
-        ),
+        ...new Set(steps.flatMap((step) => (step.status === "waiting" ? step.waitingFor : []))),
     ];
 
     const identity = { runId: run.runId, publication: run.publication, acceptedAt: run.acceptedAt };
@@ -135,7 +129,11 @@ function assertOnlyStates<Status extends StepSnapshot["status"]>(
     });
 }
 
-/** Describes one step from its visit, or as pending when it has none. */
+/**
+ * Describes one step from its visit, or as pending when it has none. A
+ * waiting visit with no unmet dependency is described as ready, since the
+ * step states define waiting as having at least one.
+ */
 function observeStep(
     stepId: string,
     visit: VisitState | undefined,
@@ -145,8 +143,13 @@ function observeStep(
         return { stepId, status: "pending" };
     }
     switch (visit.status) {
-        case "waiting":
-            return { stepId, status: "waiting", waitingFor: unmetDependencies(stepId) };
+        case "waiting": {
+            // A visit whose dependencies have all completed is ready; the engine promotes it on its next pass.
+            const waitingFor = unmetDependencies(stepId);
+            return waitingFor.length === 0
+                ? { stepId, status: "ready" }
+                : { stepId, status: "waiting", waitingFor };
+        }
         case "ready":
             return { stepId, status: "ready" };
         case "running":

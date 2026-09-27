@@ -59,6 +59,7 @@ describe("LocalTaskExecutor", () => {
 
     // Proves an operation's domain failures pass through with their specific codes.
     test("reports division by zero of either sign as the operation's own failure", async () => {
+        // Run the real divide operation, whose zero-divisor check is under test.
         const executor = new LocalTaskExecutor(createOperationRegistry());
 
         // Positive and negative zero both keep divide's own code, located at the divisor.

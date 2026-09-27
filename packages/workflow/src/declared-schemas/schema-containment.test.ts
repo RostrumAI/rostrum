@@ -24,8 +24,9 @@
  *   an unbounded array or object fails each consumer length or count bound.
  * - combinators and references: `anyOf` on both sides, with multi-type producers
  *   split by type; producer `oneOf` read as `anyOf`; `allOf` on both sides; local
- *   `$ref` inlined on both sides; a recursive `$ref` is unprovable as consumer and
- *   `true` as producer; expansion past the limit is unprovable, also when nested.
+ *   `$ref` inlined on both sides, resolved against each side's document root when
+ *   one is passed; a recursive `$ref` is unprovable as consumer and `true` as
+ *   producer; expansion past the limit is unprovable, also when nested.
  * - boolean schemas: `true` and `false` act as the everything and nothing schemas.
  * - the operation catalog: every catalog schema is contained in itself.
  */
@@ -360,6 +361,33 @@ describe("combinators and references", () => {
         expect(kindOf(positive, { type: "number", minimum: 0 })).toBe("contained");
         expect(kindOf({ type: "integer", minimum: 1 }, positive)).toBe("contained");
         expect(kindOf({ type: "number" }, positive)).toBe("mismatch");
+    });
+
+    // Proves a subschema's `$ref` resolves against the document root passed for its side.
+    test("subschema references resolve against their document roots", () => {
+        // Each document defines `limit` differently, and the subschemas only refer to it.
+        const producerRoot = { $defs: { limit: { type: "integer", minimum: 5 } } };
+        const consumerRoot = { $defs: { limit: { type: "number", minimum: 0 } } };
+        const reference = { $ref: "#/$defs/limit" };
+        const roots = { producerRoot, consumerRoot };
+
+        // Integers of at least 5 fit numbers of at least 0.
+        expect(checkSchemaContainment(reference, reference, roots).kind).toBe("contained");
+
+        // Swapping the roots compares numbers of at least 0 to integers of at least 5, which fails.
+        const swapped = { producerRoot: consumerRoot, consumerRoot: producerRoot };
+        expect(checkSchemaContainment(reference, reference, swapped)).toEqual({
+            kind: "mismatch",
+            keyword: "type",
+            path: "/type",
+        });
+
+        // Without roots the subschemas are their own documents, so `limit` can't be resolved.
+        expect(checkSchemaContainment(reference, reference)).toEqual({
+            kind: "unprovable",
+            keyword: "$ref",
+            path: "/$ref",
+        });
     });
 
     // Proves a recursive reference is unprovable as a consumer and read as `true` as a producer.

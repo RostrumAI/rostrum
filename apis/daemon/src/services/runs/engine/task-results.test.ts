@@ -7,12 +7,13 @@
  *
  * getTaskFailure
  * - accepts output for the dispatched work: returns undefined.
- * - rejects a missing or misidentified result: a rejected executor or a
- *   result for other work is an `execution_error` at the step.
+ * - rejects a missing or misidentified result: a rejected executor, or a
+ *   result for other work or another run, is an `execution_error` at the step.
  * - locates a declared failure under the step: `division_by_zero` keeps its
  *   code with the step path prefixed; `task_error` with `""` is at the step.
  * - distrusts undeclared codes and malformed pointers: a code divide doesn't
- *   declare, or a pointer without a leading `/`, becomes `execution_error`.
+ *   declare, or a pointer without a leading `/` (even on `task_error`),
+ *   becomes `execution_error`.
  *
  * checkTaskOutput
  * - accepts a valid output as an owned frozen copy: later changes to the
@@ -72,10 +73,17 @@ describe("getTaskFailure", () => {
         );
     });
 
-    // Proves a rejected executor and a result for other work are execution errors at the step.
+    // Proves a rejected executor and a result for other work or run are execution errors at the step.
     test("rejects a missing or misidentified result", () => {
-        const other: TaskWorkResult = { runId: "run-1", workId: "work-2", ok: true, output: {} };
-        for (const result of [undefined, other]) {
+        // Each result misses the dispatch: none, the wrong work, or the right work in another run.
+        const otherWork: TaskWorkResult = {
+            runId: "run-1",
+            workId: "work-2",
+            ok: true,
+            output: {},
+        };
+        const otherRun: TaskWorkResult = { runId: "run-2", workId: "work-1", ok: true, output: {} };
+        for (const result of [undefined, otherWork, otherRun]) {
             expect(getTaskFailure(step, DISPATCHED, result)).toMatchObject({
                 code: "execution_error",
                 path: "/steps/1",
@@ -108,9 +116,12 @@ describe("getTaskFailure", () => {
         expect(
             getTaskFailure(step, DISPATCHED, buildFailedResult("unknown_operation", ""))?.code,
         ).toBe("execution_error");
-        expect(
-            getTaskFailure(step, DISPATCHED, buildFailedResult("division_by_zero", "inputs"))?.code,
-        ).toBe("execution_error");
+        // A pointer without a leading slash is untrusted for declared codes and task_error alike.
+        for (const code of ["division_by_zero", "task_error"] as const) {
+            expect(getTaskFailure(step, DISPATCHED, buildFailedResult(code, "inputs"))?.code).toBe(
+                "execution_error",
+            );
+        }
     });
 });
 
