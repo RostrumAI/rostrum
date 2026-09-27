@@ -145,6 +145,11 @@ describe("workflow input declarations", () => {
         expect(getInputErrorPaths({ note: { schema: { type: "null" }, default: null } })).toEqual(
             [],
         );
+
+        // A default outside its schema is a stage 8 error, so shape accepts it.
+        expect(
+            getInputErrorPaths({ count: { schema: { type: "number" }, default: "three" } }),
+        ).toEqual([]);
     });
 
     // Proves `true` and `false` are whole schemas, so either is a valid declaration.
