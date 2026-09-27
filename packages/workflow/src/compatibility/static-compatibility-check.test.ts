@@ -1,3 +1,27 @@
+/**
+ * @fileoverview Tests the static compatibility check over whole documents. It
+ * backs both publication findings and preparation refusals, so each issue kind
+ * must be found and located at the JSON Pointer an author has to repair.
+ *
+ * - operations and configuration: an unknown operation lists the supported names;
+ *   a task without configuration names no operation; undeclared configuration
+ *   members are located individually.
+ * - declared schemas and defaults: malformed declarations, references leaving the
+ *   schema, and unsupported patterns are invalid; a reference to the schema's own
+ *   root is valid; defaults, including an explicit null, must satisfy their schema.
+ * - arguments and declared outputs: required arguments must be bound; undeclared
+ *   arguments are reported at the binding; a step may only declare outputs its
+ *   operation always returns, with a schema admitting every returned value; a
+ *   result step declares no outputs.
+ * - bindings: literals are checked against the full argument schema; an input
+ *   must be declared at least as tightly as the argument it feeds; an uncomparable
+ *   binding is unprovable and names the keyword; unresolved references are
+ *   skipped; step outputs use the operation's schema; loop variables use their
+ *   collection's items; a self-referential loop is skipped; result bindings fit.
+ * - condition operands: a leaf on a task output is judged by the operation's
+ *   output schema, so `neq` against an impossible greeting is a mismatch.
+ * - issue attribution: step-level issues carry the step id; workflow-level ones don't.
+ */
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";
