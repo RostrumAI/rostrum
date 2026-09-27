@@ -1,6 +1,13 @@
 import { isJsonSchema, type JsonSchema } from "./declared-schema-compiler";
 import { IGNORED_KEYWORDS, isObject } from "./schema-keywords";
 
+/** Keywords whose value maps author-chosen names to schemas. */
+const NAMED_SCHEMA_MAPS: ReadonlySet<string> = new Set([
+    "properties",
+    "patternProperties",
+    "dependentSchemas",
+]);
+
 /**
  * Resolves local JSON Pointer references (`#`, `#/$defs/name`) inside one
  * schema document, and refuses references that are external or that
@@ -39,7 +46,10 @@ export class ReferenceResolver {
             return undefined;
         }
         for (const token of pointer === "" ? [] : pointer.slice(1).split("/")) {
-            const key = decodeURIComponent(token).replaceAll("~1", "/").replaceAll("~0", "~");
+            const key = decodePointerToken(token);
+            if (key === undefined) {
+                return undefined;
+            }
             if (Array.isArray(current)) {
                 current = Object.hasOwn(current, key) ? current[Number(key)] : undefined;
             } else if (isObject(current) && Object.hasOwn(current, key)) {
@@ -72,6 +82,16 @@ export class ReferenceResolver {
             return false;
         }
         for (const [keyword, value] of Object.entries(schema)) {
+            // Member names in these maps are author-chosen, so a member called `title` or
+            // `const` is still a schema that can apply the reference.
+            if (NAMED_SCHEMA_MAPS.has(keyword) && isObject(value)) {
+                if (
+                    Object.values(value).some((member) => this.reaches(member, reference, followed))
+                ) {
+                    return true;
+                }
+                continue;
+            }
             if (keyword === "$ref" && typeof value === "string") {
                 if (value === reference) {
                     return true;
@@ -99,4 +119,20 @@ export class ReferenceResolver {
         }
         return false;
     }
+}
+
+/**
+ * Decodes one JSON Pointer token from a URI fragment: percent-decoding
+ * first, then `~1` and `~0`. Returns undefined for malformed
+ * percent-encoding, which no reference can point through.
+ */
+function decodePointerToken(token: string): string | undefined {
+    let decoded: string;
+    try {
+        decoded = decodeURIComponent(token);
+    } catch {
+        // A malformed escape names no member; the caller treats it as a dangling reference.
+        return undefined;
+    }
+    return decoded.replaceAll("~1", "/").replaceAll("~0", "~");
 }
