@@ -26,7 +26,10 @@ const SMOKE_DEADLINE_MS = 10_000;
 
 /** Prepares a fixture publication, admits one run, and resolves with its snapshot once it's done. */
 async function runFixturePublication(
-    document: { id: string },
+    document: {
+        /** Workflow identifier the fixture document declares, reused as the publication's workflow ID. */
+        id: string;
+    },
     supplied: Record<string, unknown>,
 ): Promise<RunSnapshot> {
     const preparation = preparer.prepare(JSON.stringify(document), {
