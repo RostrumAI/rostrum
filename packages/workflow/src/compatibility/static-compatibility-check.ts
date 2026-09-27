@@ -18,6 +18,7 @@ import {
     STEP_OUTPUT_REF_PATTERN,
 } from "../validation/data-references";
 import { WorkflowGraph } from "../validation/workflow-graph";
+import { checkConditionOperands } from "./condition-operands";
 
 /**
  * The static input/output compatibility check shared by publication and
@@ -26,8 +27,8 @@ import { WorkflowGraph } from "../validation/workflow-graph";
  * Every constraint JSON Schema can express is checked wherever the value
  * it applies to is known at publication: task operations and their
  * configuration, declared schemas and defaults, bound and missing
- * arguments, declared outputs, and every binding's producer against its
- * consumer. The Control API reports the issues as
+ * arguments, declared outputs, every binding's producer against its
+ * consumer, and condition operands. The Control API reports the issues as
  * stage 8 findings; the daemon reruns the check with its own catalog and
  * refuses the publication with the matching failure codes. References that
  * don't resolve are the references stage's concern and are skipped here.
@@ -43,7 +44,8 @@ export type StaticIssueKind =
     | "undeclared-argument"
     | "undeclared-output"
     | "type-mismatch"
-    | "unprovable";
+    | "unprovable"
+    | "operand-mismatch";
 
 /** The finding code and execution failure code one issue kind maps to. */
 export interface StaticIssueCodes {
@@ -53,7 +55,11 @@ export interface StaticIssueCodes {
     readonly failureCode: FailureCode;
 }
 
-/** How each issue kind is reported by publication and by preparation. */
+/**
+ * How each issue kind is reported by publication and by preparation. A
+ * condition operand mismatch has no failure code of its own: preparation
+ * refuses conditionals anyway, so it reports the general type mismatch.
+ */
 export const STATIC_ISSUE_CODES: Readonly<Record<StaticIssueKind, StaticIssueCodes>> = {
     "unknown-operation": {
         findingCode: "workflow.operation.unknown",
@@ -82,6 +88,10 @@ export const STATIC_ISSUE_CODES: Readonly<Record<StaticIssueKind, StaticIssueCod
     },
     "type-mismatch": { findingCode: "workflow.io.type-mismatch", failureCode: "io_type_mismatch" },
     unprovable: { findingCode: "workflow.io.unprovable", failureCode: "io_unprovable" },
+    "operand-mismatch": {
+        findingCode: "workflow.condition.operand-mismatch",
+        failureCode: "io_type_mismatch",
+    },
 };
 
 /** One located problem the static check found. */
@@ -102,7 +112,7 @@ export interface StaticCompatibilityIssue {
  * The schema describing every value a binding's producer can supply,
  * with the document its local `$ref`s resolve against.
  */
-interface SchemaProducer {
+export interface SchemaProducer {
     /** The producer's schema. */
     schema: JsonSchema;
     /** The schema document the producer's references resolve against. */
@@ -150,12 +160,17 @@ class StaticCompatibilityCheck {
         this.graph = graph;
     }
 
-    /** Checks inputs, then each step. */
+    /** Checks inputs, then each step, then condition operands. */
     run(): StaticCompatibilityIssue[] {
         this.checkWorkflowInputs();
         for (const [index, step] of this.document.steps.entries()) {
             this.checkStep(step, index);
         }
+        this.issues.push(
+            ...checkConditionOperands(this.document.conditionals ?? [], this.compiler, (ref) =>
+                this.stepOutputProducer(ref),
+            ),
+        );
         return this.issues;
     }
 
