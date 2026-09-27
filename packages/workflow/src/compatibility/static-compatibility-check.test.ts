@@ -40,6 +40,10 @@
  *   second loop, is left unresolved instead of recursing forever.
  * - Result step bindings are not compared.
  *
+ * condition operands:
+ * - A leaf on a task output is judged by the operation's output schema, so `neq`
+ *   against an impossible greeting is an operand mismatch.
+ *
  * issue attribution:
  * - Step-level issues carry the step id in `stepId` and `details`; workflow-level ones carry none.
  */
@@ -52,7 +56,14 @@ import {
     type OperationDeclaration,
 } from "../operations/operation-catalog";
 import type { WorkflowDocument } from "../schema";
-import { buildDocument, resultStep, taskLoopStep, taskStep, testId } from "../testing/documents";
+import {
+    buildDocument,
+    conditional,
+    resultStep,
+    taskLoopStep,
+    taskStep,
+    testId,
+} from "../testing/documents";
 import { checkStaticCompatibility } from "./static-compatibility-check";
 
 /** An operation whose argument is tighter than a plain number, for containment cases. */
@@ -573,6 +584,41 @@ describe("bindings", () => {
             inputs: { whatever: { schema: true } },
         });
         expect(checkDocument(document)).toEqual([]);
+    });
+});
+
+describe("condition operands", () => {
+    // Proves condition leaves are checked against the producing operation's output schema.
+    test("a leaf on a task output is judged by the operation's schema", () => {
+        // Build a greet step whose output a single conditional leaf tests.
+        const end = resultStep();
+        const task = taskStep({ outputs: { greeting: { type: "string" } } });
+        const buildLeafDocument = (leaf: { op: string; value?: unknown }) => {
+            const routing = conditional({
+                dependencies: [task.id],
+                branches: [
+                    {
+                        label: "only",
+                        priority: 0,
+                        condition: { ref: `step.${task.id}.greeting`, ...leaf },
+                        next: end.id,
+                    },
+                ],
+                default: { label: "fallback", next: end.id },
+            });
+            task.conditional = routing.id;
+            return buildDocument({
+                steps: [task, end],
+                firstNode: task.id,
+                conditionals: [routing],
+            });
+        };
+
+        // A greeting always starts with "Hello, ", so only a matching value can be equal.
+        expect(checkDocument(buildLeafDocument({ op: "neq", value: "hi" }))).toEqual([
+            ["operand-mismatch", "/conditionals/0/branches/0/condition"],
+        ]);
+        expect(checkDocument(buildLeafDocument({ op: "eq", value: "Hello, Ada!" }))).toEqual([]);
     });
 });
 
