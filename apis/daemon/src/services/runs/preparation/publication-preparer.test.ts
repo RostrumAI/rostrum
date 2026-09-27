@@ -159,10 +159,13 @@ describe("the worked example", () => {
 describe("declared schemas", () => {
     // Proves a number declaration rejects a numeric string instead of converting it.
     test("a number declaration rejects a string without coercion", () => {
+        // Supply the numeric amount as a string that coercion would accept.
         const refusal = preparer.validateInputs(prepareOrFail(calculationJson), {
             amount: "90",
             people: 4,
         });
+
+        // Only the string amount fails; it isn't converted to 90.
         expect(refusal.ok ? [] : refusal.refusal.failures.map((failure) => failure.code)).toEqual([
             "invalid_input",
         ]);
@@ -336,9 +339,15 @@ describe("refusals", () => {
                 body: DIVIDE_STEP,
             };
         }
-        const [selfReason, selfFailures] = getRefusal(selfReferential);
-        expect(selfReason).toBe("unsupported_execution");
-        expect(selfFailures).toContainEqual(["unsupported_control_flow", "/steps/1/loop"]);
+
+        // The loop is refused, and its variable binds nothing because this release runs no loops.
+        expect(getRefusal(selfReferential)).toEqual([
+            "unsupported_execution",
+            [
+                ["unresolved_binding", "/steps/1/inputs/dividend"],
+                ["unsupported_control_flow", "/steps/1/loop"],
+            ],
+        ]);
     });
 
     // Proves a stored document that can't be trusted is corrupt, not merely unsupported.
@@ -355,6 +364,7 @@ describe("refusals", () => {
 
     // Proves well-formed JSON with the wrong shape is unsupported, not corrupt, and located.
     test("a document with the wrong shape is unsupported", () => {
+        // An empty step list parses but breaks the document schema at `/steps`.
         expect(getRefusal({ ...copyCalculationFixture(), steps: [] })).toEqual([
             "unsupported_execution",
             [["invalid_document", "/steps"]],
