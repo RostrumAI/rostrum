@@ -286,13 +286,19 @@ class StaticCompatibilityCheck {
         operation: OperationDeclaration,
         pointer: string,
     ): void {
-        const { operation: _name, ...config } = getStepConfig(step);
+        // The operation's schema describes only its settings, so drop the selector.
+        const config = { ...getStepConfig(step) };
+        delete config.operation;
+
+        // A catalog schema that doesn't compile is a host defect, not a workflow issue.
         const compiled = this.compiler.compile(toJsonSchema(operation.configSchema));
         if (!compiled.ok) {
             throw new Error(
                 `The catalog's configuration schema for '${operation.name}' doesn't compile`,
             );
         }
+
+        // Report each schema violation at its location inside the task's config.
         for (const issue of compiled.check(config)) {
             this.issues.push({
                 kind: "invalid-config",
