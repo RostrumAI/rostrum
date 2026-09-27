@@ -9,6 +9,7 @@
  * operations and configuration:
  * - An unknown operation is reported at `config/operation` with the sorted supported names.
  * - A task with no config is reported at the step as naming no operation.
+ * - A non-string operation is reported at `config/operation` with the supplied value.
  * - A config member the operation doesn't declare is located at that member.
  *
  * declared schemas and defaults:
@@ -133,6 +134,36 @@ describe("operations and configuration", () => {
     test("a task without an operation", () => {
         const document = buildSingleTaskDocument(taskStep({ config: undefined, inputs: {} }));
         expect(checkDocument(document)).toEqual([["unknown-operation", "/steps/0"]]);
+    });
+
+    // Proves a present but non-string operation is located at the member and keeps its value.
+    test("a non-string operation", () => {
+        const task = taskStep({ config: { operation: 42 }, inputs: {} });
+        const [issue] = checkStaticCompatibility(
+            buildSingleTaskDocument(task),
+            OPERATION_CATALOG,
+            createDeclaredSchemaCompiler(),
+        );
+
+        // The issue points at the member the author wrote and echoes what was supplied.
+        expect(issue?.kind).toBe("unknown-operation");
+        expect(issue?.path).toBe("/steps/0/config/operation");
+        expect(issue?.message).toBe("The task's operation must be a string");
+        expect(issue?.details).toEqual({
+            stepId: task.id,
+            operation: 42,
+            supported: ["add", "divide", "greet"],
+        });
+    });
+
+    // Proves an explicit null operation is a present member, not an absent one.
+    test("a null operation", () => {
+        const document = buildSingleTaskDocument(
+            taskStep({ config: { operation: null }, inputs: {} }),
+        );
+        expect(checkDocument(document)).toEqual([
+            ["unknown-operation", "/steps/0/config/operation"],
+        ]);
     });
 
     // Proves configuration members the operation doesn't declare are located individually.

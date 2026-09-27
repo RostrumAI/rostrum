@@ -1,8 +1,16 @@
 /**
- * @fileoverview Tests that the step and run inspection schemas reject
- * snapshots describing impossible states. The daemon and the Control API
- * both validate against these schemas, so a gap here would let either side
- * report a run that contradicts itself.
+ * @fileoverview Tests that the refusal, acceptance, and inspection schemas
+ * reject payloads describing impossible states. The daemon and the Control
+ * API both validate against these schemas, so a gap here would let either
+ * side report a run that contradicts itself.
+ *
+ * refusals and acceptances:
+ * - a refusal names a known reason and well-formed failures: an unknown
+ *   reason, a failure with an unknown code, a missing failure list, or an
+ *   extra field is rejected.
+ * - an acceptance reports a queued run and its exact publication: any other
+ *   status, a malformed digest, a publication number below one, or an extra
+ *   field is rejected.
  *
  * step snapshots:
  * - a waiting step names its unmet dependencies: a waiting step needs a
@@ -29,7 +37,9 @@ import { describe, expect, test } from "bun:test";
 import { Value } from "typebox/value";
 import {
     type ExecutionFailure,
+    RunAcceptanceSchema,
     type RunPublication,
+    RunRefusalSchema,
     RunSnapshotSchema,
     type StepSnapshot,
     StepSnapshotSchema,
@@ -62,6 +72,63 @@ function buildRunSnapshot(
 ): Record<string, unknown> {
     return { runId: RUN_ID, publication, acceptedAt: AT, steps, ...core };
 }
+
+describe("refusals and acceptances", () => {
+    // Proves a refusal carries one known reason and a list of well-formed failures.
+    test("a refusal names a known reason and well-formed failures", () => {
+        // An input refusal with its located failure is well formed, as is one with no failures.
+        const refusal = {
+            reason: "invalid_inputs",
+            failures: [{ code: "missing_input", message: "Input is missing", path: "/count" }],
+        };
+        expect(Value.Check(RunRefusalSchema, refusal)).toBe(true);
+        expect(
+            Value.Check(RunRefusalSchema, { reason: "publication_not_found", failures: [] }),
+        ).toBe(true);
+
+        // An unknown reason, an unknown failure code, or a missing list is rejected.
+        expect(Value.Check(RunRefusalSchema, { ...refusal, reason: "invalid_input" })).toBe(false);
+        expect(
+            Value.Check(RunRefusalSchema, {
+                ...refusal,
+                failures: [{ code: "missing_value", message: "Input is missing", path: "/count" }],
+            }),
+        ).toBe(false);
+        expect(Value.Check(RunRefusalSchema, { reason: "invalid_inputs" })).toBe(false);
+
+        // A refusal never describes a run, so it can't carry a run ID.
+        expect(Value.Check(RunRefusalSchema, { ...refusal, runId: RUN_ID })).toBe(false);
+    });
+
+    // Proves an acceptance reports only a queued run with its exact publication.
+    test("an acceptance reports a queued run and its exact publication", () => {
+        // A freshly accepted run is queued and names the publication it executes.
+        const acceptance = { runId: RUN_ID, publication, status: "queued" };
+        expect(Value.Check(RunAcceptanceSchema, acceptance)).toBe(true);
+
+        // Acceptance happens before any advancement, so every other status is rejected.
+        for (const status of ["running", "completed", "failed"]) {
+            expect(Value.Check(RunAcceptanceSchema, { ...acceptance, status })).toBe(false);
+        }
+
+        // The publication must be pinned by a full digest and a real publication number.
+        expect(
+            Value.Check(RunAcceptanceSchema, {
+                ...acceptance,
+                publication: { ...publication, digest: "0".repeat(63) },
+            }),
+        ).toBe(false);
+        expect(
+            Value.Check(RunAcceptanceSchema, {
+                ...acceptance,
+                publication: { ...publication, publicationNumber: 0 },
+            }),
+        ).toBe(false);
+
+        // An acceptance reports no outcome, so a result is rejected.
+        expect(Value.Check(RunAcceptanceSchema, { ...acceptance, result: {} })).toBe(false);
+    });
+});
 
 describe("step snapshots", () => {
     // Proves a waiting step must say which dependencies it is waiting for.
