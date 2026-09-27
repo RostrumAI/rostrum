@@ -27,6 +27,7 @@
  * - References to an undeclared input or step output are `unresolved_binding`.
  * - A loop iterating its own variable is `unsupported_control_flow`.
  * - Invalid stored JSON and a mismatched workflow ID are `corrupt_publication`.
+ * - Well-formed JSON with the wrong shape is `unsupported_execution`, located at the member.
  * - The greeting fixture prepares with its real recorded digest.
  * - A 20,000-level nested input is copied and frozen without a stack overflow.
  * - A value check that throws is a sanitized `execution_error` refused as
@@ -140,11 +141,14 @@ describe("the worked example", () => {
 
     // Proves an operation outside this release's catalog refuses the publication before any run.
     test("refuses an unknown operation", () => {
+        // The addition asks for an operation the catalog doesn't have.
         const document = copyCalculationFixture();
         const [first] = document.steps;
         if (first) {
             first.config = { operation: "multiply" };
         }
+
+        // Only the operation name is reported, as a release limitation rather than corruption.
         expect(getRefusal(document)).toEqual([
             "unsupported_execution",
             [["unknown_operation", "/steps/0/config/operation"]],
@@ -346,6 +350,14 @@ describe("refusals", () => {
         expect(getRefusal(sequentialJson, buildPublication(calculationJson))).toEqual([
             "corrupt_publication",
             [["publication_mismatch", "/id"]],
+        ]);
+    });
+
+    // Proves well-formed JSON with the wrong shape is unsupported, not corrupt, and located.
+    test("a document with the wrong shape is unsupported", () => {
+        expect(getRefusal({ ...copyCalculationFixture(), steps: [] })).toEqual([
+            "unsupported_execution",
+            [["invalid_document", "/steps"]],
         ]);
     });
 
