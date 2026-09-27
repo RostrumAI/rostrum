@@ -1,10 +1,28 @@
+/**
+ * @fileoverview Tests the validation pipeline's stage ordering and
+ * prerequisite gating over the v1 rule set. Gating keeps later stages from
+ * reporting noise about documents an earlier stage already rejected.
+ *
+ * ValidationPipeline
+ * - runs every stage for a valid document: a task feeding a result step
+ *   passes all stages, including stage 8 compatibility, with no findings.
+ * - gates graph stages when the shape stage blocks: a malformed step id
+ *   yields only `workflow.shape.*` findings.
+ * - gates everything when the format stage blocks: an unknown format
+ *   version yields only `workflow.format.unknown`.
+ * - gates later stages when identity blocks: an unknown step type yields
+ *   only `workflow.step.unknown-type`.
+ * - emits findings from multiple ungated stages: a dangling successor
+ *   reports `workflow.reference.unknown-target`.
+ * - orders collected findings by pointer then code: `sortFindings` returns
+ *   findings whose paths are in sorted order.
+ */
 import { describe, expect, test } from "bun:test";
 import { sortFindings } from "../findings";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../rules/v1";
 import { WorkflowFormatRegistry } from "../rules/workflow-format-rule-set";
 import { buildDocument, resultStep, taskStep } from "../testing/documents";
 import { FormatVersionStage } from "./stages/format-version-stage";
-import { InputOutputCompatibilityStage } from "./stages/input-output-compatibility-stage";
 import { ValidationContext } from "./validation-context";
 import { ValidationPipeline } from "./validation-stage";
 
@@ -63,10 +81,5 @@ describe("ValidationPipeline", () => {
         const findings = run(document);
         const paths = sortFindings(findings).map((finding) => finding.path);
         expect(paths).toEqual([...paths].sort());
-    });
-
-    test("compatibility stage emits nothing in v1", () => {
-        const stage = new InputOutputCompatibilityStage();
-        expect(stage.run(new ValidationContext(buildDocument(), null))).toEqual([]);
     });
 });

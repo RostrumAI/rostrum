@@ -7,8 +7,9 @@
         {
             "id": "0192b0a0-7e1d-7000-8000-0000000000c5",
             "type": "task",
-            "config": { "operation": "threshold" },
-            "outputs": { "score": { "type": "number" } },
+            "config": { "operation": "add" },
+            "inputs": { "left": 1 },
+            "outputs": { "value": { "type": "number" } },
             "conditional": "0192b0a0-7e1d-7000-8000-0000000000c6"
         },
         { "id": "0192b0a0-7e1d-7000-8000-0000000000c7", "type": "result", "inputs": {} }
@@ -22,7 +23,7 @@
                     "label": "approximate",
                     "priority": 0,
                     "condition": {
-                        "ref": "step.0192b0a0-7e1d-7000-8000-0000000000c5.score",
+                        "ref": "step.0192b0a0-7e1d-7000-8000-0000000000c5.value",
                         "op": "approx",
                         "value": 80
                     },

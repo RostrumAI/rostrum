@@ -1,0 +1,131 @@
+/**
+ * @fileoverview Tests validation stage 8, which turns the static
+ * compatibility check's issues into blocking publication findings. The
+ * stage is what stops a workflow whose bindings, declarations, or condition
+ * operands would fail at run time from being published.
+ *
+ * InputOutputCompatibilityStage
+ * - a compatible document has no findings: a `greet` task feeding a result
+ *   step produces an empty finding list.
+ * - reports every issue with its finding code and location: one document
+ *   with an invalid input default, an unknown operation, an undeclared
+ *   output, a wrong-typed argument, an undeclared argument, a missing
+ *   argument, and a string operand compared with `gt` yields exactly those
+ *   seven findings, each blocking, with its `workflow.*` code and JSON Pointer, in
+ *   check order.
+ * - carries the issue's details onto the finding: a numeric `name` for
+ *   `greet` produces a finding whose details name the step, the argument,
+ *   and the failing `type` keyword.
+ * - checks each run against the schemas as they are then: one stage instance
+ *   accepts a string default under a `string` schema, then reports it once
+ *   the same schema object declares `number`, and accepts it again after
+ *   the schema changes back.
+ */
+import { describe, expect, test } from "bun:test";
+import { OPERATION_CATALOG } from "../../operations/operation-catalog";
+import type { WorkflowDocument } from "../../schema";
+import { buildDocument, conditional, resultStep, taskStep } from "../../testing/documents";
+import { ValidationContext } from "../validation-context";
+import { InputOutputCompatibilityStage } from "./input-output-compatibility-stage";
+
+/** Runs stage 8 over a document with the release catalog. */
+function runStage(document: WorkflowDocument) {
+    return new InputOutputCompatibilityStage(OPERATION_CATALOG).run(
+        new ValidationContext(document, null),
+    );
+}
+
+describe("InputOutputCompatibilityStage", () => {
+    // Proves a publication whose bindings all fit their operations passes stage 8.
+    test("a compatible document has no findings", () => {
+        const end = resultStep();
+        const task = taskStep({ successors: [end.id] });
+        expect(runStage(buildDocument({ steps: [task, end], firstNode: task.id }))).toEqual([]);
+    });
+
+    // Proves each static compatibility issue blocks publication under its own finding code.
+    test("reports every issue with its finding code and location", () => {
+        // One document with an unknown operation, a bad default, an undeclared output, and bad bindings.
+        const end = resultStep();
+        const unknown = taskStep({ config: { operation: "threshold" }, inputs: {} });
+        const add = taskStep({
+            config: { operation: "add" },
+            inputs: { left: "1", extra: 2 },
+            outputs: { sum: { type: "number" } },
+        });
+        const divide = taskStep({ config: { operation: "divide" }, inputs: { dividend: 1 } });
+        const greet = taskStep({ outputs: { greeting: { type: "string" } } });
+        const routing = conditional({
+            dependencies: [greet.id],
+            branches: [
+                {
+                    label: "only",
+                    priority: 0,
+                    condition: { ref: `step.${greet.id}.greeting`, op: "gt", value: 5 },
+                    next: end.id,
+                },
+            ],
+            default: { label: "fallback", next: end.id },
+        });
+        unknown.successors = [add.id];
+        add.successors = [divide.id];
+        divide.successors = [greet.id];
+        greet.conditional = routing.id;
+        const document = buildDocument({
+            steps: [unknown, add, divide, greet, end],
+            firstNode: unknown.id,
+            conditionals: [routing],
+            inputs: { amount: { schema: { type: "number" }, default: "ten" } },
+        });
+
+        // Each issue kind surfaces as its publication finding code, at the issue's pointer.
+        const findings = runStage(document);
+        expect(findings.map((finding) => [finding.code, finding.path])).toEqual([
+            ["workflow.io.invalid-default", "/inputs/amount/default"],
+            ["workflow.operation.unknown", "/steps/0/config/operation"],
+            ["workflow.io.undeclared-output", "/steps/1/outputs/sum"],
+            ["workflow.io.type-mismatch", "/steps/1/inputs/left"],
+            ["workflow.io.undeclared-argument", "/steps/1/inputs/extra"],
+            ["workflow.io.missing-argument", "/steps/2/inputs"],
+            ["workflow.condition.operand-mismatch", "/conditionals/0/branches/0/condition"],
+        ]);
+
+        // Every one of them blocks publication.
+        expect(findings.every((finding) => finding.blocking)).toBe(true);
+    });
+
+    // Proves the structured details an automated author repairs from reach the finding.
+    test("carries the issue's details onto the finding", () => {
+        const end = resultStep();
+        const task = taskStep({ inputs: { name: 1 }, successors: [end.id] });
+        const [finding] = runStage(buildDocument({ steps: [task, end], firstNode: task.id }));
+        expect(finding?.details).toEqual({ stepId: task.id, argument: "name", keyword: "type" });
+    });
+
+    // Proves a stage instance compiles declarations afresh on every run instead of reusing earlier ones.
+    test("checks each run against the schemas as they are then", () => {
+        // One stage and one document whose input schema is edited between runs.
+        const stage = new InputOutputCompatibilityStage(OPERATION_CATALOG);
+        const end = resultStep();
+        const task = taskStep({ successors: [end.id] });
+        const schema: Record<string, unknown> = { type: "string" };
+        const document = buildDocument({
+            steps: [task, end],
+            firstNode: task.id,
+            inputs: { amount: { schema, default: "ten" } },
+        });
+        const runOnce = () =>
+            stage.run(new ValidationContext(document, null)).map((finding) => finding.code);
+
+        // The string default fits the first declaration.
+        expect(runOnce()).toEqual([]);
+
+        // After the declaration changes, the next run reports the default against the new schema.
+        schema.type = "number";
+        expect(runOnce()).toEqual(["workflow.io.invalid-default"]);
+
+        // Restoring the declaration clears the finding on the following run.
+        schema.type = "string";
+        expect(runOnce()).toEqual([]);
+    });
+});

@@ -1,8 +1,9 @@
 {
-    "valid/bounded-loop.json": "2360b8f82288794bd2cde2293b0706ac00ba2e7fb04fde78c9840515fb69ccf8",
-    "valid/conditional-branching.json": "db9d3b1cdbb06b1ccd3df62f370fd2406b00b170def58a8c1f165f4c65be27d7",
-    "valid/conditional-groups.json": "b355256d40c869efbedbd69ff76f8b9ceda351eb0426fb56aeb25b4247a545b0",
-    "valid/fan-out-fan-in.json": "74dfb9df50ebf27320f4a506dbb0f5f4eab727954b9ff8885c63798197f57629",
+    "valid/bounded-loop.json": "b813e32c7f9dbcaebd0d7a06966f89e25749cee99248d68ef56b69b55b08b76b",
+    "valid/conditional-branching.json": "0a6370bb7b398a15498e052d58c2c88172cc92855a851cebe685bf2f5d9a1259",
+    "valid/conditional-groups.json": "24ef6ed2c2170613e1ceebff36a75424c635d23df13a1cf674f362508cff5200",
+    "valid/fan-out-fan-in.json": "79d75bb389600c19c79cfeb4ff203e58635a0abca76933ab2e50e33241022992",
     "valid/minimum.json": "cfa7dfe652d48f1238e06f937b8a56ea10e3966a34c07d8214b0b2f51c00f199",
+    "valid/sequential-calculation.json": "3f76c5c8c0ac1c100d5f0fa8df14bf81d09a3f776d9f21ca248beed47789a68e",
     "valid/sequential.json": "17bf93a9615ce03d4fe15306ea1b11ec5fde25ffac6bea5d86c466ff3273cfd7"
 }
