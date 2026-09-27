@@ -1,3 +1,23 @@
+/**
+ * @fileoverview Tests the invariants every catalog declaration must hold.
+ * Publication validation and daemon preparation both read the catalog, so
+ * a mis-keyed operation, an uncompilable schema, an invalid default, or an
+ * open output schema would break both.
+ *
+ * OPERATION_CATALOG:
+ * - keys every operation by its own name: the catalog holds exactly `add`,
+ *   `divide`, and `greet`, each under its declaration's `name`.
+ * - every schema compiles: each configuration, output, and argument schema
+ *   compiles with the declared-schema compiler.
+ * - every default is valid: each argument default passes its own schema.
+ * - every output schema is closed and fully required: each output schema
+ *   sets `additionalProperties: false` and requires all its properties.
+ *
+ * toJsonSchema:
+ * - views a TypeBox schema as plain JSON Schema: it returns the same object,
+ *   which serializes to only the JSON Schema keywords.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";

@@ -17,8 +17,9 @@
  *
  * - `checkStaticCompatibility` runs the input/output compatibility check
  *   that validation stage 8 reports and daemon preparation reruns, against
- *   the `OPERATION_CATALOG` of this release, with the declared-schema
- *   compiler both use for author-declared JSON Schemas.
+ *   the `OPERATION_CATALOG` of this release. Stage 8 and daemon
+ *   preparation both compile author-declared JSON Schemas with
+ *   `createDeclaredSchemaCompiler`.
  *
  * The machine-readable document schema lives in `./schema`; its emitted
  * JSON Schema 2020-12 artifact describes the format's document shape. The

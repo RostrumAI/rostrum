@@ -2,7 +2,10 @@
 
 import type { ExecutionFailure, FailureCode } from "@rostrum/workflow/execution";
 
-/** Builds one located failure. */
+/**
+ * Builds the failure a refusal reports for one problem, located by its
+ * JSON Pointer and, when a step is responsible, attributed to that step.
+ */
 export function createFailure(
     code: FailureCode,
     path: string,

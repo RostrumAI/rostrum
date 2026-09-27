@@ -1,3 +1,23 @@
+/**
+ * @fileoverview Tests the owned, deep-frozen copies that prepared workflows
+ * and runs hold. These copies are what stop a caller or a later step from
+ * changing a literal, default, input, or output after it is accepted.
+ *
+ * ownedCopy:
+ * - detaches the copy from its input: later changes to the input don't
+ *   reach the copy.
+ * - freezes every level: the copy and its nested arrays and objects are frozen.
+ * - keeps __proto__ as an own member: a parsed `__proto__` key survives
+ *   without changing the copy's prototype.
+ * - returns primitives as they are: numbers, strings, null, and booleans.
+ *
+ * deepFreeze:
+ * - freezes deeply nested values: 20,000 levels freeze without a stack overflow.
+ * - freezes wide values: a 200,000-member array freezes member by member.
+ * - handles frozen and shared members: returns the same value and freezes a
+ *   member shared by two keys.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { deepFreeze, ownedCopy } from "./owned-values";
 

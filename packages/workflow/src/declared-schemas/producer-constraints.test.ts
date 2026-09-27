@@ -1,3 +1,45 @@
+/**
+ * @fileoverview Tests the per-keyword readings of a producer conjunction
+ * and its comparisons against a consumer schema. Each reading must err
+ * wide, so the containment check never passes a producer value the
+ * consumer would reject.
+ *
+ * possible kinds and finite values:
+ * - kinds: conjuncts intersect their types; an integer multipleOf rules
+ *   out fractions and a fractional one doesn't.
+ * - finite values: const and enum intersect and drop values the type
+ *   excludes; null, booleans, a range under 64 integers, and the empty
+ *   string are enumerated; unbounded, wider, or unsafe-integer ranges
+ *   are not.
+ *
+ * type and enumeration:
+ * - typeFits: every producer kind must be in the consumer's type.
+ * - enumerationFits: an infinite producer never fits a const or enum; a
+ *   finite one too large to enumerate is unprovable.
+ *
+ * numbers and strings:
+ * - bounds: the producer's tightest bound must sit inside the consumer's;
+ *   integer bounds round inward; an unbounded side fails.
+ * - multipleOf: proven only for bounded integers with a dividing step,
+ *   otherwise unprovable; a proper interval of fractions is a mismatch,
+ *   and a stepped or single-point fractional producer is unprovable.
+ * - non-numbers: numeric keywords pass vacuously.
+ * - lengths: the producer's tightest length bounds are compared.
+ * - pattern: only an identical producer pattern proves it.
+ * - non-strings: string keywords pass vacuously.
+ *
+ * counts, arrays, and objects:
+ * - count bounds default to 0 and infinity and take the tightest conjunct.
+ * - a closed tuple caps maxItems at its prefix length.
+ * - element schemas: prefixItems, then items, then anything.
+ * - closed names intersect; patternProperties keeps an object open.
+ * - declared names collect across conjuncts; unnamed members fall back to
+ *   additionalProperties, or anything.
+ *
+ * uncompared constraints:
+ * - a producer keyword outside the comparable set can explain any
+ *   mismatch; a producer pattern only matters for string and value keywords.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     enumerationFits,
@@ -57,6 +99,11 @@ describe("finite values", () => {
         expect(getFiniteValues([{ type: "integer", minimum: 0 }])).toBeUndefined();
         expect(getFiniteValues([{ type: "integer", minimum: 0, maximum: 64 }])).toBeUndefined();
         expect(getFiniteValues([{ type: "integer", minimum: 0, maximum: 63 }])).toHaveLength(64);
+
+        // A range beyond the safe integers can't be counted through, so it isn't enumerated.
+        expect(
+            getFiniteValues([{ type: "integer", minimum: 2 ** 60, maximum: 2 ** 60 }]),
+        ).toBeUndefined();
     });
 });
 
@@ -74,9 +121,21 @@ describe("type and enumeration", () => {
 
     // Proves an infinite producer never fits a consumer const or enum.
     test("enumerationFits", () => {
-        expect(enumerationFits({ enum: [1] }, "")?.keyword).toBe("enum");
-        expect(enumerationFits({ const: 1 }, "")?.keyword).toBe("const");
-        expect(enumerationFits({ type: "number" }, "")).toBeUndefined();
+        expect(enumerationFits([{ type: "number" }], { enum: [1] }, "")).toEqual({
+            kind: "mismatch",
+            keyword: "enum",
+            path: "/enum",
+        });
+        expect(enumerationFits([{}], { const: 1 }, "")?.keyword).toBe("const");
+        expect(enumerationFits([{}], { type: "number" }, "")).toBeUndefined();
+    });
+
+    // Proves a finite producer too large to enumerate might still fit, so it's unprovable.
+    test("enumerationFits for a wide finite producer", () => {
+        const wideRange = [{ type: "integer", minimum: 0, maximum: 99 }];
+        const shortStrings = [{ type: ["string", "null"], maxLength: 3 }];
+        expect(enumerationFits(wideRange, { enum: [0] }, "")?.kind).toBe("unprovable");
+        expect(enumerationFits(shortStrings, { enum: [""] }, "")?.kind).toBe("unprovable");
     });
 });
 
@@ -104,7 +163,7 @@ describe("numbers", () => {
         });
     });
 
-    // Proves multipleOf is proven only for bounded integers, and fractions always mismatch.
+    // Proves multipleOf is proven only for bounded integers, and an unstepped fraction interval mismatches.
     test("multipleOf", () => {
         const bounded = { type: "integer", minimum: 0, maximum: 1000 };
         expect(numberFits([{ ...bounded, multipleOf: 6 }], { multipleOf: 3 }, "")).toBeUndefined();
@@ -113,6 +172,14 @@ describe("numbers", () => {
         );
         expect(numberFits([{ type: "integer" }], { multipleOf: 1 }, "")?.kind).toBe("unprovable");
         expect(numberFits([{ type: "number" }], { multipleOf: 1 }, "")?.kind).toBe("mismatch");
+
+        // A fractional step of its own, or a single point, might divide evenly.
+        expect(
+            numberFits([{ type: "number", multipleOf: 0.5 }], { multipleOf: 0.5 }, "")?.kind,
+        ).toBe("unprovable");
+        expect(
+            numberFits([{ type: "number", minimum: 0, maximum: 0 }], { multipleOf: 3 }, "")?.kind,
+        ).toBe("unprovable");
     });
 
     // Proves numeric keywords don't apply when the producer can't be a number.
@@ -128,6 +195,13 @@ describe("strings", () => {
         expect(stringFits(producer, { minLength: 1, maxLength: 5 }, "")).toBeUndefined();
         expect(stringFits(producer, { minLength: 3 }, "")?.keyword).toBe("minLength");
         expect(stringFits(producer, { maxLength: 3 }, "")?.keyword).toBe("maxLength");
+    });
+
+    // Proves string keywords don't apply when the producer can't be a string.
+    test("vacuous for non-strings", () => {
+        expect(
+            stringFits([{ type: "number" }], { minLength: 5, maxLength: 1, pattern: "^a" }, ""),
+        ).toBeUndefined();
     });
 
     // Proves only an identical producer pattern proves a consumer pattern.
