@@ -26,6 +26,7 @@ import type { ReferenceResolver } from "./schema-references";
  * reference the resolver refuses, is unprovable.
  */
 export class KnownValueEvaluator {
+    /** Resolves local references in the consumer document being checked. */
     private readonly referenceResolver: ReferenceResolver;
     /** Compiled patterns by source; null marks a pattern the engine refused. */
     private readonly patterns = new Map<string, RE2JS | null>();
