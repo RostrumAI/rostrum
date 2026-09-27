@@ -1,3 +1,22 @@
+/**
+ * @fileoverview Tests validation stage 8, which turns the static
+ * compatibility check's issues into blocking publication findings. The
+ * stage is what stops a workflow whose bindings, declarations, or condition
+ * operands would fail at run time from being published.
+ *
+ * InputOutputCompatibilityStage
+ * - a compatible document has no findings: a `greet` task feeding a result
+ *   step produces an empty finding list.
+ * - reports every issue with its finding code and location: one document
+ *   with an invalid input default, an unknown operation, an undeclared
+ *   output, a wrong-typed argument, an undeclared argument, a missing
+ *   argument, and a string operand compared with `gt` yields exactly those
+ *   seven findings, each with its `workflow.*` code and JSON Pointer, in
+ *   check order.
+ * - carries the issue's details onto the finding: a numeric `name` for
+ *   `greet` produces a finding whose details name the step, the argument,
+ *   and the failing `type` keyword.
+ */
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG } from "../../operations/operation-catalog";
 import type { WorkflowDocument } from "../../schema";
