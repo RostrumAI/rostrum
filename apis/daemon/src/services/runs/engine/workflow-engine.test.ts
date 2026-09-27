@@ -90,7 +90,9 @@ class ManualScheduler implements EngineScheduler {
     startTimer(callback: () => void, delayMs: number): () => void {
         const id = this.nextTimer++;
         this.timers.set(id, { callback, dueAt: this.now + delayMs });
-        return () => this.timers.delete(id);
+        return () => {
+            this.timers.delete(id);
+        };
     }
 
     /** Runs exactly one queued turn, if any, and says whether one ran. */
