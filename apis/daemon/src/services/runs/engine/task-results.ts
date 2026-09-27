@@ -126,7 +126,7 @@ export function checkTaskOutput(step: PreparedTaskStep, output: unknown): TaskOu
     return { ok: true, output: deepFreeze(owned) };
 }
 
-/** True for a JSON object. */
+/** True for a plain object, the only shape a task may commit as output; arrays and null are not. */
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
