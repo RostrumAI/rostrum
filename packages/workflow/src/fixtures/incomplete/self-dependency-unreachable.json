@@ -1,0 +1,18 @@
+{
+    "workflowFormatVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-00000000010b",
+    "name": "Unreachable step waits for itself",
+    "firstNode": "0192b0a0-7e1d-7000-8000-00000000010c",
+    "steps": [
+        { "id": "0192b0a0-7e1d-7000-8000-00000000010c", "type": "result", "inputs": {} },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000010d",
+            "type": "task",
+            "config": { "operation": "greet" },
+            "inputs": { "name": "Ada" },
+            "outputs": { "greeting": { "type": "string" } },
+            "dependencies": ["0192b0a0-7e1d-7000-8000-00000000010d"],
+            "successors": ["0192b0a0-7e1d-7000-8000-00000000010c"]
+        }
+    ]
+}
