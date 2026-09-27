@@ -191,7 +191,7 @@ export function claimVisit(visit: ReadyVisit, workId: string, at: string): Runni
     return { ...identityOf(visit), status: "running", workId, startedAt: at };
 }
 
-/** Commits a visit's validated output. */
+/** Commits a visit's validated output, deep-frozen so later steps bind to a value nothing can change. */
 export function completeVisit(
     visit: ReadyVisit | RunningVisit,
     output: Readonly<Record<string, unknown>>,
@@ -200,7 +200,7 @@ export function completeVisit(
     const completed: CompletedVisit = {
         ...identityOf(visit),
         status: "completed",
-        output,
+        output: deepFreeze(output),
         completedAt: at,
     };
     return visit.status === "running" ? { ...completed, startedAt: visit.startedAt } : completed;

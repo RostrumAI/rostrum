@@ -97,13 +97,15 @@ export function checkSchemaContainment(
 class ContainmentChecker {
     private readonly producerRefs: ReferenceResolver;
     private readonly consumerRefs: ReferenceResolver;
-    private readonly values: KnownValueEvaluator;
+    private readonly consumerValues: KnownValueEvaluator;
+    private readonly producerValues: KnownValueEvaluator;
 
     /** Binds the checker to the documents each side's references resolve against. */
     constructor(producerRoot: JsonSchema, consumerRoot: JsonSchema) {
         this.producerRefs = new ReferenceResolver(producerRoot);
         this.consumerRefs = new ReferenceResolver(consumerRoot);
-        this.values = new KnownValueEvaluator(this.consumerRefs);
+        this.consumerValues = new KnownValueEvaluator(this.consumerRefs);
+        this.producerValues = new KnownValueEvaluator(this.producerRefs);
     }
 
     /**
@@ -217,11 +219,18 @@ class ContainmentChecker {
             }
         }
 
-        // A finite producer is checked value by value, which is exact.
-        const values = getFiniteValues(producer);
+        // A finite producer is checked value by value, which is exact. The candidates come
+        // from const, enum, and type alone, so values the producer's other keywords exclude
+        // are dropped first; a value the producer can't be decided on is kept.
+        const values = getFiniteValues(producer)?.filter((value) =>
+            producer.every(
+                (conjunct) =>
+                    this.producerValues.evaluate(conjunct, value, "")?.kind !== "mismatch",
+            ),
+        );
         if (values) {
             for (const value of values) {
-                const failure = this.values.evaluate(consumer, value, path);
+                const failure = this.consumerValues.evaluate(consumer, value, path);
                 if (failure) {
                     return failure;
                 }
@@ -233,7 +242,7 @@ class ContainmentChecker {
             this.referenceFits(producer, consumer, path) ??
             this.combinatorsFit(producer, consumer, path) ??
             typeFits(producer, consumer, path) ??
-            enumerationFits(consumer, path) ??
+            enumerationFits(producer, consumer, path) ??
             numberFits(producer, consumer, path) ??
             stringFits(producer, consumer, path) ??
             this.arrayFits(producer, consumer, path) ??
@@ -306,7 +315,9 @@ class ContainmentChecker {
             if (!failure) {
                 return undefined;
             }
-            everyTypeRejected &&= failure.kind === "mismatch" && failure.keyword === "type";
+            // Only the member's own `type` rejects the producer outright; a nested one doesn't.
+            everyTypeRejected &&=
+                failure.kind === "mismatch" && failure.path === `${path}/anyOf/${index}/type`;
         }
         return {
             kind: everyTypeRejected ? "mismatch" : "unprovable",
