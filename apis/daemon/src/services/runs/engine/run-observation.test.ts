@@ -1,3 +1,20 @@
+/**
+ * @fileoverview Tests `observeRun`, which turns engine run state into the
+ * shared inspection snapshot. Clients see runs only through this snapshot,
+ * so it must match `RunSnapshotSchema`, list steps in document order, and
+ * refuse to describe a state the engine can't produce. The cases use the
+ * sequential-calculation fixture (add, divide, result).
+ *
+ * observeRun:
+ * - a queued run: every step is pending in document order, with no current work; the snapshot passes the schema.
+ * - a running run: a completed step shows its output and times, and the running step is current work.
+ * - waiting steps name their unmet dependencies: only the incomplete dependency is listed, on the step and run.
+ * - a stopping run: the snapshot is stopping and lists only running work, not ready work.
+ * - a completed run: the snapshot carries the run's result and passes the schema.
+ * - a failed run: the failed step keeps its start time and failure, and no work is current.
+ * - an impossible state throws: a completed run with a running step is rejected with a named error.
+ * - observation doesn't change the run: visits and progress are unchanged after observing.
+ */
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG } from "@rostrum/workflow";
 import {
