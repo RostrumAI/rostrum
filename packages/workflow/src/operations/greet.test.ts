@@ -1,3 +1,18 @@
+/**
+ * @fileoverview Tests `greet`'s declaration, chiefly its output schema.
+ * Authors can't tighten a catalog output schema, so it must admit every
+ * greeting the implementation returns and reject other strings, letting
+ * later checks and conditions rely on the `Hello, <name>!` shape.
+ *
+ * GREET_OPERATION:
+ * - admits every Hello greeting: `Hello, Ada!`, the empty-name
+ *   `Hello, !`, and a name with a line break pass the compiled schema.
+ * - rejects strings that aren't greetings: `hi` and `Hello, Ada` (no
+ *   trailing `!`) fail on `pattern`.
+ * - declares no failure codes: `failureCodes` is empty, because an invalid
+ *   name is refused before dispatch.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";
 import { GREET_OPERATION } from "./greet";
