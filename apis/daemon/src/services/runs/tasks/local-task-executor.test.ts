@@ -1,3 +1,22 @@
+/**
+ * @fileoverview Tests the local task executor, which runs a work item's
+ * operation from the registry and returns a result tagged with the run and
+ * work it answers. The engine relies on every outcome, including failures
+ * and unexpected throws, arriving as a resolved result that leaks nothing
+ * from an exception.
+ *
+ * LocalTaskExecutor:
+ * - returns the operation's output with the work's identity: divide's
+ *   quotient comes back with the work item's run and work IDs.
+ * - reports division by zero of either sign as the operation's own failure:
+ *   `0` and `-0` keep divide's `division_by_zero` code at `/inputs/divisor`.
+ * - turns a throwing operation into a sanitized task error: a rejecting
+ *   implementation yields the generic `task_error`, and the exception's
+ *   text appears nowhere in the result.
+ * - reports an unregistered operation as a task error: an unknown operation
+ *   name resolves with `task_error` instead of rejecting.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { DIVIDE_OPERATION } from "@rostrum/workflow";
 import { LocalTaskExecutor } from "./local-task-executor";
@@ -92,7 +111,11 @@ describe("LocalTaskExecutor", () => {
             signal,
         );
 
-        // The executor resolves with a task error rather than rejecting.
-        expect(result.ok ? undefined : result.failure.code).toBe("task_error");
+        // The executor resolves with a task error at the operation name rather than rejecting.
+        expect(result.ok ? undefined : result.failure).toEqual({
+            code: "task_error",
+            message: "The operation isn't registered",
+            path: "/config/operation",
+        });
     });
 });

@@ -2,6 +2,7 @@ import { RE2JS } from "re2js";
 import { escapePointerToken } from "../json-source-map";
 import { isJsonSchema, type JsonSchema } from "./declared-schema-compiler";
 import {
+    COMPARABLE_KEYWORDS,
     type ContainmentFailure,
     getTypeKinds,
     getValueKind,
@@ -25,12 +26,12 @@ import type { ReferenceResolver } from "./schema-references";
  * reference the resolver refuses, is unprovable.
  */
 export class KnownValueEvaluator {
-    private readonly references: ReferenceResolver;
+    private readonly referenceResolver: ReferenceResolver;
     private readonly patterns = new Map<string, RE2JS>();
 
-    /** Binds the evaluator to the resolver for the consumer document's local references. */
-    constructor(references: ReferenceResolver) {
-        this.references = references;
+    /** Binds the evaluator to the resolver for the document's local references. */
+    constructor(referenceResolver: ReferenceResolver) {
+        this.referenceResolver = referenceResolver;
     }
 
     /**
@@ -45,6 +46,20 @@ export class KnownValueEvaluator {
         if (consumer === false) {
             return { kind: "mismatch", keyword: "false", path };
         }
+
+        // A keyword the evaluator can't read may change what the others mean, as
+        // `patternProperties` does for `additionalProperties`, so it decides first.
+        for (const keyword of Object.keys(consumer)) {
+            if (!IGNORED_KEYWORDS.has(keyword) && !COMPARABLE_KEYWORDS.has(keyword)) {
+                return {
+                    kind: "unprovable",
+                    keyword,
+                    path: `${path}/${escapePointerToken(keyword)}`,
+                };
+            }
+        }
+
+        // Every remaining keyword is comparable, so the first failure is exact.
         for (const [keyword, expected] of Object.entries(consumer)) {
             if (IGNORED_KEYWORDS.has(keyword)) {
                 continue;
@@ -137,7 +152,9 @@ export class KnownValueEvaluator {
                 return this.evaluateAnyOf(expected, value, at);
             case "$ref": {
                 const target =
-                    typeof expected === "string" ? this.references.resolve(expected) : undefined;
+                    typeof expected === "string"
+                        ? this.referenceResolver.resolve(expected)
+                        : undefined;
                 return target === undefined
                     ? { kind: "unprovable", keyword, path: at }
                     : this.evaluate(target, value, path);

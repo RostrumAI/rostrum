@@ -1,3 +1,19 @@
+/**
+ * @fileoverview Tests `createValueChecker`, which turns a compiled schema
+ * check's issues into located execution failures. Its output is what callers
+ * see when an input or output is rejected, so paths must point at the value
+ * and must not leak the value itself.
+ *
+ * createValueChecker:
+ * - a valid value has no failures.
+ * - locates each issue under the value's path: each issue keeps its message,
+ *   uses the location's code, and prefixes its path with the value's pointer.
+ * - attributes failures to the location's step: `stepId` is copied from the
+ *   location.
+ * - reports a throwing evaluator without its message: the result is one
+ *   `execution_error` at the value's path, with no exception text.
+ */
+
 import { describe, expect, test } from "bun:test";
 import type { ValueCheck } from "@rostrum/workflow";
 import { createValueChecker } from "./value-checks";
