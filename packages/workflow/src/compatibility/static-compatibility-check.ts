@@ -12,7 +12,7 @@ import {
     type OperationDeclaration,
     toJsonSchema,
 } from "../operations/operation-catalog";
-import { getStepConfig, type WorkflowDocument, type WorkflowStep } from "../schema";
+import type { WorkflowDocument, WorkflowStep } from "../schema";
 import {
     isReferenceObject,
     LOOP_RESULTS_OUTPUT,
@@ -292,7 +292,7 @@ class StaticCompatibilityCheck {
                 continue;
             }
             const path = `${pointer}/outputs/${escapePointerToken(name)}`;
-            const member = operationOutputMember(operation, name);
+            const member = getOperationOutputMember(operation, name);
             if (member === undefined) {
                 this.issues.push({
                     kind: "undeclared-output",
@@ -605,7 +605,7 @@ class StaticCompatibilityCheck {
  * The schema of an output member the operation always returns, or
  * undefined when the member is optional or absent.
  */
-function operationOutputMember(
+function getOperationOutputMember(
     operation: OperationDeclaration,
     name: string,
 ): JsonSchema | undefined {
@@ -615,4 +615,13 @@ function operationOutputMember(
         return undefined;
     }
     return toJsonSchema(member);
+}
+
+/**
+ * A step's `config` as named members, or an empty object when it has none.
+ * The document schema proves `config` is a JSON object; TypeBox only
+ * types it as an opaque object.
+ */
+function getStepConfig(step: WorkflowStep): Readonly<Record<string, unknown>> {
+    return (step.config ?? {}) as Readonly<Record<string, unknown>>;
 }
