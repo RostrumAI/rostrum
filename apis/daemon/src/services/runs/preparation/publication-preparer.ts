@@ -58,9 +58,13 @@ export type InputValidation =
           readonly inputs: RunInputs;
       }
     | {
-          /** The inputs don't match the declarations. */
+          /** The inputs don't match the declarations, or a check couldn't be evaluated. */
           readonly ok: false;
-          /** The `invalid_inputs` refusal with every located failure found. */
+          /**
+           * The refusal with every located failure found: `invalid_inputs`
+           * when the inputs don't match, or `unsupported_execution` when a
+           * declared check couldn't be evaluated.
+           */
           readonly refusal: RunRefusal;
       };
 
