@@ -77,7 +77,7 @@ class ManualScheduler implements EngineScheduler {
     now = 0;
     /** How many turns have run. */
     turnsRun = 0;
-    private readonly turns: (() => void)[] = [];
+    private readonly turns: Array<() => void> = [];
     private readonly timers = new Map<number, { callback: () => void; dueAt: number }>();
     private nextTimer = 0;
 

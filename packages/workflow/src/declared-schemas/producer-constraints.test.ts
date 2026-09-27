@@ -152,6 +152,37 @@ describe("numbers", () => {
         expect(numberFits(producer, { exclusiveMaximum: 5 }, "")?.keyword).toBe("exclusiveMaximum");
     });
 
+    // Proves a consumer exclusive lower bound admits only producers that stay strictly above it.
+    test("consumer exclusiveMinimum", () => {
+        // A producer strictly above the limit fits, whether by value or by its own exclusivity.
+        expect(
+            numberFits([{ type: "number", minimum: 1.5 }], { exclusiveMinimum: 1 }, ""),
+        ).toBeUndefined();
+        expect(
+            numberFits([{ type: "number", exclusiveMinimum: 1 }], { exclusiveMinimum: 1 }, ""),
+        ).toBeUndefined();
+
+        // A producer that can reach or fall below the limit fails on that keyword.
+        expect(numberFits([{ type: "number", minimum: 1 }], { exclusiveMinimum: 1 }, "/n")).toEqual(
+            {
+                kind: "mismatch",
+                keyword: "exclusiveMinimum",
+                path: "/n/exclusiveMinimum",
+            },
+        );
+        expect(
+            numberFits([{ type: "number", minimum: 0.5 }], { exclusiveMinimum: 1 }, "")?.keyword,
+        ).toBe("exclusiveMinimum");
+
+        // Integers round a fractional lower bound up, so a minimum of 1.5 starts at 2 and clears 1.
+        expect(
+            numberFits([{ type: "integer", minimum: 1.5 }], { exclusiveMinimum: 1 }, ""),
+        ).toBeUndefined();
+        expect(
+            numberFits([{ type: "integer", minimum: 0.5 }], { exclusiveMinimum: 1 }, "")?.keyword,
+        ).toBe("exclusiveMinimum");
+    });
+
     // Proves integers round exclusive and fractional bounds inward to whole numbers.
     test("integer bounds round inward", () => {
         // An exclusive whole lower bound and an inclusive fractional upper bound give 1 to 9.
