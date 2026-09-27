@@ -1,0 +1,8 @@
+{
+    "workflowFormatVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000114",
+    "name": "Input declaration carries an unknown member",
+    "inputs": { "name": { "schema": { "type": "string" }, "required": true } },
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000115",
+    "steps": [{ "id": "0192b0a0-7e1d-7000-8000-000000000115", "type": "result", "inputs": {} }]
+}

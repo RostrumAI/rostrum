@@ -1,0 +1,45 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.invalid",
+            "blocking": true,
+            "path": "/inputs/name/schema",
+            "line": 5,
+            "column": 37,
+            "details": {
+                "schemaPath": "#/properties/inputs/patternProperties/^.*$/properties/schema",
+                "keyword": "anyOf",
+                "params": {}
+            }
+        },
+        {
+            "code": "workflow.shape.type",
+            "blocking": true,
+            "path": "/inputs/name/schema",
+            "line": 5,
+            "column": 37,
+            "details": {
+                "schemaPath": "#/properties/inputs/patternProperties/^.*$/properties/schema/anyOf/0",
+                "keyword": "type",
+                "params": {
+                    "type": "object"
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.type",
+            "blocking": true,
+            "path": "/inputs/name/schema",
+            "line": 5,
+            "column": 37,
+            "details": {
+                "schemaPath": "#/properties/inputs/patternProperties/^.*$/properties/schema/anyOf/1",
+                "keyword": "type",
+                "params": {
+                    "type": "boolean"
+                }
+            }
+        }
+    ]
+}
