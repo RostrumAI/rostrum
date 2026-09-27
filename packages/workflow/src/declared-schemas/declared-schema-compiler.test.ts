@@ -1,3 +1,29 @@
+/**
+ * @fileoverview Tests the compiler that turns author-declared JSON Schemas
+ * into value checks. Publication and the daemon rely on it to reject bad
+ * declarations with a located reason and to check values without changing
+ * them, so a wrong verdict or a silently ignored keyword reaches authors.
+ *
+ * isJsonSchema: accepts objects and booleans; rejects null, arrays, strings,
+ * and numbers.
+ *
+ * refused schemas: an unknown `$schema` dialect is refused at `/$schema`;
+ * a mistyped keyword is located at `/minimum`; an unknown
+ * keyword is refused; `$async` is refused at `/$async`; an external `$ref`
+ * is refused with its reference named; lookaround and backreference
+ * patterns are refused as not linear-time.
+ *
+ * value checks: a numeric string fails `type: number` (no coercion); every
+ * issue is reported with `required` at the object and `additionalProperties`
+ * at the escaped member; a check leaves the value unchanged (no defaults, no
+ * removal); `format` never rejects; `true` accepts and `false` rejects;
+ * `$defs` and recursive root references resolve; a schema with its own `$id`
+ * checks values.
+ *
+ * compiler state: the same schema object returns the same compilation; two
+ * patterns in one compiler don't share a compiled expression; two schemas
+ * with the same `$id` stay separate.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     createDeclaredSchemaCompiler,
@@ -30,6 +56,14 @@ describe("isJsonSchema", () => {
 });
 
 describe("refused schemas", () => {
+    // Proves an unknown `$schema` dialect is refused at `$schema` instead of throwing.
+    test("an unknown dialect is refused", () => {
+        expect(getRefusal({ $schema: "https://example.com/dialect", type: "number" })).toEqual({
+            path: "/$schema",
+            message: "Only the JSON Schema 2020-12 dialect is supported",
+        });
+    });
+
     // Proves a malformed keyword is located at the keyword inside the schema.
     test("a keyword with the wrong type is located", () => {
         expect(getRefusal({ type: "number", minimum: "zero" })?.path).toBe("/minimum");
