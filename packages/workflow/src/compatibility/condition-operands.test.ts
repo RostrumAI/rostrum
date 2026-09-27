@@ -6,8 +6,9 @@
  *
  * - ordering operators: gt, gte, lt, and lte accept only a number output with a
  *   number value; an output containment can't compare is `unprovable`.
- * - contains: accepts a string output with a string value, or any array output;
- *   a number output or a non-string value on a string output is a mismatch.
+ * - contains: accepts a string output with a string value, or an array output
+ *   with any value, explicit null included; a number output, a non-string value
+ *   on a string output, or a missing value is a mismatch.
  * - membership and equality: in and notin need an array value with at least one
  *   element the output allows; eq and neq need a value the output allows, and an
  *   explicit null counts as a value while an absent one does not.
@@ -83,7 +84,7 @@ describe("ordering operators", () => {
 });
 
 describe("contains", () => {
-    // Proves contains accepts a string output with a string value, or any array output.
+    // Proves contains accepts a string output with a string value, or an array output with a value.
     test("needs a string output and value, or an array output", () => {
         // A string searched for a string, and an array searched for anything, both fit.
         expect(checkLeaf({ type: "string" }, { op: "contains", value: "Ada" })).toEqual([]);
@@ -96,6 +97,20 @@ describe("contains", () => {
         expect(checkLeaf({ type: "string" }, { op: "contains", value: 1 })).toEqual([
             ["operand-mismatch", LEAF],
         ]);
+    });
+
+    // Proves contains without a comparison value is reported, even on an array output.
+    test("needs a comparison value", () => {
+        // With no needle to search for, neither a string nor an array output can be tested.
+        expect(checkLeaf({ type: "array" }, { op: "contains" })).toEqual([
+            ["operand-mismatch", LEAF],
+        ]);
+        expect(checkLeaf({ type: "string" }, { op: "contains" })).toEqual([
+            ["operand-mismatch", LEAF],
+        ]);
+
+        // An explicit null is a needle an array output can be searched for.
+        expect(checkLeaf({ type: "array" }, { op: "contains", value: null })).toEqual([]);
     });
 });
 
