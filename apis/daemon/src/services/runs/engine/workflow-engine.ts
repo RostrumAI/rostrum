@@ -343,6 +343,11 @@ export class WorkflowEngine {
             case "task":
                 this.startTask(entry, visit, preparation.step, preparation.inputs);
                 return;
+            default: {
+                // An unknown kind can't be applied; the guard around every turn fails the run.
+                const unknownKind: never = preparation;
+                throw new Error(`Unknown execution preparation: ${JSON.stringify(unknownKind)}`);
+            }
         }
     }
 

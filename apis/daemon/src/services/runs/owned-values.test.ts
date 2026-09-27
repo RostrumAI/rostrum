@@ -16,6 +16,9 @@
  * - freezes wide values: a 200,000-member array freezes member by member.
  * - handles frozen and shared members: returns the same value and freezes a
  *   member shared by two keys.
+ * - freezes inside frozen parents: members of an already-frozen object are
+ *   still frozen.
+ * - handles cycles: a value that refers to itself freezes without looping.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -97,5 +100,28 @@ describe("deepFreeze", () => {
         const value = { first: shared, second: shared, done: Object.freeze({ ok: true }) };
         expect(deepFreeze(value)).toBe(value);
         expect(Object.isFrozen(shared)).toBe(true);
+    });
+
+    // Proves an already-frozen parent doesn't stop its mutable members from being frozen.
+    test("freezes inside frozen parents", () => {
+        // Only the outer object is frozen before the walk.
+        const child = { x: 1 };
+        const grandchild = { y: 2 };
+        const value = Object.freeze({ child, list: Object.freeze([grandchild]) });
+
+        // Both members below the frozen levels come back frozen.
+        deepFreeze(value);
+        expect([Object.isFrozen(child), Object.isFrozen(grandchild)]).toEqual([true, true]);
+    });
+
+    // Proves a value that refers to itself is frozen once and the walk still ends.
+    test("handles cycles", () => {
+        // The node points back at itself through its own member.
+        const node: { self?: unknown; leaf: { x: number } } = { leaf: { x: 1 } };
+        node.self = node;
+
+        // The walk returns and freezes both the node and its leaf.
+        expect(deepFreeze(node)).toBe(node);
+        expect([Object.isFrozen(node), Object.isFrozen(node.leaf)]).toEqual([true, true]);
     });
 });
