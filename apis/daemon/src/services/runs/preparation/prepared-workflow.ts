@@ -84,8 +84,11 @@ export type PreparedStep = PreparedTaskStep | PreparedResultStep;
 export interface PreparedWorkflowInput {
     /** Checks an invocation's value for this input. */
     readonly check: ValueChecker;
-    /** Present when the input is optional; holds the deep-frozen default. */
-    readonly default?: { readonly value: unknown };
+    /** Present when the input is optional; the wrapper tells a default of `null` apart from none. */
+    readonly default?: {
+        /** The deep-frozen default an omitted input receives. */
+        readonly value: unknown;
+    };
 }
 
 /** A run's accepted workflow inputs by name: one owned, deep-frozen copy. */

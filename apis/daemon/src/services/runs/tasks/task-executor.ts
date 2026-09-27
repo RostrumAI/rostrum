@@ -52,7 +52,7 @@ export type TaskWorkResult =
           readonly workId: string;
           /** The operation failed. */
           readonly ok: false;
-          /** Why. */
+          /** The located task failure explaining why the operation didn't return output. */
           readonly failure: TaskFailure;
       };
 
