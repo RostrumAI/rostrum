@@ -10,6 +10,8 @@
  * - every schema compiles: each configuration, output, and argument schema
  *   compiles with the declared-schema compiler.
  * - every default is valid: each argument default passes its own schema.
+ * - every configuration schema accepts only an empty object: `{}` passes
+ *   and an unknown member fails `additionalProperties`.
  * - every output schema is closed and fully required: each output schema
  *   sets `additionalProperties: false` and requires all its properties.
  *
@@ -64,6 +66,24 @@ describe("OPERATION_CATALOG", () => {
                     issues: compiled.ok ? compiled.check(argument.default) : "refused",
                 }).toEqual({ argument: `${operation.name}.${name}`, issues: [] });
             }
+        }
+    });
+
+    // Proves no operation takes configuration, so a task naming an unknown option is refused.
+    test("every configuration schema accepts only an empty object", () => {
+        const compiler = createDeclaredSchemaCompiler();
+        for (const operation of OPERATION_CATALOG.values()) {
+            const compiled = compiler.compile(toJsonSchema(operation.configSchema));
+            if (!compiled.ok) {
+                throw new Error(`Expected ${operation.name}'s configuration schema to compile`);
+            }
+
+            // Checks an empty configuration passes and an extra member fails the closed schema.
+            expect({
+                operation: operation.name,
+                empty: compiled.check({}),
+                extra: compiled.check({ unexpected: 1 }).map((issue) => issue.keyword),
+            }).toEqual({ operation: operation.name, empty: [], extra: ["additionalProperties"] });
         }
     });
 
