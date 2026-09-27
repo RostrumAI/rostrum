@@ -24,6 +24,7 @@
  *
  * literal bindings:
  * - A literal is validated against the argument's full schema.
+ * - A reference binding is not checked as a literal.
  *
  * issue attribution:
  * - Step-level issues carry the step id in `stepId` and `details`; workflow-level ones carry none.
@@ -247,6 +248,16 @@ describe("literal bindings", () => {
             taskStep({ config: { operation: "add" }, inputs: { left: "1" } }),
         );
         expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/inputs/left"]]);
+    });
+
+    // Proves a reference binding is left to the binding check rather than validated as a literal.
+    test("a reference bound to add's left", () => {
+        // The reference object itself isn't a number, so checking it as a literal would mismatch.
+        const document = buildSingleTaskDocument(
+            taskStep({ config: { operation: "add" }, inputs: { left: { ref: "inputs.amount" } } }),
+            { inputs: { amount: { schema: { type: "number" } } } },
+        );
+        expect(checkDocument(document)).toEqual([]);
     });
 });
 
