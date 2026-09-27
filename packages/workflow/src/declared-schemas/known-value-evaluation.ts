@@ -2,6 +2,7 @@ import { RE2JS } from "re2js";
 import { escapePointerToken } from "../json-source-map";
 import { isJsonSchema, type JsonSchema } from "./declared-schema-compiler";
 import {
+    COMPARABLE_KEYWORDS,
     type ContainmentFailure,
     getTypeKinds,
     getValueKind,
@@ -45,6 +46,20 @@ export class KnownValueEvaluator {
         if (consumer === false) {
             return { kind: "mismatch", keyword: "false", path };
         }
+
+        // A keyword the evaluator can't read may change what the others mean, as
+        // `patternProperties` does for `additionalProperties`, so it decides first.
+        for (const keyword of Object.keys(consumer)) {
+            if (!IGNORED_KEYWORDS.has(keyword) && !COMPARABLE_KEYWORDS.has(keyword)) {
+                return {
+                    kind: "unprovable",
+                    keyword,
+                    path: `${path}/${escapePointerToken(keyword)}`,
+                };
+            }
+        }
+
+        // Every remaining keyword is comparable, so the first failure is exact.
         for (const [keyword, expected] of Object.entries(consumer)) {
             if (IGNORED_KEYWORDS.has(keyword)) {
                 continue;
