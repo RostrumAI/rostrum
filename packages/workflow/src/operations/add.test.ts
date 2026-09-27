@@ -5,7 +5,8 @@
  *
  * ADD_OPERATION declaration:
  * - requires left and defaults right to 0.
- * - takes numbers: a fraction passes and a numeric string fails `type`.
+ * - takes numbers: for both arguments a fraction passes and a numeric
+ *   string fails `type`.
  * - returns only a numeric value: any number passes; a string value, an
  *   extra member, or a missing value fails.
  * - declares numeric overflow as its only failure code.
@@ -42,9 +43,15 @@ describe("ADD_OPERATION declaration", () => {
 
     // Proves both arguments accept numbers and nothing else.
     test("takes numbers", () => {
+        // Checks left against a fraction and a numeric string.
         const left = toJsonSchema(ADD_OPERATION.arguments.left.schema);
         expect(getFailedKeywords(left, 1.5)).toEqual([]);
         expect(getFailedKeywords(left, "1")).toEqual(["type"]);
+
+        // Checks right the same way, since its default does not loosen its type.
+        const right = toJsonSchema(ADD_OPERATION.arguments.right.schema);
+        expect(getFailedKeywords(right, -1.5)).toEqual([]);
+        expect(getFailedKeywords(right, "1")).toEqual(["type"]);
     });
 
     // Proves the output is exactly a numeric value member.

@@ -10,7 +10,8 @@
  * - numeric bounds: inclusive bounds pass at the boundary, exclusive fail.
  * - multipleOf: exact division; 0.3 is not a multiple of 0.1.
  * - string lengths: count code points, so one emoji has length 1.
- * - pattern: matches anywhere in the string unless anchored.
+ * - pattern: matches anywhere in the string unless anchored; a pattern
+ *   the linear-time engine refuses, such as a lookahead, is unprovable.
  * - other types: keywords for another value type pass vacuously.
  *
  * arrays and objects:
@@ -90,6 +91,21 @@ describe("scalar keywords", () => {
         expect(evaluate({ pattern: "^Hello" }, "Hello, Ada!")).toBeUndefined();
         expect(evaluate({ pattern: "b+" }, "abba")).toBeUndefined();
         expect(evaluate({ pattern: "^Hello" }, "hi")?.keyword).toBe("pattern");
+    });
+
+    // Proves a pattern the linear-time engine can't compile is unprovable rather than thrown.
+    test("uncompilable pattern is unprovable", () => {
+        // RE2 has no lookaround, so the runtime could never decide this keyword.
+        const consumer = { pattern: "(?=a)" };
+        const evaluator = new KnownValueEvaluator(new ReferenceResolver(consumer));
+        expect(evaluator.evaluate(consumer, "a", "")).toEqual({
+            kind: "unprovable",
+            keyword: "pattern",
+            path: "/pattern",
+        });
+
+        // A second value on the same evaluator reuses the remembered refusal.
+        expect(evaluator.evaluate(consumer, "b", "")?.kind).toBe("unprovable");
     });
 
     // Proves keywords for another type don't apply to a value of this type.

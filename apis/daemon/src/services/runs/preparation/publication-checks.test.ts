@@ -221,4 +221,19 @@ describe("checkSupportedSteps", () => {
             RESULT_STEP,
         ]);
     });
+
+    // Proves an unsupported step type is located by path without echoing the author's text.
+    test("keeps the supplied step type out of the failure message", () => {
+        const document = copyFixture(calculationJson);
+        const [first] = document.steps;
+        if (!first) {
+            throw new Error("The calculation fixture has a first step");
+        }
+        first.type = "<img src=x onerror=alert(1)>";
+
+        // The failure points at the type but its message carries none of the supplied text.
+        const [failure] = checkSupportedSteps(document);
+        expect(failure?.path).toBe("/steps/0/type");
+        expect(failure?.message).not.toContain("<img");
+    });
 });
