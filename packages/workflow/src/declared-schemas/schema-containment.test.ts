@@ -37,7 +37,7 @@ import { checkSchemaContainment } from "./schema-containment";
 import type { ContainmentResult } from "./schema-keywords";
 
 /** Returns just the outcome kind, for cases where the location doesn't matter. */
-function kindOf(producer: JsonSchema, consumer: JsonSchema): string {
+function getContainmentKind(producer: JsonSchema, consumer: JsonSchema): string {
     return checkSchemaContainment(producer, consumer).kind;
 }
 
@@ -53,49 +53,59 @@ describe("numbers", () => {
 
     // Proves a tighter producer bound is contained in a looser consumer bound.
     test("minimum 1 fits minimum 0, and integer fits number", () => {
-        expect(kindOf({ type: "number", minimum: 1 }, { type: "number", minimum: 0 })).toBe(
-            "contained",
-        );
-        expect(kindOf({ type: "integer" }, { type: "number" })).toBe("contained");
-        expect(kindOf({ type: "number" }, { type: "integer" })).toBe("mismatch");
+        expect(
+            getContainmentKind({ type: "number", minimum: 1 }, { type: "number", minimum: 0 }),
+        ).toBe("contained");
+        expect(getContainmentKind({ type: "integer" }, { type: "number" })).toBe("contained");
+        expect(getContainmentKind({ type: "number" }, { type: "integer" })).toBe("mismatch");
     });
 
     // Proves exclusive bounds compare correctly at the boundary value.
     test("exclusive bounds at the boundary", () => {
         // Values > 0 fit > 0 and >= 0; values >= 0 don't fit > 0.
-        expect(kindOf({ exclusiveMinimum: 0 }, { exclusiveMinimum: 0 })).toBe("contained");
-        expect(kindOf({ exclusiveMinimum: 0 }, { minimum: 0 })).toBe("contained");
-        expect(kindOf({ minimum: 0 }, { exclusiveMinimum: 0 })).toBe("mismatch");
-
-        // An integer above 0.5 is at least 1, so it fits a minimum of 1.
-        expect(kindOf({ type: "integer", exclusiveMinimum: 0.5 }, { minimum: 1 })).toBe(
+        expect(getContainmentKind({ exclusiveMinimum: 0 }, { exclusiveMinimum: 0 })).toBe(
             "contained",
         );
-        expect(kindOf({ maximum: 10 }, { exclusiveMaximum: 10 })).toBe("mismatch");
+        expect(getContainmentKind({ exclusiveMinimum: 0 }, { minimum: 0 })).toBe("contained");
+        expect(getContainmentKind({ minimum: 0 }, { exclusiveMinimum: 0 })).toBe("mismatch");
+
+        // An integer above 0.5 is at least 1, so it fits a minimum of 1.
+        expect(getContainmentKind({ type: "integer", exclusiveMinimum: 0.5 }, { minimum: 1 })).toBe(
+            "contained",
+        );
+        expect(getContainmentKind({ maximum: 10 }, { exclusiveMaximum: 10 })).toBe("mismatch");
     });
 
     // Proves multipleOf holds when a bounded integer producer's step is a multiple of the consumer's.
     test("multipleOf is proven only for exact integer division", () => {
         // Bounded integers divide exactly, so step 4 fits step 2 and integers fit step 1.
         const bounded = { type: "integer", minimum: -1000, maximum: 1000 };
-        expect(kindOf({ ...bounded, multipleOf: 4 }, { multipleOf: 2 })).toBe("contained");
-        expect(kindOf(bounded, { multipleOf: 1 })).toBe("contained");
-        expect(kindOf({ ...bounded, multipleOf: 2 }, { multipleOf: 4 })).toBe("unprovable");
+        expect(getContainmentKind({ ...bounded, multipleOf: 4 }, { multipleOf: 2 })).toBe(
+            "contained",
+        );
+        expect(getContainmentKind(bounded, { multipleOf: 1 })).toBe("contained");
+        expect(getContainmentKind({ ...bounded, multipleOf: 2 }, { multipleOf: 4 })).toBe(
+            "unprovable",
+        );
 
         // Fractions always include a value that isn't a multiple.
-        expect(kindOf({ type: "number" }, { multipleOf: 1 })).toBe("mismatch");
+        expect(getContainmentKind({ type: "number" }, { multipleOf: 1 })).toBe("mismatch");
     });
 
     // Proves the rounding cases the runtime rejects are never reported as contained.
     test("multipleOf never passes a pair the runtime check rejects", () => {
         // 0.3 / 0.1 isn't exactly 3 in binary floating point, so the runtime rejects 0.3.
         // A stepped fractional producer is only unprovable: the checker doesn't search its steps.
-        expect(kindOf({ type: "number", multipleOf: 0.3 }, { multipleOf: 0.1 })).toBe("unprovable");
-        expect(kindOf({ const: 0.3 }, { multipleOf: 0.1 })).toBe("mismatch");
-        expect(kindOf({ type: "integer" }, { multipleOf: 1.0000000001 })).toBe("unprovable");
+        expect(getContainmentKind({ type: "number", multipleOf: 0.3 }, { multipleOf: 0.1 })).toBe(
+            "unprovable",
+        );
+        expect(getContainmentKind({ const: 0.3 }, { multipleOf: 0.1 })).toBe("mismatch");
+        expect(getContainmentKind({ type: "integer" }, { multipleOf: 1.0000000001 })).toBe(
+            "unprovable",
+        );
 
         // 1e21 is an integer, but its quotient prints in exponent form and fails the runtime check.
-        expect(kindOf({ type: "integer" }, { multipleOf: 1 })).toBe("unprovable");
+        expect(getContainmentKind({ type: "integer" }, { multipleOf: 1 })).toBe("unprovable");
     });
 });
 
@@ -118,62 +128,75 @@ describe("keywords the checker can't compare", () => {
             ),
         ).toEqual({ kind: "unprovable", keyword: "pattern", path: "/pattern" });
         expect(
-            kindOf({ type: "string", pattern: "^a+$" }, { type: "string", pattern: "^a+$" }),
+            getContainmentKind(
+                { type: "string", pattern: "^a+$" },
+                { type: "string", pattern: "^a+$" },
+            ),
         ).toBe("contained");
     });
 
     // Proves ignoring a producer keyword only widens it, so a plain consumer still fits.
     test("a producer using not against a plain consumer fits", () => {
-        expect(kindOf({ type: "string", not: { const: "" } }, { type: "string" })).toBe(
+        expect(getContainmentKind({ type: "string", not: { const: "" } }, { type: "string" })).toBe(
             "contained",
         );
     });
 
     // Proves an incomparable keyword where it can never apply doesn't block the binding.
     test("a keyword that can't apply to the producer's type is vacuous", () => {
-        expect(kindOf({ type: "string" }, { minimum: 0 })).toBe("contained");
-        expect(kindOf({ type: "number" }, { properties: { a: { not: {} } } })).toBe("contained");
+        expect(getContainmentKind({ type: "string" }, { minimum: 0 })).toBe("contained");
+        expect(getContainmentKind({ type: "number" }, { properties: { a: { not: {} } } })).toBe(
+            "contained",
+        );
     });
 });
 
 describe("finite producers", () => {
     // Proves an enum producer is checked value by value, so every member must fit.
     test("each enum member must satisfy the consumer", () => {
-        expect(kindOf({ enum: [1, 2, 3] }, { type: "integer", minimum: 1 })).toBe("contained");
+        expect(getContainmentKind({ enum: [1, 2, 3] }, { type: "integer", minimum: 1 })).toBe(
+            "contained",
+        );
         expect(checkSchemaContainment({ enum: [1, 2, 3] }, { maximum: 2 })).toEqual({
             kind: "mismatch",
             keyword: "maximum",
             path: "/maximum",
         });
-        expect(kindOf({ const: "a" }, { enum: ["a", "b"] })).toBe("contained");
+        expect(getContainmentKind({ const: "a" }, { enum: ["a", "b"] })).toBe("contained");
     });
 
     // Proves an infinite producer never fits a consumer enumeration.
     test("an unbounded producer doesn't fit an enum", () => {
-        expect(kindOf({ type: "string" }, { enum: ["a", "b"] })).toBe("mismatch");
-        expect(kindOf({ type: "boolean" }, { enum: [true, false] })).toBe("contained");
+        expect(getContainmentKind({ type: "string" }, { enum: ["a", "b"] })).toBe("mismatch");
+        expect(getContainmentKind({ type: "boolean" }, { enum: [true, false] })).toBe("contained");
     });
 
     // Proves producers with few values are enumerated instead of being reported as mismatches.
     test("short integer ranges and the empty string are finite", () => {
-        expect(kindOf({ type: "integer", minimum: 1, maximum: 2 }, { enum: [1, 2] })).toBe(
+        expect(
+            getContainmentKind({ type: "integer", minimum: 1, maximum: 2 }, { enum: [1, 2] }),
+        ).toBe("contained");
+        expect(
+            getContainmentKind({ type: "integer", minimum: 1, maximum: 3 }, { enum: [1, 2] }),
+        ).toBe("mismatch");
+        expect(getContainmentKind({ type: "string", maxLength: 0 }, { const: "" })).toBe(
             "contained",
         );
-        expect(kindOf({ type: "integer", minimum: 1, maximum: 3 }, { enum: [1, 2] })).toBe(
-            "mismatch",
-        );
-        expect(kindOf({ type: "string", maxLength: 0 }, { const: "" })).toBe("contained");
     });
 
     // Proves a mismatch that ignored producer constraints might explain is only unprovable.
     test("a mismatch against a producer with uncompared constraints is unprovable", () => {
         // `not` could exclude the failing values, so the checker can't claim they exist.
-        expect(kindOf({ type: "number", not: { maximum: 0 } }, { exclusiveMinimum: 0 })).toBe(
+        expect(
+            getContainmentKind({ type: "number", not: { maximum: 0 } }, { exclusiveMinimum: 0 }),
+        ).toBe("unprovable");
+        // A pattern narrows strings but never turns one into a number.
+        expect(getContainmentKind({ type: "string", pattern: "^1$" }, { type: "number" })).toBe(
+            "mismatch",
+        );
+        expect(getContainmentKind({ type: "string", pattern: "^a$" }, { enum: ["a"] })).toBe(
             "unprovable",
         );
-        // A pattern narrows strings but never turns one into a number.
-        expect(kindOf({ type: "string", pattern: "^1$" }, { type: "number" })).toBe("mismatch");
-        expect(kindOf({ type: "string", pattern: "^a$" }, { enum: ["a"] })).toBe("unprovable");
     });
 });
 
@@ -187,7 +210,7 @@ describe("objects and arrays", () => {
             additionalProperties: false,
         };
         expect(
-            kindOf(producer, {
+            getContainmentKind(producer, {
                 type: "object",
                 properties: { total: { type: "number" } },
                 required: ["total"],
@@ -202,7 +225,7 @@ describe("objects and arrays", () => {
 
         // An open producer can supply members a closed consumer rejects.
         expect(
-            kindOf(
+            getContainmentKind(
                 { type: "object", properties: { total: { type: "number" } } },
                 { type: "object", additionalProperties: false, properties: { total: {} } },
             ),
@@ -217,9 +240,9 @@ describe("objects and arrays", () => {
             required: ["constructor"],
             additionalProperties: false,
         };
-        expect(kindOf(producer, { properties: { constructor: { type: "string" } } })).toBe(
-            "contained",
-        );
+        expect(
+            getContainmentKind(producer, { properties: { constructor: { type: "string" } } }),
+        ).toBe("contained");
         expect(
             checkSchemaContainment(producer, { properties: { constructor: { type: "number" } } }),
         ).toEqual({ kind: "mismatch", keyword: "type", path: "/properties/constructor/type" });
@@ -228,7 +251,7 @@ describe("objects and arrays", () => {
     // Proves element schemas and length bounds are compared, including tuple positions.
     test("arrays compare elements, tuples, and lengths", () => {
         expect(
-            kindOf(
+            getContainmentKind(
                 { type: "array", items: { type: "integer" }, minItems: 2 },
                 {
                     type: "array",
@@ -243,7 +266,7 @@ describe("objects and arrays", () => {
             path: "/items/type",
         });
         expect(
-            kindOf(
+            getContainmentKind(
                 { type: "array", prefixItems: [{ type: "string" }], items: false },
                 { type: "array", prefixItems: [{ type: "string" }], maxItems: 1 },
             ),
@@ -268,19 +291,27 @@ describe("objects and arrays", () => {
 
         // Tighter producer bounds, or a closed object with few enough members, fit.
         expect(
-            kindOf({ type: "array", minItems: 1, maxItems: 3 }, { minItems: 1, maxItems: 3 }),
+            getContainmentKind(
+                { type: "array", minItems: 1, maxItems: 3 },
+                { minItems: 1, maxItems: 3 },
+            ),
         ).toBe("contained");
         const pair = { properties: { a: true, b: true }, additionalProperties: false };
-        expect(kindOf({ type: "object", ...pair }, { maxProperties: 2 })).toBe("contained");
+        expect(getContainmentKind({ type: "object", ...pair }, { maxProperties: 2 })).toBe(
+            "contained",
+        );
     });
 });
 
 describe("false mismatches the checker must avoid", () => {
     // Proves enumerated candidates the producer's own bounds or step exclude aren't counterexamples.
     test("finite values respect the producer's other keywords", () => {
-        expect(kindOf({ enum: [1, 5], minimum: 3 }, { minimum: 3 })).toBe("contained");
+        expect(getContainmentKind({ enum: [1, 5], minimum: 3 }, { minimum: 3 })).toBe("contained");
         expect(
-            kindOf({ type: "integer", minimum: 0, maximum: 6, multipleOf: 2 }, { multipleOf: 2 }),
+            getContainmentKind(
+                { type: "integer", minimum: 0, maximum: 6, multipleOf: 2 },
+                { multipleOf: 2 },
+            ),
         ).toBe("contained");
     });
 
@@ -298,20 +329,23 @@ describe("false mismatches the checker must avoid", () => {
                 { type: "object", properties: { a: { type: "string" } }, required: ["a"] },
             ],
         };
-        expect(kindOf(producer, consumer)).toBe("unprovable");
+        expect(getContainmentKind(producer, consumer)).toBe("unprovable");
 
         // A member rejecting the producer's own type is still a definite mismatch.
         expect(
-            kindOf({ type: "boolean" }, { anyOf: [{ type: "string" }, { type: "number" }] }),
+            getContainmentKind(
+                { type: "boolean" },
+                { anyOf: [{ type: "string" }, { type: "number" }] },
+            ),
         ).toBe("mismatch");
     });
 
     // Proves a wide but finite integer range against an enum is unprovable, not a mismatch.
     test("a wide integer range against an enum", () => {
         const allValues = Array.from({ length: 100 }, (_, index) => index);
-        expect(kindOf({ type: "integer", minimum: 0, maximum: 99 }, { enum: allValues })).toBe(
-            "unprovable",
-        );
+        expect(
+            getContainmentKind({ type: "integer", minimum: 0, maximum: 99 }, { enum: allValues }),
+        ).toBe("unprovable");
     });
 });
 
@@ -319,8 +353,8 @@ describe("combinators and references", () => {
     // Proves anyOf on both sides: each producer branch must fit some consumer branch.
     test("anyOf producers and consumers", () => {
         const numberOrString = { anyOf: [{ type: "number" }, { type: "string" }] };
-        expect(kindOf(numberOrString, numberOrString)).toBe("contained");
-        expect(kindOf({ type: "integer" }, numberOrString)).toBe("contained");
+        expect(getContainmentKind(numberOrString, numberOrString)).toBe("contained");
+        expect(getContainmentKind({ type: "integer" }, numberOrString)).toBe("contained");
         expect(checkSchemaContainment(numberOrString, { type: "number" })).toEqual({
             kind: "mismatch",
             keyword: "type",
@@ -328,22 +362,27 @@ describe("combinators and references", () => {
         });
 
         // A multi-type producer is split by type, so each type can fit a different member.
-        expect(kindOf({ type: ["string", "number"] }, numberOrString)).toBe("contained");
+        expect(getContainmentKind({ type: ["string", "number"] }, numberOrString)).toBe(
+            "contained",
+        );
         expect(
             checkSchemaContainment({ type: "number" }, { anyOf: [{ minimum: 0 }, { maximum: 0 }] }),
         ).toEqual({ kind: "unprovable", keyword: "anyOf", path: "/anyOf" });
 
         // oneOf in a producer is read as anyOf, which only widens it.
         expect(
-            kindOf({ oneOf: [{ type: "number" }, { type: "integer" }] }, { type: "number" }),
+            getContainmentKind(
+                { oneOf: [{ type: "number" }, { type: "integer" }] },
+                { type: "number" },
+            ),
         ).toBe("contained");
     });
 
     // Proves allOf conjunctions combine on the producer side and all apply on the consumer side.
     test("allOf on both sides", () => {
-        expect(kindOf({ allOf: [{ type: "number" }, { minimum: 0 }] }, { minimum: 0 })).toBe(
-            "contained",
-        );
+        expect(
+            getContainmentKind({ allOf: [{ type: "number" }, { minimum: 0 }] }, { minimum: 0 }),
+        ).toBe("contained");
         expect(
             checkSchemaContainment(
                 { type: "number" },
@@ -358,9 +397,9 @@ describe("combinators and references", () => {
             $defs: { positive: { type: "number", minimum: 0 } },
             $ref: "#/$defs/positive",
         };
-        expect(kindOf(positive, { type: "number", minimum: 0 })).toBe("contained");
-        expect(kindOf({ type: "integer", minimum: 1 }, positive)).toBe("contained");
-        expect(kindOf({ type: "number" }, positive)).toBe("mismatch");
+        expect(getContainmentKind(positive, { type: "number", minimum: 0 })).toBe("contained");
+        expect(getContainmentKind({ type: "integer", minimum: 1 }, positive)).toBe("contained");
+        expect(getContainmentKind({ type: "number" }, positive)).toBe("mismatch");
     });
 
     // Proves a subschema's `$ref` resolves against the document root passed for its side.
@@ -403,8 +442,10 @@ describe("combinators and references", () => {
             keyword: "$ref",
             path: "/properties/child/$ref",
         });
-        expect(kindOf(tree, { type: "object" })).toBe("contained");
-        expect(kindOf(tree, { properties: { child: { type: "object" } } })).toBe("mismatch");
+        expect(getContainmentKind(tree, { type: "object" })).toBe("contained");
+        expect(getContainmentKind(tree, { properties: { child: { type: "object" } } })).toBe(
+            "mismatch",
+        );
     });
 
     // Proves a producer that splits into too many alternatives is unprovable, not expanded forever.
@@ -428,9 +469,9 @@ describe("combinators and references", () => {
 describe("boolean schemas", () => {
     // Proves `true` and `false` behave as the everything and nothing schemas.
     test("true accepts everything and false accepts nothing", () => {
-        expect(kindOf({ type: "string" }, true)).toBe("contained");
-        expect(kindOf(false, { type: "string" })).toBe("contained");
-        expect(kindOf(true, { type: "string" })).toBe("mismatch");
+        expect(getContainmentKind({ type: "string" }, true)).toBe("contained");
+        expect(getContainmentKind(false, { type: "string" })).toBe("contained");
+        expect(getContainmentKind(true, { type: "string" })).toBe("mismatch");
         expect(checkSchemaContainment({ type: "string" }, false)).toEqual({
             kind: "mismatch",
             keyword: "false",
