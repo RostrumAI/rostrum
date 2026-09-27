@@ -10,7 +10,8 @@
  *
  * visit transitions:
  * - a task visit's successful path: waiting → ready → running → completed keeps identity and adds only each state's members.
- * - completing a ready visit has no start time: a visit completed without work has no `startedAt` or `workId`.
+ * - completing a ready visit has no start time: a visit completed without work has no `startedAt` or
+ *   `workId`, and its committed output is frozen.
  * - failing before and after dispatch: only a claimed visit keeps `startedAt`, neither keeps `workId`, and the failure is frozen.
  * - transitions don't mutate their input: promoting leaves the waiting visit unchanged.
  *
@@ -103,6 +104,7 @@ describe("visit transitions", () => {
             ENDED,
         );
         expect(Object.hasOwn(completed, "startedAt")).toBe(false);
+        expect(Object.isFrozen(completed.output)).toBe(true);
         expect(Object.hasOwn(completed, "workId")).toBe(false);
     });
 

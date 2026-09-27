@@ -7,12 +7,14 @@
  *
  * observeRun:
  * - a queued run: every step is pending in document order, with no current work; the snapshot passes the schema.
- * - a running run: a completed step shows its output and times, and the running step is current work.
+ * - a running run: a completed step shows its output and times, and the running and ready steps are
+ *   current work.
  * - waiting steps name their unmet dependencies: only the incomplete dependency is listed, on the step and run.
  * - a stopping run: the snapshot is stopping and lists only running work, not ready work.
  * - a completed run: the snapshot carries the run's result and passes the schema.
  * - a failed run: the failed step keeps its start time and failure, and no work is current.
- * - an impossible state throws: a completed run with a running step is rejected with a named error.
+ * - an impossible state throws: a completed run with a running step, and a stopping run with no
+ *   running step, are rejected with a named error.
  * - observation doesn't change the run: visits and progress are unchanged after observing.
  */
 import { describe, expect, test } from "bun:test";
@@ -28,11 +30,14 @@ import type { PreparedWorkflow } from "../preparation/prepared-workflow";
 import { PublicationPreparer } from "../preparation/publication-preparer";
 import { observeRun } from "./run-observation";
 import {
+    type CompletedVisit,
     claimVisit,
     completeVisit,
     createWaitingVisit,
     failVisit,
     promoteVisit,
+    type ReadyVisit,
+    type RunningVisit,
     type RunProgress,
     type RunState,
     type VisitState,
@@ -89,14 +94,19 @@ function buildRun(progress: RunProgress, visits: VisitState[] = []): RunState {
 }
 
 /** Builds a ready visit of a step. */
-const ready = (stepId: string) => promoteVisit(createWaitingVisit(stepId, [], AT));
+function ready(stepId: string): ReadyVisit {
+    return promoteVisit(createWaitingVisit(stepId, [], AT));
+}
 
 /** Builds a visit of a step whose work started at `AT`. */
-const running = (stepId: string) => claimVisit(ready(stepId), "work-1", AT);
+function running(stepId: string): RunningVisit {
+    return claimVisit(ready(stepId), "work-1", AT);
+}
 
 /** Builds a visit of a step that ran and committed its output at `LATER`. */
-const completed = (stepId: string, output = { value: 1 }) =>
-    completeVisit(running(stepId), output, LATER);
+function completed(stepId: string, output = { value: 1 }): CompletedVisit {
+    return completeVisit(running(stepId), output, LATER);
+}
 
 describe("observeRun", () => {
     // Proves a queued run lists every step as pending, in document order, with no work.
@@ -116,10 +126,11 @@ describe("observeRun", () => {
         const run = buildRun({ status: "running", stopping: false, startedAt: AT }, [
             completed(ADD_STEP),
             running(DIVIDE_STEP),
+            ready(RESULT_STEP),
         ]);
         const snapshot = observeRun(run);
 
-        // The completed step shows its output and times; the running one is current.
+        // The completed step shows its output and times; the running and ready ones are current.
         expect(snapshot.steps[0]).toEqual({
             stepId: ADD_STEP,
             status: "completed",
@@ -127,7 +138,7 @@ describe("observeRun", () => {
             completedAt: LATER,
             output: { value: 1 },
         });
-        expect(snapshot.currentSteps).toEqual([DIVIDE_STEP]);
+        expect(snapshot.currentSteps).toEqual([DIVIDE_STEP, RESULT_STEP]);
         expect(Value.Check(RunSnapshotSchema, snapshot)).toBe(true);
     });
 
@@ -208,6 +219,12 @@ describe("observeRun", () => {
             [running(ADD_STEP)],
         );
         expect(() => observeRun(run)).toThrow("A completed run can't have a running step");
+
+        // A stopping run with nothing running would already have failed.
+        const idle = buildRun({ status: "running", stopping: true, startedAt: AT, failure }, [
+            ready(ADD_STEP),
+        ]);
+        expect(() => observeRun(idle)).toThrow("A stopping run can't have no running step");
     });
 
     // Proves observing a run doesn't change it.
