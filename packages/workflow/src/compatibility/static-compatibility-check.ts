@@ -181,27 +181,41 @@ class StaticCompatibilityCheck {
         this.checkArguments(step, operation, pointer);
     }
 
-    /** Finds the task's operation in the catalog, reporting an absent or unknown one. */
+    /**
+     * Finds the task's operation in the catalog, reporting an absent,
+     * non-string, or unknown one. A present member is located at
+     * `config/operation` and its supplied value is preserved in `details`.
+     */
     private getTaskOperation(
         step: WorkflowStep,
         pointer: string,
     ): OperationDeclaration | undefined {
-        const name = getStepConfig(step).operation;
+        // A string naming a catalog operation resolves without an issue.
+        const config = getStepConfig(step);
+        const name = config.operation;
         const operation = typeof name === "string" ? this.catalog.get(name) : undefined;
         if (operation) {
             return operation;
         }
+
+        // Only an absent member is located at the step; any supplied value sits at the member.
+        const present = Object.hasOwn(config, "operation");
+        let message: string;
+        if (typeof name === "string") {
+            message = `Operation '${name}' isn't in the operation catalog`;
+        } else if (present) {
+            message = "The task's operation must be a string";
+        } else {
+            message = "The task names no operation";
+        }
         this.issues.push({
             kind: "unknown-operation",
-            path: typeof name === "string" ? `${pointer}/config/operation` : pointer,
-            message:
-                typeof name === "string"
-                    ? `Operation '${name}' isn't in the operation catalog`
-                    : "The task names no operation",
+            path: present ? `${pointer}/config/operation` : pointer,
+            message,
             stepId: step.id,
             details: {
                 stepId: step.id,
-                operation: typeof name === "string" ? name : null,
+                operation: present ? name : null,
                 supported: [...this.catalog.keys()].sort(),
             },
         });
