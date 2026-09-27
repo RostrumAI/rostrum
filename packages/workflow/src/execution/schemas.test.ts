@@ -1,0 +1,363 @@
+/**
+ * @fileoverview Tests that the refusal, acceptance, and inspection schemas
+ * reject payloads describing impossible states. The daemon and the Control
+ * API both validate against these schemas, so a gap here would let either
+ * side report a run that contradicts itself.
+ *
+ * refusals and acceptances:
+ * - a refusal names a known reason and well-formed failures: an unknown
+ *   reason, a failure with an unknown code, a missing failure list, or an
+ *   extra field is rejected.
+ * - an acceptance reports a queued run and its exact publication: any other
+ *   status, a malformed digest, a publication number below one, or an extra
+ *   field is rejected.
+ *
+ * step snapshots:
+ * - a waiting step names its unmet dependencies: a waiting step needs a
+ *   non-empty `waitingFor` list.
+ * - output and failure can't appear on the wrong step state: only a
+ *   completed step carries output, and only a failed step carries a failure.
+ *
+ * run snapshots:
+ * - a healthy running run with running, ready, and waiting steps is valid,
+ *   and rejects a failure or a result.
+ * - a stopping run carries the failure and its outstanding work: a stopping
+ *   run needs its failure and at least one current step.
+ * - a failed run carries no result and no active work: abandoned waiting
+ *   steps keep their own lists, and a result, current or waiting work, or a
+ *   stopping flag is rejected.
+ * - a completed run carries its result and no failure: the result, even an
+ *   empty one, is required, and a failure is rejected.
+ * - a queued run has no start time and no current work.
+ * - step states must agree with the run's status: a completed run rejects
+ *   running or failed steps, a queued run rejects reached steps, a
+ *   non-stopping running run rejects failed steps, and a failed run rejects
+ *   running steps.
+ */
+import { describe, expect, test } from "bun:test";
+import { Value } from "typebox/value";
+import {
+    type ExecutionFailure,
+    RunAcceptanceSchema,
+    type RunPublication,
+    RunRefusalSchema,
+    RunSnapshotSchema,
+    type StepSnapshot,
+    StepSnapshotSchema,
+} from "./schemas";
+
+const RUN_ID = "0192b0a0-7e1d-7000-8000-000000000200";
+const FIRST_STEP = "0192b0a0-7e1d-7000-8000-000000000201";
+const SECOND_STEP = "0192b0a0-7e1d-7000-8000-000000000202";
+const THIRD_STEP = "0192b0a0-7e1d-7000-8000-000000000203";
+const AT = "2026-09-23T12:00:00.000Z";
+
+const publication: RunPublication = {
+    workflowId: "0192b0a0-7e1d-7000-8000-000000000100",
+    publicationNumber: 1,
+    workflowFormatVersion: "v1",
+    digest: "0".repeat(64),
+};
+
+const failure: ExecutionFailure = {
+    code: "division_by_zero",
+    message: "The divisor is zero",
+    path: "/steps/1/inputs/divisor",
+    stepId: SECOND_STEP,
+};
+
+/** Builds a run snapshot around a status-specific core, sharing the run's identity. */
+function buildRunSnapshot(
+    core: Record<string, unknown>,
+    steps: StepSnapshot[],
+): Record<string, unknown> {
+    return { runId: RUN_ID, publication, acceptedAt: AT, steps, ...core };
+}
+
+describe("refusals and acceptances", () => {
+    // Proves a refusal carries one known reason and a list of well-formed failures.
+    test("a refusal names a known reason and well-formed failures", () => {
+        // An input refusal with its located failure is well formed, as is one with no failures.
+        const refusal = {
+            reason: "invalid_inputs",
+            failures: [{ code: "missing_input", message: "Input is missing", path: "/count" }],
+        };
+        expect(Value.Check(RunRefusalSchema, refusal)).toBe(true);
+        expect(
+            Value.Check(RunRefusalSchema, { reason: "publication_not_found", failures: [] }),
+        ).toBe(true);
+
+        // An unknown reason, an unknown failure code, or a missing list is rejected.
+        expect(Value.Check(RunRefusalSchema, { ...refusal, reason: "invalid_input" })).toBe(false);
+        expect(
+            Value.Check(RunRefusalSchema, {
+                ...refusal,
+                failures: [{ code: "missing_value", message: "Input is missing", path: "/count" }],
+            }),
+        ).toBe(false);
+        expect(Value.Check(RunRefusalSchema, { reason: "invalid_inputs" })).toBe(false);
+
+        // A refusal never describes a run, so it can't carry a run ID.
+        expect(Value.Check(RunRefusalSchema, { ...refusal, runId: RUN_ID })).toBe(false);
+    });
+
+    // Proves an acceptance reports only a queued run with its exact publication.
+    test("an acceptance reports a queued run and its exact publication", () => {
+        // A freshly accepted run is queued and names the publication it executes.
+        const acceptance = { runId: RUN_ID, publication, status: "queued" };
+        expect(Value.Check(RunAcceptanceSchema, acceptance)).toBe(true);
+
+        // Acceptance happens before any advancement, so every other status is rejected.
+        for (const status of ["running", "completed", "failed"]) {
+            expect(Value.Check(RunAcceptanceSchema, { ...acceptance, status })).toBe(false);
+        }
+
+        // The publication must be pinned by a full digest and a real publication number.
+        expect(
+            Value.Check(RunAcceptanceSchema, {
+                ...acceptance,
+                publication: { ...publication, digest: "0".repeat(63) },
+            }),
+        ).toBe(false);
+        expect(
+            Value.Check(RunAcceptanceSchema, {
+                ...acceptance,
+                publication: { ...publication, publicationNumber: 0 },
+            }),
+        ).toBe(false);
+
+        // An acceptance reports no outcome, so a result is rejected.
+        expect(Value.Check(RunAcceptanceSchema, { ...acceptance, result: {} })).toBe(false);
+    });
+});
+
+describe("step snapshots", () => {
+    // Proves a waiting step must say which dependencies it is waiting for.
+    test("a waiting step names its unmet dependencies", () => {
+        // A waiting step with one unmet dependency is well formed.
+        const waiting = { stepId: SECOND_STEP, status: "waiting", waitingFor: [FIRST_STEP] };
+        expect(Value.Check(StepSnapshotSchema, waiting)).toBe(true);
+
+        // Without any named dependency, or without the list, it isn't.
+        expect(Value.Check(StepSnapshotSchema, { ...waiting, waitingFor: [] })).toBe(false);
+        expect(Value.Check(StepSnapshotSchema, { stepId: SECOND_STEP, status: "waiting" })).toBe(
+            false,
+        );
+    });
+
+    // Proves only a completed step can carry output, and a completed step can't carry a failure.
+    test("output and failure can't appear on the wrong step state", () => {
+        // A completed step carries its output; a failed step carries its failure.
+        const completed = {
+            stepId: FIRST_STEP,
+            status: "completed",
+            completedAt: AT,
+            output: { value: 1 },
+        };
+        const failed = { stepId: FIRST_STEP, status: "failed", completedAt: AT, failure };
+        expect(Value.Check(StepSnapshotSchema, completed)).toBe(true);
+        expect(Value.Check(StepSnapshotSchema, failed)).toBe(true);
+
+        // Mixing them, or giving output to unfinished work, is rejected.
+        expect(Value.Check(StepSnapshotSchema, { ...completed, failure })).toBe(false);
+        expect(Value.Check(StepSnapshotSchema, { ...failed, output: { value: 1 } })).toBe(false);
+        expect(
+            Value.Check(StepSnapshotSchema, {
+                stepId: FIRST_STEP,
+                status: "running",
+                startedAt: AT,
+                output: { value: 1 },
+            }),
+        ).toBe(false);
+    });
+});
+
+describe("run snapshots", () => {
+    // Proves a healthy running run with ready, running, and waiting steps is well formed.
+    test("a running run reports its current and waiting work", () => {
+        // The first step runs, the second is ready, and the third waits for the first.
+        const steps: StepSnapshot[] = [
+            { stepId: FIRST_STEP, status: "running", startedAt: AT },
+            { stepId: SECOND_STEP, status: "ready" },
+            { stepId: THIRD_STEP, status: "waiting", waitingFor: [FIRST_STEP] },
+        ];
+        const running = buildRunSnapshot(
+            {
+                status: "running",
+                stopping: false,
+                startedAt: AT,
+                currentSteps: [FIRST_STEP, SECOND_STEP],
+                waitingFor: [FIRST_STEP],
+            },
+            steps,
+        );
+        expect(Value.Check(RunSnapshotSchema, running)).toBe(true);
+
+        // A healthy running run carries no failure and no result.
+        expect(Value.Check(RunSnapshotSchema, { ...running, failure })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...running, result: {} })).toBe(false);
+    });
+
+    // Proves a stopping run carries its failure and the work that is still outstanding.
+    test("a stopping run carries the failure and its outstanding work", () => {
+        // The first step failed while the second is still running.
+        const steps: StepSnapshot[] = [
+            { stepId: FIRST_STEP, status: "failed", completedAt: AT, failure },
+            { stepId: SECOND_STEP, status: "running", startedAt: AT },
+        ];
+        const stopping = buildRunSnapshot(
+            {
+                status: "running",
+                stopping: true,
+                startedAt: AT,
+                currentSteps: [SECOND_STEP],
+                waitingFor: [],
+                failure,
+            },
+            steps,
+        );
+        expect(Value.Check(RunSnapshotSchema, stopping)).toBe(true);
+
+        // A stopping run without its failure, or with no outstanding work, is rejected.
+        const { failure: _failure, ...withoutFailure } = stopping;
+        expect(Value.Check(RunSnapshotSchema, withoutFailure)).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...stopping, currentSteps: [] })).toBe(false);
+    });
+
+    // Proves a failed run can't also report a successful result or active work.
+    test("a failed run carries no result and no active work", () => {
+        // A settled failure with no current work is well formed.
+        const steps: StepSnapshot[] = [
+            { stepId: FIRST_STEP, status: "completed", completedAt: AT, output: { value: 100 } },
+            { stepId: SECOND_STEP, status: "failed", startedAt: AT, completedAt: AT, failure },
+        ];
+        const failed = buildRunSnapshot(
+            {
+                status: "failed",
+                stopping: false,
+                startedAt: AT,
+                completedAt: AT,
+                currentSteps: [],
+                waitingFor: [],
+                failure,
+            },
+            steps,
+        );
+        expect(Value.Check(RunSnapshotSchema, failed)).toBe(true);
+
+        // An abandoned waiting step keeps its own list while the terminal run reports none.
+        const abandoned = {
+            ...failed,
+            steps: [...steps, { stepId: THIRD_STEP, status: "waiting", waitingFor: [SECOND_STEP] }],
+        };
+        expect(Value.Check(RunSnapshotSchema, abandoned)).toBe(true);
+
+        // Adding a result, current work, waiting work, or a stopping flag is rejected.
+        expect(Value.Check(RunSnapshotSchema, { ...failed, result: { total: 100 } })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...failed, currentSteps: [SECOND_STEP] })).toBe(
+            false,
+        );
+        expect(Value.Check(RunSnapshotSchema, { ...failed, waitingFor: [FIRST_STEP] })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...failed, stopping: true })).toBe(false);
+    });
+
+    // Proves a completed run reports its result and can't also report a failure.
+    test("a completed run carries its result and no failure", () => {
+        // An empty result object is still a result.
+        const completed = buildRunSnapshot(
+            {
+                status: "completed",
+                stopping: false,
+                startedAt: AT,
+                completedAt: AT,
+                currentSteps: [],
+                waitingFor: [],
+                result: {},
+            },
+            [{ stepId: FIRST_STEP, status: "completed", completedAt: AT, output: {} }],
+        );
+        expect(Value.Check(RunSnapshotSchema, completed)).toBe(true);
+
+        // Without the result, or with a failure beside it, the snapshot is rejected.
+        const { result: _result, ...withoutResult } = completed;
+        expect(Value.Check(RunSnapshotSchema, withoutResult)).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...completed, failure })).toBe(false);
+    });
+
+    // Proves a queued run hasn't started and has no current work yet.
+    test("a queued run has no start time and no current work", () => {
+        // Before the first advancement every step is pending.
+        const queued = buildRunSnapshot(
+            { status: "queued", stopping: false, currentSteps: [], waitingFor: [] },
+            [{ stepId: FIRST_STEP, status: "pending" }],
+        );
+        expect(Value.Check(RunSnapshotSchema, queued)).toBe(true);
+
+        // A start time or current work contradicts the queued state.
+        expect(Value.Check(RunSnapshotSchema, { ...queued, startedAt: AT })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...queued, currentSteps: [FIRST_STEP] })).toBe(
+            false,
+        );
+    });
+
+    // Proves the step list can't contradict the run's status.
+    test("step states must agree with the run's status", () => {
+        const running: StepSnapshot = { stepId: FIRST_STEP, status: "running", startedAt: AT };
+        const failed: StepSnapshot = {
+            stepId: FIRST_STEP,
+            status: "failed",
+            completedAt: AT,
+            failure,
+        };
+        const completed: StepSnapshot = {
+            stepId: FIRST_STEP,
+            status: "completed",
+            completedAt: AT,
+            output: {},
+        };
+
+        // A completed run can't still have running or failed steps.
+        const completedRun = buildRunSnapshot(
+            {
+                status: "completed",
+                stopping: false,
+                startedAt: AT,
+                completedAt: AT,
+                currentSteps: [],
+                waitingFor: [],
+                result: {},
+            },
+            [completed],
+        );
+        expect(Value.Check(RunSnapshotSchema, completedRun)).toBe(true);
+        expect(Value.Check(RunSnapshotSchema, { ...completedRun, steps: [running] })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...completedRun, steps: [failed] })).toBe(false);
+
+        // A queued run has reached nothing, and a run that isn't stopping has no failed step.
+        const queued = buildRunSnapshot(
+            { status: "queued", stopping: false, currentSteps: [], waitingFor: [] },
+            [completed],
+        );
+        expect(Value.Check(RunSnapshotSchema, queued)).toBe(false);
+        const runningRun = buildRunSnapshot(
+            { status: "running", stopping: false, startedAt: AT, currentSteps: [], waitingFor: [] },
+            [failed],
+        );
+        expect(Value.Check(RunSnapshotSchema, runningRun)).toBe(false);
+
+        // A failed run has settled, so no step is still running.
+        const failedRun = buildRunSnapshot(
+            {
+                status: "failed",
+                stopping: false,
+                startedAt: AT,
+                completedAt: AT,
+                currentSteps: [],
+                waitingFor: [],
+                failure,
+            },
+            [running],
+        );
+        expect(Value.Check(RunSnapshotSchema, failedRun)).toBe(false);
+    });
+});

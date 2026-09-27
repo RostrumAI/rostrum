@@ -16,7 +16,9 @@
  *   metadata members removed.
  *
  * The machine-readable document schema lives in `./schema`; its emitted
- * JSON Schema 2020-12 artifact describes the format's document shape.
+ * JSON Schema 2020-12 artifact describes the format's document shape. The
+ * run vocabulary the daemon and the Control API share is the separate
+ * `@rostrum/workflow/execution` entry point.
  */
 
 export { insertWorkflowId, replaceWorkflowId } from "./document/id-splice";
