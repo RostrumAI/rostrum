@@ -46,15 +46,17 @@ async function runFixturePublication(
     const released = Promise.withResolvers<void>();
     const runId = engine.admit(preparation.workflow, accepted.inputs, {
         signal: new AbortController().signal,
-        release: () => released.resolve(),
+        release: () => {
+            released.resolve();
+        },
     });
     // A run that never settles fails the smoke instead of hanging it.
-    const deadline = setTimeout(
-        () =>
-            released.reject(new Error(`run ${runId} didn't finish within ${SMOKE_DEADLINE_MS} ms`)),
-        SMOKE_DEADLINE_MS,
-    );
-    await released.promise.finally(() => clearTimeout(deadline));
+    const deadline = setTimeout(() => {
+        released.reject(new Error(`run ${runId} didn't finish within ${SMOKE_DEADLINE_MS} ms`));
+    }, SMOKE_DEADLINE_MS);
+    await released.promise.finally(() => {
+        clearTimeout(deadline);
+    });
     const snapshot = engine.inspectRun(runId);
     assert.ok(snapshot, "an admitted run must be inspectable");
     return snapshot;
