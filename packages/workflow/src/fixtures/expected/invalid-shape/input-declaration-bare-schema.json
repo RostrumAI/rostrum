@@ -1,0 +1,31 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.unknown-field",
+            "blocking": true,
+            "path": "/inputs/name",
+            "line": 5,
+            "column": 25,
+            "details": {
+                "schemaPath": "#/properties/inputs/patternProperties/^.*$",
+                "keyword": "additionalProperties",
+                "params": {
+                    "additionalProperties": ["type"]
+                }
+            }
+        },
+        {
+            "code": "workflow.shape.required-field",
+            "blocking": true,
+            "path": "/inputs/name/schema",
+            "details": {
+                "schemaPath": "#/properties/inputs/patternProperties/^.*$",
+                "keyword": "required",
+                "params": {
+                    "requiredProperties": ["schema"]
+                }
+            }
+        }
+    ]
+}
