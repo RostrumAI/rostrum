@@ -1,0 +1,44 @@
+{
+    "workflowFormatVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000100",
+    "name": "Split a bill evenly",
+    "description": "Add an optional surcharge to an amount, divide it among people, return both.",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000101",
+    "inputs": {
+        "amount": { "schema": { "type": "number" } },
+        "people": { "schema": { "type": "number" } },
+        "surcharge": { "schema": { "type": "number" }, "default": 0 }
+    },
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000101",
+            "type": "task",
+            "config": { "operation": "add" },
+            "inputs": {
+                "left": { "ref": "inputs.amount" },
+                "right": { "ref": "inputs.surcharge" }
+            },
+            "outputs": { "value": { "type": "number" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000102"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000102",
+            "type": "task",
+            "config": { "operation": "divide" },
+            "inputs": {
+                "dividend": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000101.value" },
+                "divisor": { "ref": "inputs.people" }
+            },
+            "outputs": { "value": { "type": "number" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000103"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000103",
+            "type": "result",
+            "inputs": {
+                "total": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000101.value" },
+                "perPerson": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000102.value" }
+            }
+        }
+    ]
+}
