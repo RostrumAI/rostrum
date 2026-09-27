@@ -1,3 +1,21 @@
+/**
+ * @fileoverview Tests the condition-operand rules of the static compatibility
+ * check. Publication validates conditionals before they execute, so a leaf whose
+ * operator can't meaningfully compare its output must be reported, as
+ * `operand-mismatch` or, when containment can't decide, `unprovable`.
+ *
+ * - ordering operators: gt, gte, lt, and lte accept only a number output with a
+ *   number value; an output containment can't compare is `unprovable`.
+ * - contains: accepts a string output with a string value, or any array output;
+ *   a number output or a non-string value on a string output is a mismatch.
+ * - membership and equality: in and notin need an array value with at least one
+ *   element the output allows; eq and neq need a value the output allows, and an
+ *   explicit null counts as a value while an absent one does not.
+ * - leaves the check doesn't judge: truthy, falsy, and unknown operators, and
+ *   leaves whose reference resolves to no producer, report nothing.
+ * - locating issues: leaves nested in `all` and `any` are reported at their own
+ *   JSON Pointers with the conditional id, reference, and operator in details.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     createDeclaredSchemaCompiler,

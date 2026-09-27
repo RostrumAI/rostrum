@@ -174,7 +174,11 @@ export const RunAcceptanceSchema = Type.Object(
 /** What an accepted invocation returns. Execution continues independently of the response. */
 export type RunAcceptance = Static<typeof RunAcceptanceSchema>;
 
-/** A step that has no visit yet. */
+/**
+ * A step that has no visit yet. A visit is one execution of a step within
+ * a run: the engine creates it when the run reaches the step, and it
+ * carries the step's progress from waiting to its outcome.
+ */
 const PendingStepSnapshot = Type.Object(
     { stepId: Identifier, status: Type.Literal("pending") },
     { additionalProperties: false },
@@ -355,9 +359,8 @@ const FailedRunSnapshot = Type.Object(
  * The inspection snapshot of one run. Every variant lists all of the
  * publication's steps in document order, which is display order, not
  * execution order, limited to the step states the run's status allows.
- * `waitingFor` lists the dependency
- * step IDs that waiting visits still need; each waiting step also names
- * its own.
+ * `waitingFor` lists the dependency step IDs that waiting visits still
+ * need; each waiting step also names its own.
  */
 export const RunSnapshotSchema = Type.Union([
     QueuedRunSnapshot,

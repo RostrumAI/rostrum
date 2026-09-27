@@ -1,7 +1,39 @@
+/**
+ * @fileoverview Tests `checkSchemaContainment`, which decides whether every
+ * value a producer schema allows is also allowed by a consumer schema. Static
+ * binding checks rely on it never reporting `contained` for a pair the runtime
+ * validator could reject.
+ *
+ * - numbers: an unbounded number fails a minimum; tighter bounds and integer fit
+ *   looser ones; exclusive bounds compare at the boundary; `multipleOf` is
+ *   contained only for exact integer division and never for float-rounding or
+ *   unbounded-integer cases the runtime rejects.
+ * - keywords the checker can't compare: a consumer `not` is unprovable and
+ *   named; patterns match only by identity; an ignored producer keyword only
+ *   widens it; a keyword that can't apply to the producer's type is vacuous.
+ * - finite producers: enum and short integer ranges are checked value by value;
+ *   an unbounded producer fails a consumer enum; a mismatch becomes unprovable
+ *   when an uncompared producer constraint could exclude the failing values.
+ * - false mismatches the checker must avoid: enumerated candidates the
+ *   producer's own bounds or step exclude aren't counterexamples; a nested
+ *   `type` failure inside a consumer `anyOf` member is unprovable, not a
+ *   mismatch; a wide integer range against an `enum` is unprovable.
+ * - objects and arrays: members compare by name, including prototype names like
+ *   `constructor`; unrequired members fail a consumer `required`; an open
+ *   producer fails a closed consumer; elements, tuples, and lengths compare;
+ *   an unbounded array or object fails each consumer length or count bound.
+ * - combinators and references: `anyOf` on both sides, with multi-type producers
+ *   split by type; producer `oneOf` read as `anyOf`; `allOf` on both sides; local
+ *   `$ref` inlined on both sides; a recursive `$ref` is unprovable as consumer and
+ *   `true` as producer; expansion past the limit is unprovable, also when nested.
+ * - boolean schemas: `true` and `false` act as the everything and nothing schemas.
+ * - the operation catalog: every catalog schema is contained in itself.
+ */
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG, toJsonSchema } from "../operations/operation-catalog";
 import type { JsonSchema } from "./declared-schema-compiler";
 import { checkSchemaContainment } from "./schema-containment";
+import type { ContainmentResult } from "./schema-keywords";
 
 /** Returns just the outcome kind, for cases where the location doesn't matter. */
 function kindOf(producer: JsonSchema, consumer: JsonSchema): string {
@@ -56,7 +88,8 @@ describe("numbers", () => {
     // Proves the rounding cases the runtime rejects are never reported as contained.
     test("multipleOf never passes a pair the runtime check rejects", () => {
         // 0.3 / 0.1 isn't exactly 3 in binary floating point, so the runtime rejects 0.3.
-        expect(kindOf({ type: "number", multipleOf: 0.3 }, { multipleOf: 0.1 })).toBe("mismatch");
+        // A stepped fractional producer is only unprovable: the checker doesn't search its steps.
+        expect(kindOf({ type: "number", multipleOf: 0.3 }, { multipleOf: 0.1 })).toBe("unprovable");
         expect(kindOf({ const: 0.3 }, { multipleOf: 0.1 })).toBe("mismatch");
         expect(kindOf({ type: "integer" }, { multipleOf: 1.0000000001 })).toBe("unprovable");
 
@@ -214,6 +247,70 @@ describe("objects and arrays", () => {
                 { type: "array", prefixItems: [{ type: "string" }], maxItems: 1 },
             ),
         ).toBe("contained");
+    });
+
+    // Proves each length and member-count bound fails when the producer can fall outside it.
+    test("length and count bounds that the producer can break", () => {
+        const at = (keyword: string): ContainmentResult => ({
+            kind: "mismatch",
+            keyword,
+            path: `/${keyword}`,
+        });
+        expect(checkSchemaContainment({ type: "array" }, { minItems: 1 })).toEqual(at("minItems"));
+        expect(checkSchemaContainment({ type: "array" }, { maxItems: 3 })).toEqual(at("maxItems"));
+        expect(checkSchemaContainment({ type: "object" }, { minProperties: 1 })).toEqual(
+            at("minProperties"),
+        );
+        expect(checkSchemaContainment({ type: "object" }, { maxProperties: 2 })).toEqual(
+            at("maxProperties"),
+        );
+
+        // Tighter producer bounds, or a closed object with few enough members, fit.
+        expect(
+            kindOf({ type: "array", minItems: 1, maxItems: 3 }, { minItems: 1, maxItems: 3 }),
+        ).toBe("contained");
+        const pair = { properties: { a: true, b: true }, additionalProperties: false };
+        expect(kindOf({ type: "object", ...pair }, { maxProperties: 2 })).toBe("contained");
+    });
+});
+
+describe("false mismatches the checker must avoid", () => {
+    // Proves enumerated candidates the producer's own bounds or step exclude aren't counterexamples.
+    test("finite values respect the producer's other keywords", () => {
+        expect(kindOf({ enum: [1, 5], minimum: 3 }, { minimum: 3 })).toBe("contained");
+        expect(
+            kindOf({ type: "integer", minimum: 0, maximum: 6, multipleOf: 2 }, { multipleOf: 2 }),
+        ).toBe("contained");
+    });
+
+    // Proves a nested member's type failure doesn't make an anyOf a definite mismatch.
+    test("a nested type failure inside an anyOf member is not outright rejection", () => {
+        const producer = {
+            type: "object",
+            properties: { a: { anyOf: [{ type: "number" }, { type: "string" }] } },
+            required: ["a"],
+            additionalProperties: false,
+        };
+        const consumer = {
+            anyOf: [
+                { type: "object", properties: { a: { type: "number" } }, required: ["a"] },
+                { type: "object", properties: { a: { type: "string" } }, required: ["a"] },
+            ],
+        };
+        expect(kindOf(producer, consumer)).toBe("unprovable");
+
+        // A member rejecting the producer's own type is still a definite mismatch.
+        expect(
+            kindOf({ type: "boolean" }, { anyOf: [{ type: "string" }, { type: "number" }] }),
+        ).toBe("mismatch");
+    });
+
+    // Proves a wide but finite integer range against an enum is unprovable, not a mismatch.
+    test("a wide integer range against an enum", () => {
+        const allValues = Array.from({ length: 100 }, (_, index) => index);
+        expect(kindOf({ type: "integer", minimum: 0, maximum: 99 }, { enum: allValues })).toBe(
+            "unprovable",
+        );
     });
 });
 
