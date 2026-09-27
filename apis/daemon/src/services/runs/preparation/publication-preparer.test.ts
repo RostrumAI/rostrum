@@ -1,3 +1,37 @@
+/**
+ * @fileoverview Tests `PublicationPreparer`: whether this daemon release can
+ * run a stored publication, and whether an invocation's inputs are valid.
+ * A publication the release can't run must be refused before any run starts,
+ * with every located failure and the right refusal reason.
+ *
+ * the worked example:
+ * - The calculation fixture prepares, keeps its publication, entry step, and
+ *   step order, and binds the add step to supplied inputs plus a default.
+ * - A string amount, a missing input, and an undeclared input are all
+ *   reported together as `invalid_inputs`, in pointer order.
+ * - An operation outside the catalog is `unknown_operation`.
+ *
+ * declared schemas:
+ * - A number declaration rejects a numeric string without coercion.
+ * - A malformed schema and an external `$ref` are `invalid_schema`.
+ * - Local `$ref`s resolve, and `format` doesn't reject values.
+ *
+ * defaults and literals:
+ * - A default fills an omitted input; an explicit `null` is kept.
+ * - Literal keys `constructor`, `__proto__`, and `a.b` keep their values as
+ *   own members without touching the prototype.
+ * - Prepared literals are deep-frozen copies.
+ *
+ * refusals:
+ * - A refusal lists every failure, not only the first.
+ * - References to an undeclared input or step output are `unresolved_binding`.
+ * - A loop iterating its own variable is `unsupported_control_flow`.
+ * - Invalid stored JSON and a mismatched workflow ID are `corrupt_publication`.
+ * - The greeting fixture prepares with its real recorded digest.
+ * - A 20,000-level nested input is copied and frozen without a stack overflow.
+ * - A value check that throws is a sanitized `execution_error` refused as
+ *   `unsupported_execution`, not `invalid_inputs`.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     OPERATION_CATALOG,
