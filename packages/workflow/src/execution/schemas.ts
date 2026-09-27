@@ -1,5 +1,5 @@
 import { type Static, Type } from "typebox";
-import { UUID_V7_PATTERN } from "../schema";
+import { IDENTIFIER_PATTERN } from "../schema";
 
 /**
  * The run vocabulary the daemon and the Control API must describe
@@ -16,7 +16,7 @@ import { UUID_V7_PATTERN } from "../schema";
  */
 
 /** A workflow, step, or run identifier, in the workflow format's one pattern. */
-const Identifier = Type.String({ pattern: UUID_V7_PATTERN });
+const Identifier = Type.String({ pattern: IDENTIFIER_PATTERN });
 
 /** An instant recorded when a transition happens, as an RFC 3339 timestamp. */
 const Timestamp = Type.String({ format: "date-time" });
