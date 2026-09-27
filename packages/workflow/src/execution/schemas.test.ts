@@ -1,3 +1,28 @@
+/**
+ * @fileoverview Tests that the step and run inspection schemas reject
+ * snapshots describing impossible states. The daemon and the Control API
+ * both validate against these schemas, so a gap here would let either side
+ * report a run that contradicts itself.
+ *
+ * step snapshots:
+ * - a waiting step names its unmet dependencies: a waiting step needs a
+ *   non-empty `waitingFor` list.
+ * - output and failure can't appear on the wrong step state: only a
+ *   completed step carries output, and only a failed step carries a failure.
+ *
+ * run snapshots:
+ * - a stopping run carries the failure and its outstanding work: a stopping
+ *   run needs its failure and at least one current step.
+ * - a failed run carries no result and no active work: a result, current or
+ *   waiting work, or a stopping flag is rejected.
+ * - a completed run carries its result and no failure: the result, even an
+ *   empty one, is required, and a failure is rejected.
+ * - a queued run has no start time and no current work.
+ * - step states must agree with the run's status: a completed run rejects
+ *   running or failed steps, a queued run rejects reached steps, a
+ *   non-stopping running run rejects failed steps, and a failed run rejects
+ *   running steps.
+ */
 import { describe, expect, test } from "bun:test";
 import { Value } from "typebox/value";
 import {
