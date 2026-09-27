@@ -6,7 +6,8 @@
  * sequential-calculation fixture (add, divide, result).
  *
  * TaskExecutionNode:
- * - prepares task work: resolved arguments, including a defaulted one.
+ * - prepares task work: resolved bound arguments, and an unbound optional
+ *   argument's operation default.
  * - fails with a located `unresolved_binding` when a producer hasn't completed.
  * - fails with a located `io_type_mismatch` when a resolved value fails its
  *   argument's check.
@@ -43,10 +44,10 @@ const DIVIDE_STEP = "0192b0a0-7e1d-7000-8000-000000000102";
 const RESULT_STEP = "0192b0a0-7e1d-7000-8000-000000000103";
 const AT = "2026-09-23T12:00:00.000Z";
 
-/** Prepares the calculation fixture, whose steps the nodes are built from. */
-function prepareCalculation(): PreparedWorkflow {
+/** Prepares a variant of the calculation fixture, whose steps the nodes are built from. */
+function prepareCalculation(document: object = calculationJson): PreparedWorkflow {
     const preparation = new PublicationPreparer(OPERATION_CATALOG).prepare(
-        JSON.stringify(calculationJson),
+        JSON.stringify(document),
         {
             workflowId: calculationJson.id,
             publicationNumber: 1,
@@ -62,9 +63,9 @@ function prepareCalculation(): PreparedWorkflow {
 
 const workflow = prepareCalculation();
 
-/** Returns a prepared task step of the calculation. */
-function getTaskStep(stepId: string): PreparedTaskStep {
-    const step = workflow.steps.get(stepId);
+/** Returns a prepared task step of the calculation, or of the given variant. */
+function getTaskStep(stepId: string, preparedWorkflow = workflow): PreparedTaskStep {
+    const step = preparedWorkflow.steps.get(stepId);
     if (step?.kind !== "task") {
         throw new Error(`Expected ${stepId} to be a task step`);
     }
@@ -97,19 +98,41 @@ function createReadyVisit(stepId: string): ReadyVisit {
 }
 
 describe("TaskExecutionNode", () => {
-    // Proves a ready task resolves its arguments, including a defaulted one, for the executor.
+    // Proves a ready task resolves its bound arguments from the run for the executor.
     test("prepares task work with resolved inputs", () => {
         // The addition binds both arguments to run inputs, so no producer is needed.
         const step = getTaskStep(ADD_STEP);
         const node = new TaskExecutionNode(step);
         const preparation = node.prepareExecution(
             createReadyVisit(ADD_STEP),
-            buildContext({ amount: 90, surcharge: 0, people: 3 }),
+            buildContext({ amount: 90, surcharge: 5, people: 3 }),
         );
 
         // The executor receives this node's own step and the resolved arguments.
-        expect(preparation).toEqual({ kind: "task", step, inputs: { left: 90, right: 0 } });
+        expect(preparation).toEqual({ kind: "task", step, inputs: { left: 90, right: 5 } });
         expect(preparation.kind === "task" && preparation.step).toBe(step);
+    });
+
+    // Proves an unbound optional argument receives its operation default without a run value.
+    test("prepares task work with a defaulted argument", () => {
+        // The addition leaves its optional `right` argument unbound.
+        const document = {
+            ...calculationJson,
+            steps: calculationJson.steps.map((step) =>
+                step.id === ADD_STEP ? { ...step, inputs: { left: step.inputs.left } } : step,
+            ),
+        };
+        const step = getTaskStep(ADD_STEP, prepareCalculation(document));
+        const node = new TaskExecutionNode(step);
+
+        // The run supplies only the bound argument's value.
+        const preparation = node.prepareExecution(
+            createReadyVisit(ADD_STEP),
+            buildContext({ amount: 90, people: 3 }),
+        );
+
+        // `right` takes `add`'s declared default of 0.
+        expect(preparation).toEqual({ kind: "task", step, inputs: { left: 90, right: 0 } });
     });
 
     // Proves a binding to output no completed visit holds fails the visit before dispatch.
