@@ -316,7 +316,7 @@ export class WorkflowEngine {
         ) {
             const visit = run.visits.get(key);
             if (visit?.status === "ready") {
-                this.claim(entry, visit);
+                this.claimReadyVisit(entry, visit);
                 break;
             }
         }
@@ -325,8 +325,8 @@ export class WorkflowEngine {
         }
     }
 
-    /** Prepares a ready visit and applies the node's decision: fail it, commit it locally, or start its task. */
-    private claim(entry: RunEntry, visit: ReadyVisit): void {
+    /** Claims a ready visit by preparing it and applying the node's decision: fail it, commit it locally, or start its task. */
+    private claimReadyVisit(entry: RunEntry, visit: ReadyVisit): void {
         const node = this.getNode(entry, visit.stepId);
         const preparation = node.prepareExecution(visit, this.createBindingContext(entry, visit));
         switch (preparation.kind) {
