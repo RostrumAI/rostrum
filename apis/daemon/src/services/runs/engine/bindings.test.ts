@@ -9,6 +9,8 @@
  * - an output of a step that hasn't completed is unresolved: the result is a
  *   located `unresolved_binding` failure naming the input, path, and step.
  * - a workflow input the run lacks is unresolved the same way.
+ * - the first unresolved binding is the one reported: with several
+ *   unresolved, the failure names the earliest input and its path.
  * - a prototype member never satisfies a missing output or input: an output
  *   named `constructor` stays unresolved, and `a.b` reads the member named
  *   `a.b`, not a nested path.
@@ -76,6 +78,27 @@ describe("resolveBindings", () => {
     test("a workflow input the run lacks is unresolved", () => {
         const inputs = inputsOf([["amount", { kind: "workflow-input", inputName: "amount" }]]);
         expect(resolveBindings(inputs, contextOf({ other: 1 }), STEP)).toEqual({
+            ok: false,
+            failure: {
+                code: "unresolved_binding",
+                message: "The value bound to 'amount' isn't available",
+                path: "/steps/0/inputs/amount",
+                stepId: STEP,
+            },
+        });
+    });
+
+    // Proves the failure names the first unresolved binding in declaration order, not a later one.
+    test("the first unresolved binding is the one reported", () => {
+        // Two unresolved bindings follow a resolvable one.
+        const inputs = inputsOf([
+            ["fixed", { kind: "literal", value: 1 }],
+            ["amount", { kind: "workflow-input", inputName: "amount" }],
+            ["right", { kind: "step-output", stepId: PRODUCER, outputName: "value" }],
+        ]);
+
+        // Only the earlier `amount` binding is reported, at its own path.
+        expect(resolveBindings(inputs, contextOf({}), STEP)).toEqual({
             ok: false,
             failure: {
                 code: "unresolved_binding",
