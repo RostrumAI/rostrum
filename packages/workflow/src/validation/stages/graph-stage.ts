@@ -10,16 +10,16 @@ import type { WorkflowGraph } from "../workflow-graph";
  * loop bodies must be acyclic, each loop body subgraph must be acyclic,
  * no step inside a loop body may declare a `loop` (no nesting in v1),
  * `maxIterations` must be a positive integer, no step may list itself in
- * its own `dependencies`, and every dependency must be reachable on all paths from `firstNode` to its dependent — the
- * merge-after-branch restriction, tested with dominator sets over the
- * control graph. Dependency reachability is skipped when a cycle
+ * its own `dependencies`, and every dependency must be reachable on all
+ * paths from `firstNode` to its dependent — the merge-after-branch
+ * restriction, tested with dominator sets over the control graph. Dependency reachability is skipped when a cycle
  * was found: dominators are only meaningful on an acyclic graph.
  */
 export class GraphStage implements ValidationStage {
     readonly id = "graph";
     readonly prerequisites: readonly string[] = ["identity"];
 
-    /** Reports cycle, nesting, loop-bound, and dependency-reachability findings. */
+    /** Reports cycle, nesting, loop-bound, self-dependency, and dependency-reachability findings. */
     run(context: ValidationContext): Finding[] {
         const graph = context.graph;
         const findings: Finding[] = [];
@@ -27,8 +27,8 @@ export class GraphStage implements ValidationStage {
         // The stage runs these checks in order:
         // 1. Loop bounds: every maxIterations is an integer >= 1.
         // 2. Nesting: no step inside a loop body declares its own loop.
-        // 3. Acyclicity: each loop body subgraph, then the whole graph, then
-        //    direct self-dependency, which control-edge cycles don't cover.
+        // 3. Acyclicity: each loop body subgraph, then the whole graph.
+        // 4. Self-dependency, which control-edge cycles don't cover.
         this.checkLoopBounds(context, findings);
         this.checkNestedLoops(graph, context, findings);
         this.checkBodyCycles(graph, context, findings);
