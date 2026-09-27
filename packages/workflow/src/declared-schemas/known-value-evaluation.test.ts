@@ -1,3 +1,35 @@
+/**
+ * @fileoverview Tests `KnownValueEvaluator`, which decides exactly whether
+ * each value a finite producer allows passes a consumer schema. Its
+ * verdicts must match the runtime validator, or the containment check
+ * reports false mismatches or misses real ones.
+ *
+ * scalar keywords:
+ * - type: integers count as numbers, 3.0 is an integer, type lists work.
+ * - const and enum: compare JSON values regardless of object member order.
+ * - numeric bounds: inclusive bounds pass at the boundary, exclusive fail.
+ * - multipleOf: exact division; 0.3 is not a multiple of 0.1.
+ * - string lengths: count code points, so one emoji has length 1.
+ * - pattern: matches anywhere in the string unless anchored.
+ * - other types: keywords for another value type pass vacuously.
+ *
+ * arrays and objects:
+ * - elements: prefixItems covers leading positions, items the rest,
+ *   with each failure located at the schema that failed.
+ * - array lengths, member counts: min/max items and properties.
+ * - members: properties for named members, additionalProperties otherwise.
+ * - required: only own members count, not inherited names like toString.
+ * - __proto__: treated as an ordinary member name.
+ *
+ * combinators and references:
+ * - allOf: every member must pass; reports the failing member's path.
+ * - anyOf: one passing member suffices; all failing is a mismatch, and an
+ *   undecidable member makes the result unprovable instead.
+ * - $ref: local references are followed; external ones are unprovable.
+ * - boolean schemas and unknown keywords: true passes, false is a
+ *   mismatch, an incomparable keyword such as if is unprovable.
+ * - annotations: title, description, format, and default are ignored.
+ */
 import { describe, expect, test } from "bun:test";
 import type { JsonSchema } from "./declared-schema-compiler";
 import { KnownValueEvaluator } from "./known-value-evaluation";
