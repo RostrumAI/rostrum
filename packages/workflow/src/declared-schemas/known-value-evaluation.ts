@@ -1,4 +1,4 @@
-import { RE2JS } from "re2js";
+import { RE2JS, RE2JSException } from "re2js";
 import { escapePointerToken } from "../json-source-map";
 import { isJsonSchema, type JsonSchema } from "./declared-schema-compiler";
 import {
@@ -27,7 +27,8 @@ import type { ReferenceResolver } from "./schema-references";
  */
 export class KnownValueEvaluator {
     private readonly referenceResolver: ReferenceResolver;
-    private readonly patterns = new Map<string, RE2JS>();
+    /** Compiled patterns by source; null marks a pattern the engine refused. */
+    private readonly patterns = new Map<string, RE2JS | null>();
 
     /** Binds the evaluator to the resolver for the document's local references. */
     constructor(referenceResolver: ReferenceResolver) {
@@ -35,7 +36,8 @@ export class KnownValueEvaluator {
     }
 
     /**
-     * Evaluates one known value against a consumer schema. Returns the
+     * Evaluates one known value against a consumer schema. Returns an
+     * incomparable keyword first when the consumer has one, otherwise the
      * first keyword the value fails or can't be decided on, located at
      * `path` inside the consumer schema, or undefined when it passes.
      */
@@ -109,12 +111,16 @@ export class KnownValueEvaluator {
                 return typeof value !== "string" || lengthSatisfies(keyword, expected, value)
                     ? undefined
                     : mismatch;
-            case "pattern":
-                return typeof value !== "string" ||
-                    typeof expected !== "string" ||
-                    this.compilePattern(expected).test(value)
-                    ? undefined
-                    : mismatch;
+            case "pattern": {
+                if (typeof value !== "string" || typeof expected !== "string") {
+                    return undefined;
+                }
+                const compiled = this.compilePattern(expected);
+                if (compiled === null) {
+                    return { kind: "unprovable", keyword, path: at };
+                }
+                return compiled.test(value) ? undefined : mismatch;
+            }
             case "minItems":
                 return !Array.isArray(value) || value.length >= Number(expected)
                     ? undefined
@@ -167,14 +173,25 @@ export class KnownValueEvaluator {
     /**
      * Compiles a pattern with the linear-time engine the runtime uses,
      * once per check, so a finite producer with many values doesn't
-     * recompile it for each one.
+     * recompile it for each one. Returns null when the engine refuses the
+     * pattern, such as a lookahead, because the runtime refuses it too.
      */
-    private compilePattern(pattern: string): RE2JS {
+    private compilePattern(pattern: string): RE2JS | null {
         const known = this.patterns.get(pattern);
-        if (known) {
+        if (known !== undefined) {
             return known;
         }
-        const compiled = RE2JS.compile(pattern);
+
+        // Remember a refusal as well, so each value doesn't reparse the pattern.
+        let compiled: RE2JS | null;
+        try {
+            compiled = RE2JS.compile(pattern);
+        } catch (error) {
+            if (!(error instanceof RE2JSException)) {
+                throw error;
+            }
+            compiled = null;
+        }
         this.patterns.set(pattern, compiled);
         return compiled;
     }

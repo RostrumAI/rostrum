@@ -84,7 +84,7 @@ export type {
     WorkflowDocument,
     WorkflowStep,
 } from "./schema";
-export { getStepConfig, WorkflowDocumentSchema } from "./schema";
+export { WorkflowDocumentSchema } from "./schema";
 export {
     isReferenceObject,
     LOOP_RESULTS_OUTPUT,
