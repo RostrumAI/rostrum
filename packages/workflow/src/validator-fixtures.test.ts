@@ -57,6 +57,26 @@ for (const category of CATEGORIES) {
     }
 }
 
+describe("valid fixtures are publication-ready", () => {
+    const validFiles = readdirSync(join(FIXTURES_DIR, "valid"))
+        .filter((file) => file.endsWith(".json"))
+        .sort();
+
+    // Tests that every committed valid workflow passes all stages, including stage 8 compatibility.
+    for (const file of validFiles) {
+        test(`valid/${file}`, () => {
+            // Validate the fixture text exactly as a client would submit it.
+            const result = validator.validate(
+                readFileSync(join(FIXTURES_DIR, "valid", file), "utf8"),
+            );
+
+            // Any finding, blocking or not, means a stage regressed on a known-good workflow.
+            expect(result.findings).toEqual([]);
+            expect(result.validForPublication).toBe(true);
+        });
+    }
+});
+
 describe("parse failures are errors, never drafts", () => {
     test("duplicate-key.json parses leniently but the pipeline rejects it", () => {
         const text = readFileSync(join(FIXTURES_DIR, "invalid-parse/duplicate-key.json"), "utf8");
