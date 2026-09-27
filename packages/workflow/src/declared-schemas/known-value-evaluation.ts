@@ -26,12 +26,12 @@ import type { ReferenceResolver } from "./schema-references";
  * reference the resolver refuses, is unprovable.
  */
 export class KnownValueEvaluator {
-    private readonly references: ReferenceResolver;
+    private readonly referenceResolver: ReferenceResolver;
     private readonly patterns = new Map<string, RE2JS>();
 
-    /** Binds the evaluator to the resolver for the consumer document's local references. */
-    constructor(references: ReferenceResolver) {
-        this.references = references;
+    /** Binds the evaluator to the resolver for the document's local references. */
+    constructor(referenceResolver: ReferenceResolver) {
+        this.referenceResolver = referenceResolver;
     }
 
     /**
@@ -152,7 +152,9 @@ export class KnownValueEvaluator {
                 return this.evaluateAnyOf(expected, value, at);
             case "$ref": {
                 const target =
-                    typeof expected === "string" ? this.references.resolve(expected) : undefined;
+                    typeof expected === "string"
+                        ? this.referenceResolver.resolve(expected)
+                        : undefined;
                 return target === undefined
                     ? { kind: "unprovable", keyword, path: at }
                     : this.evaluate(target, value, path);
