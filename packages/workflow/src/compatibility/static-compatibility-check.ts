@@ -443,6 +443,10 @@ class StaticCompatibilityCheck {
         if (producer.loop && output === LOOP_RESULTS_OUTPUT) {
             return { schema: LOOP_RESULTS_SCHEMA, root: LOOP_RESULTS_SCHEMA };
         }
+        // An output the producer step doesn't declare leaves the reference unresolved.
+        if (!Object.hasOwn(producer.outputs ?? {}, output)) {
+            return undefined;
+        }
         const operationName = getStepConfig(producer).operation;
         const operation =
             typeof operationName === "string" ? this.catalog.get(operationName) : undefined;

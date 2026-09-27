@@ -30,7 +30,7 @@
  * - A reference binding is not checked as a literal.
  * - A workflow input must be declared at least as tightly as the argument it feeds.
  * - A pattern the check can't compare is `unprovable` and names `pattern`.
- * - A reference that doesn't resolve is skipped.
+ * - A reference that doesn't resolve, including one to an undeclared step output, is skipped.
  * - A step output is described by the operation's output schema, not the step's declaration.
  * - A loop step's `results` is an array, so it can't feed a string argument.
  * - A loop variable is described by its collection's `items` and `prefixItems`; when a
@@ -347,6 +347,20 @@ describe("bindings", () => {
         const document = buildSingleTaskDocument(
             taskStep({ inputs: { name: { ref: "inputs.missing" } } }),
         );
+        expect(checkDocument(document)).toEqual([]);
+    });
+
+    // Proves a step output reference is skipped when the producer step doesn't declare that output.
+    test("a reference to an undeclared step output is skipped", () => {
+        // square-root returns a number value, but the root step declares no outputs.
+        const end = resultStep();
+        const root = taskStep({ config: { operation: "square-root" }, inputs: { radicand: 4 } });
+        const greet = taskStep({ inputs: { name: { ref: `step.${root.id}.value` } } });
+        root.successors = [greet.id];
+        greet.successors = [end.id];
+        const document = buildDocument({ steps: [root, greet, end], firstNode: root.id });
+
+        // The number would mismatch greet's string name if the unresolved reference were compared.
         expect(checkDocument(document)).toEqual([]);
     });
 
