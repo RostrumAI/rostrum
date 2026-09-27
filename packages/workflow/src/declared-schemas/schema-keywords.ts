@@ -55,7 +55,7 @@ export const IGNORED_KEYWORDS: ReadonlySet<string> = new Set([
     "$defs",
 ]);
 
-/** Consumer keywords the checker can compare; anything else makes a binding unprovable. */
+/** Consumer keywords the checker can compare; any other constraining keyword makes a binding unprovable. */
 export const COMPARABLE_KEYWORDS: ReadonlySet<string> = new Set([
     "type",
     "const",

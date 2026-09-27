@@ -10,9 +10,12 @@
  * - a running run: a completed step shows its output and times, and the running and ready steps are
  *   current work.
  * - waiting steps name their unmet dependencies: only the incomplete dependency is listed, on the step and run.
+ * - a waiting visit whose dependencies have all completed: it is observed as ready current work, never
+ *   as waiting on nothing.
  * - a stopping run: the snapshot is stopping and lists only running work, not ready work.
  * - a completed run: the snapshot carries the run's result and passes the schema.
  * - a failed run: the failed step keeps its start time and failure, and no work is current.
+ * - visits settled without work: a completed and a failed visit that never ran omit `startedAt`.
  * - an impossible state throws: a completed run with a running step, and a stopping run with no
  *   running step, are rejected with a named error.
  * - observation doesn't change the run: visits and progress are unchanged after observing.
@@ -94,18 +97,18 @@ function buildRun(progress: RunProgress, visits: VisitState[] = []): RunState {
 }
 
 /** Builds a ready visit of a step. */
-function ready(stepId: string): ReadyVisit {
+function buildReadyVisit(stepId: string): ReadyVisit {
     return promoteVisit(createWaitingVisit(stepId, [], AT));
 }
 
 /** Builds a visit of a step whose work started at `AT`. */
-function running(stepId: string): RunningVisit {
-    return claimVisit(ready(stepId), "work-1", AT);
+function buildRunningVisit(stepId: string): RunningVisit {
+    return claimVisit(buildReadyVisit(stepId), "work-1", AT);
 }
 
 /** Builds a visit of a step that ran and committed its output at `LATER`. */
-function completed(stepId: string, output = { value: 1 }): CompletedVisit {
-    return completeVisit(running(stepId), output, LATER);
+function buildCompletedVisit(stepId: string, output = { value: 1 }): CompletedVisit {
+    return completeVisit(buildRunningVisit(stepId), output, LATER);
 }
 
 describe("observeRun", () => {
@@ -124,9 +127,9 @@ describe("observeRun", () => {
     // Proves a running run reports its running and ready steps as current work.
     test("a running run", () => {
         const run = buildRun({ status: "running", stopping: false, startedAt: AT }, [
-            completed(ADD_STEP),
-            running(DIVIDE_STEP),
-            ready(RESULT_STEP),
+            buildCompletedVisit(ADD_STEP),
+            buildRunningVisit(DIVIDE_STEP),
+            buildReadyVisit(RESULT_STEP),
         ]);
         const snapshot = observeRun(run);
 
@@ -156,7 +159,7 @@ describe("observeRun", () => {
         };
         const run = {
             ...buildRun({ status: "running", stopping: false, startedAt: AT }, [
-                completed(ADD_STEP),
+                buildCompletedVisit(ADD_STEP),
                 createWaitingVisit(RESULT_STEP, [], AT),
             ]),
             workflow: dependent,
@@ -170,11 +173,28 @@ describe("observeRun", () => {
         expect(snapshot.waitingFor).toEqual([DIVIDE_STEP]);
     });
 
+    // Proves a waiting visit with every dependency completed is described as ready, not as waiting on nothing.
+    test("a waiting visit whose dependencies have all completed", () => {
+        // The result visit exists but hasn't been promoted, though both tasks have completed.
+        const run = buildRun({ status: "running", stopping: false, startedAt: AT }, [
+            buildCompletedVisit(ADD_STEP),
+            buildCompletedVisit(DIVIDE_STEP),
+            createWaitingVisit(RESULT_STEP, [], AT),
+        ]);
+        const snapshot = observeRun(run);
+
+        // The step is ready current work, nothing is waited on, and the schema accepts the snapshot.
+        expect(snapshot.steps[2]).toEqual({ stepId: RESULT_STEP, status: "ready" });
+        expect(snapshot.currentSteps).toEqual([RESULT_STEP]);
+        expect(snapshot.waitingFor).toEqual([]);
+        expect(Value.Check(RunSnapshotSchema, snapshot)).toBe(true);
+    });
+
     // Proves a stopping run shows its failure and only running work, not ready work.
     test("a stopping run", () => {
         const run = buildRun({ status: "running", stopping: true, startedAt: AT, failure }, [
-            running(ADD_STEP),
-            ready(DIVIDE_STEP),
+            buildRunningVisit(ADD_STEP),
+            buildReadyVisit(DIVIDE_STEP),
         ]);
         const snapshot = observeRun(run);
         expect(snapshot.stopping).toBe(true);
@@ -186,7 +206,11 @@ describe("observeRun", () => {
     test("a completed run", () => {
         const run = buildRun(
             { status: "completed", startedAt: AT, completedAt: LATER, result: { total: 1 } },
-            [completed(ADD_STEP), completed(DIVIDE_STEP), completed(RESULT_STEP, { value: 2 })],
+            [
+                buildCompletedVisit(ADD_STEP),
+                buildCompletedVisit(DIVIDE_STEP),
+                buildCompletedVisit(RESULT_STEP, { value: 2 }),
+            ],
         );
         const snapshot = observeRun(run);
         expect(snapshot.status === "completed" && snapshot.result).toEqual({ total: 1 });
@@ -196,8 +220,8 @@ describe("observeRun", () => {
     // Proves a failed run carries its failure and the failed step keeps its start time.
     test("a failed run", () => {
         const run = buildRun({ status: "failed", startedAt: AT, completedAt: LATER, failure }, [
-            completed(ADD_STEP),
-            failVisit(running(DIVIDE_STEP), failure, LATER),
+            buildCompletedVisit(ADD_STEP),
+            failVisit(buildRunningVisit(DIVIDE_STEP), failure, LATER),
         ]);
         const snapshot = observeRun(run);
         expect(snapshot.steps[1]).toEqual({
@@ -211,18 +235,43 @@ describe("observeRun", () => {
         expect(Value.Check(RunSnapshotSchema, snapshot)).toBe(true);
     });
 
+    // Proves visits that completed or failed without running work report no start time.
+    test("visits settled without work", () => {
+        // The addition completed straight from ready; the division failed before its work started.
+        const run = buildRun({ status: "failed", startedAt: AT, completedAt: LATER, failure }, [
+            completeVisit(buildReadyVisit(ADD_STEP), { value: 1 }, LATER),
+            failVisit(buildReadyVisit(DIVIDE_STEP), failure, LATER),
+        ]);
+        const snapshot = observeRun(run);
+
+        // Neither step carries startedAt, and the schema accepts the snapshot.
+        expect(snapshot.steps[0]).toEqual({
+            stepId: ADD_STEP,
+            status: "completed",
+            completedAt: LATER,
+            output: { value: 1 },
+        });
+        expect(snapshot.steps[1]).toEqual({
+            stepId: DIVIDE_STEP,
+            status: "failed",
+            completedAt: LATER,
+            failure,
+        });
+        expect(Value.Check(RunSnapshotSchema, snapshot)).toBe(true);
+    });
+
     // Proves inspection refuses to describe a state the engine can't produce.
     test("an impossible state throws", () => {
         // A completed run can't still have work running.
         const run = buildRun(
             { status: "completed", startedAt: AT, completedAt: LATER, result: {} },
-            [running(ADD_STEP)],
+            [buildRunningVisit(ADD_STEP)],
         );
         expect(() => observeRun(run)).toThrow("A completed run can't have a running step");
 
         // A stopping run with nothing running would already have failed.
         const idle = buildRun({ status: "running", stopping: true, startedAt: AT, failure }, [
-            ready(ADD_STEP),
+            buildReadyVisit(ADD_STEP),
         ]);
         expect(() => observeRun(idle)).toThrow("A stopping run can't have no running step");
     });
@@ -230,7 +279,7 @@ describe("observeRun", () => {
     // Proves observing a run doesn't change it.
     test("observation doesn't change the run", () => {
         const run = buildRun({ status: "running", stopping: false, startedAt: AT }, [
-            ready(ADD_STEP),
+            buildReadyVisit(ADD_STEP),
         ]);
         const before = [...run.visits.values()];
         observeRun(run);

@@ -136,9 +136,12 @@ describe("workflow input declarations", () => {
 
     // Proves a declaration may carry a default, of any JSON value, including null.
     test("accepts a default", () => {
+        // A default matching the schema's type is accepted.
         expect(getInputErrorPaths({ count: { schema: { type: "number" }, default: 3 } })).toEqual(
             [],
         );
+
+        // A null default is still a present default, not a missing member.
         expect(getInputErrorPaths({ note: { schema: { type: "null" }, default: null } })).toEqual(
             [],
         );
@@ -153,8 +156,13 @@ describe("workflow input declarations", () => {
 
     // Proves the old bare form, a missing schema, and an extra member are all shape errors.
     test("rejects malformed declarations", () => {
+        // The bare schema form, which lacks `schema` and has extra members.
         expect(getInputErrorPaths({ name: { type: "string" } })).toContain("/inputs/name");
+
+        // A default without a schema.
         expect(getInputErrorPaths({ name: { default: "Ada" } })).toContain("/inputs/name");
+
+        // A valid schema alongside an unknown member.
         expect(
             getInputErrorPaths({ name: { schema: { type: "string" }, required: true } }),
         ).toContain("/inputs/name");
