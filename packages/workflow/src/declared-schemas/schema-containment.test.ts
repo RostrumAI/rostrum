@@ -20,7 +20,8 @@
  *   mismatch; a wide integer range against an `enum` is unprovable.
  * - objects and arrays: members compare by name, including prototype names like
  *   `constructor`; unrequired members fail a consumer `required`; an open
- *   producer fails a closed consumer; elements, tuples, and lengths compare.
+ *   producer fails a closed consumer; elements, tuples, and lengths compare;
+ *   an unbounded array or object fails each consumer length or count bound.
  * - combinators and references: `anyOf` on both sides, with multi-type producers
  *   split by type; producer `oneOf` read as `anyOf`; `allOf` on both sides; local
  *   `$ref` inlined on both sides; a recursive `$ref` is unprovable as consumer and
@@ -245,6 +246,26 @@ describe("objects and arrays", () => {
                 { type: "array", prefixItems: [{ type: "string" }], maxItems: 1 },
             ),
         ).toBe("contained");
+    });
+
+    // Proves each length and member-count bound fails when the producer can fall outside it.
+    test("length and count bounds that the producer can break", () => {
+        const at = (keyword: string) => ({ kind: "mismatch", keyword, path: `/${keyword}` });
+        expect(checkSchemaContainment({ type: "array" }, { minItems: 1 })).toEqual(at("minItems"));
+        expect(checkSchemaContainment({ type: "array" }, { maxItems: 3 })).toEqual(at("maxItems"));
+        expect(checkSchemaContainment({ type: "object" }, { minProperties: 1 })).toEqual(
+            at("minProperties"),
+        );
+        expect(checkSchemaContainment({ type: "object" }, { maxProperties: 2 })).toEqual(
+            at("maxProperties"),
+        );
+
+        // Tighter producer bounds, or a closed object with few enough members, fit.
+        expect(
+            kindOf({ type: "array", minItems: 1, maxItems: 3 }, { minItems: 1, maxItems: 3 }),
+        ).toBe("contained");
+        const pair = { properties: { a: true, b: true }, additionalProperties: false };
+        expect(kindOf({ type: "object", ...pair }, { maxProperties: 2 })).toBe("contained");
     });
 });
 

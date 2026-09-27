@@ -26,6 +26,7 @@
  * - non-numbers: numeric keywords pass vacuously.
  * - lengths: the producer's tightest length bounds are compared.
  * - pattern: only an identical producer pattern proves it.
+ * - non-strings: string keywords pass vacuously.
  *
  * counts, arrays, and objects:
  * - count bounds default to 0 and infinity and take the tightest conjunct.
@@ -194,6 +195,13 @@ describe("strings", () => {
         expect(stringFits(producer, { minLength: 1, maxLength: 5 }, "")).toBeUndefined();
         expect(stringFits(producer, { minLength: 3 }, "")?.keyword).toBe("minLength");
         expect(stringFits(producer, { maxLength: 3 }, "")?.keyword).toBe("maxLength");
+    });
+
+    // Proves string keywords don't apply when the producer can't be a string.
+    test("vacuous for non-strings", () => {
+        expect(
+            stringFits([{ type: "number" }], { minLength: 5, maxLength: 1, pattern: "^a" }, ""),
+        ).toBeUndefined();
     });
 
     // Proves only an identical producer pattern proves a consumer pattern.
