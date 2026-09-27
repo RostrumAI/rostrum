@@ -395,7 +395,7 @@ class StaticCompatibilityCheck {
             }
             return;
         }
-        const producer = this.referenceProducer(binding.ref, step.id);
+        const producer = this.getReferenceProducer(binding.ref, step.id);
         if (producer) {
             this.checkContainment(producer, consumer, path, step.id, {
                 argument,
@@ -411,7 +411,7 @@ class StaticCompatibilityCheck {
      * undefined when the reference doesn't resolve or its schema is
      * invalid, which other rules report.
      */
-    private referenceProducer(ref: string, consumerStepId: string): SchemaProducer | undefined {
+    private getReferenceProducer(ref: string, consumerStepId: string): SchemaProducer | undefined {
         if (ref.startsWith("inputs.")) {
             const name = ref.slice("inputs.".length);
             const inputs = this.document.inputs ?? {};
@@ -423,16 +423,16 @@ class StaticCompatibilityCheck {
             return { schema, root: schema };
         }
         if (ref.startsWith("step.")) {
-            return this.stepOutputProducer(ref);
+            return this.getStepOutputProducer(ref);
         }
         if (ref.startsWith("loop.")) {
-            return this.loopVariableProducer(ref.slice("loop.".length), consumerStepId);
+            return this.getLoopVariableProducer(ref.slice("loop.".length), consumerStepId);
         }
         return undefined;
     }
 
     /** Describes a `step.<id>.<output>` reference by the producing operation's output schema. */
-    private stepOutputProducer(ref: string): SchemaProducer | undefined {
+    private getStepOutputProducer(ref: string): SchemaProducer | undefined {
         const match = STEP_OUTPUT_REF_PATTERN.exec(ref);
         const stepId = match?.[1];
         const output = match?.[2];
@@ -455,7 +455,7 @@ class StaticCompatibilityCheck {
      * producer: `items`, joined with any `prefixItems` entries. A producer
      * without an element schema allows any element.
      */
-    private loopVariableProducer(
+    private getLoopVariableProducer(
         variable: string,
         consumerStepId: string,
     ): SchemaProducer | undefined {
@@ -473,7 +473,7 @@ class StaticCompatibilityCheck {
         this.resolvingLoops.add(scope.loopStepId);
         let collection: SchemaProducer | undefined;
         try {
-            collection = this.referenceProducer(loop.collection.ref, scope.loopStepId);
+            collection = this.getReferenceProducer(loop.collection.ref, scope.loopStepId);
         } finally {
             this.resolvingLoops.delete(scope.loopStepId);
         }

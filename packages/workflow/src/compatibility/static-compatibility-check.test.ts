@@ -31,6 +31,7 @@
  * - A pattern the check can't compare is `unprovable` and names `pattern`.
  * - A reference that doesn't resolve is skipped.
  * - A step output is described by the operation's output schema, not the step's declaration.
+ * - A loop step's `results` is an array, so it can't feed a string argument.
  * - A loop variable is described by its collection's `items` and `prefixItems`; when a
  *   collection `$ref` or combinator hides them, the binding is unprovable.
  * - A loop collection that resolves back through its own variable, directly or through a
@@ -340,20 +341,45 @@ describe("bindings", () => {
 
     // Proves a step output's producer is the operation's output schema, not the step's declaration.
     test("a step output feeds the next step through the operation's schema", () => {
+        // The root declares its value as any number, but square-root always returns one >= 0.
         const end = resultStep();
         const root = taskStep({ config: { operation: "square-root" }, inputs: { radicand: 4 } });
-        const add = taskStep({
-            config: { operation: "add" },
-            inputs: { left: { ref: `step.${root.id}.value` } },
+        const again = taskStep({
+            config: { operation: "square-root" },
+            inputs: { radicand: { ref: `step.${root.id}.value` } },
         });
         const greet = taskStep({ inputs: { name: { ref: `step.${root.id}.value` } } });
-        root.successors = [add.id];
-        add.successors = [greet.id];
+        root.successors = [again.id];
+        again.successors = [greet.id];
         greet.successors = [end.id];
         root.outputs = { value: { type: "number" } };
-        const document = buildDocument({ steps: [root, add, greet, end], firstNode: root.id });
+        const document = buildDocument({ steps: [root, again, greet, end], firstNode: root.id });
 
-        // A non-negative number fits add's left but not greet's string name.
+        // Only the operation's minimum-0 schema fits the next radicand; neither fits greet's name.
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
+    });
+
+    // Proves a binding to a loop step's results receives an array.
+    test("a loop's results are an array", () => {
+        // A step after the loop binds the loop's results to greet's string name.
+        const end = resultStep();
+        const body = taskStep();
+        const after = taskStep({ successors: [end.id] });
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 2,
+                variable: "item",
+                body: body.id,
+            },
+            { successors: [after.id] },
+        );
+        after.inputs = { name: { ref: `step.${loop.id}.results` } };
+        const document = buildDocument({
+            steps: [loop, body, after, end],
+            firstNode: loop.id,
+            inputs: { items: { schema: { type: "array" } } },
+        });
         expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
     });
 
