@@ -1,3 +1,31 @@
+/**
+ * @fileoverview Tests the daemon's built-in operation implementations and
+ * the registry that pairs them with their catalog declarations. Tasks rely
+ * on these implementations for their outputs and domain failures, and the
+ * preparer checks publications against the catalog the registry derives.
+ *
+ * greet:
+ * - greets by name: wraps the name in `Hello, <name>!`, including an empty name.
+ *
+ * add:
+ * - adds two numbers: whole and fractional sums use plain number arithmetic.
+ * - reports numeric overflow instead of returning infinity: sums beyond the
+ *   largest finite number, positive or negative, fail with
+ *   `numeric_overflow` at `/outputs/value`.
+ *
+ * divide:
+ * - divides: returns an ordinary quotient unchanged.
+ * - reports division by zero and by negative zero: both fail with
+ *   `division_by_zero` at `/inputs/divisor`.
+ * - reports numeric overflow: a quotient beyond the largest finite number
+ *   fails with `numeric_overflow` at `/outputs/value`.
+ *
+ * the registry:
+ * - each implementation is registered under its declaration's name: the
+ *   registry holds exactly greet, add, and divide, and the derived catalog
+ *   lists their declarations.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { ADD } from "./add";
 import { DIVIDE } from "./divide";
