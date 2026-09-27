@@ -66,7 +66,7 @@ describe("GraphStage", () => {
             buildDocument({
                 steps: [loop, bodyFirst, bodySecond, end],
                 firstNode: loop.id,
-                inputs: { f: { type: "array" } },
+                inputs: { f: { schema: { type: "array" } } },
             }),
         );
         const finding = findings.find((candidate) => candidate.code === "workflow.graph.cycle");
@@ -92,7 +92,7 @@ describe("GraphStage", () => {
             buildDocument({
                 steps: [outer, inner, end],
                 firstNode: outer.id,
-                inputs: { f: { type: "array" } },
+                inputs: { f: { schema: { type: "array" } } },
             }),
         );
         const finding = findings.find((candidate) => candidate.code === "workflow.loop.nested");
@@ -114,7 +114,7 @@ describe("GraphStage", () => {
             buildDocument({
                 steps: [loop, end],
                 firstNode: loop.id,
-                inputs: { f: { type: "array" } },
+                inputs: { f: { schema: { type: "array" } } },
             }),
         );
         expect(

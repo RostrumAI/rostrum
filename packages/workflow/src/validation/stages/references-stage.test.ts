@@ -1,3 +1,28 @@
+/**
+ * @fileoverview Tests the references validation stage, which checks that every
+ * `{ ref }` binding is well-formed and resolves to a declared workflow input,
+ * a declared upstream step output, or an in-scope loop variable. Without it,
+ * a published workflow could read values that never exist at run time.
+ *
+ * ReferencesStage:
+ * - accepts the sequential pattern: a workflow input and an upstream output.
+ * - reports an unknown workflow input with its pointer, ref, and input name.
+ * - reports unknown steps (`unknown-step`) and malformed refs
+ *   (`invalid-syntax`).
+ * - reports an undeclared output (`unknown-output`) while resolving a loop's
+ *   reserved `results` output.
+ * - reports a step referencing its own output as `not-upstream`.
+ * - reports a reference to a downstream step as `not-upstream`.
+ * - accepts transitive upstream references and references through a
+ *   dependency join.
+ * - accepts a post-loop successor reading the loop's `results`.
+ * - rejects a loop step reading its own body member's output in its inputs.
+ * - allows a loop collection to read workflow inputs but not a body member's
+ *   output.
+ * - checks loop variable scope: `loop.<name>` resolves inside the body and is
+ *   `loop-out-of-scope` after the loop.
+ * - treats an object with keys besides `ref` as a literal, not a reference.
+ */
 import { describe, expect, test } from "bun:test";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import { buildDocument, resultStep, taskLoopStep, taskStep } from "../../testing/documents";
@@ -27,7 +52,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [task, end],
             firstNode: task.id,
-            inputs: { name: { type: "string" } },
+            inputs: { name: { schema: { type: "string" } } },
         });
         expect(run(document)).toEqual([]);
     });
@@ -87,7 +112,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, consumer],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         const findings = run(document);
         const undeclared = findings.find(
@@ -158,7 +183,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, after, resultStep()],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(codesFor(document)).toEqual([]);
     });
@@ -178,7 +203,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, after],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(codesFor(document)).toContain("workflow.reference.not-upstream");
     });
@@ -198,7 +223,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, after],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(codesFor(document)).toEqual([]);
 
@@ -222,7 +247,7 @@ describe("ReferencesStage", () => {
         const document = buildDocument({
             steps: [loop, bodyStep, after, resultStep()],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         const finding = run(document).find(
             (candidate) => candidate.code === "workflow.reference.loop-out-of-scope",

@@ -1,3 +1,21 @@
+/**
+ * @fileoverview Tests the shape validation stage, which checks a document
+ * against the v1 workflow document schema and maps each schema error to a
+ * stable `workflow.shape.*` finding code. Later stages rely on this stage to
+ * prove the document's structure, including the `{ schema, default? }` form
+ * of workflow input declarations.
+ *
+ * ShapeStage:
+ * - accepts a shape-valid document: no findings.
+ * - maps a missing required field to a blocking
+ *   `workflow.shape.required-field` with keyword and schema path details.
+ * - maps an unknown top-level member to `workflow.shape.unknown-field`.
+ * - maps a malformed UUID in `firstNode` to `workflow.shape.format`.
+ * - maps an empty `steps` array to `workflow.shape.constraint`.
+ * - maps a wrong value type to `workflow.shape.type`.
+ * - maps `maxIterations` below one to `workflow.shape.constraint` at the
+ *   loop's `maxIterations` pointer.
+ */
 import { describe, expect, test } from "bun:test";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import { buildDocument, resultStep, taskStep } from "../../testing/documents";
@@ -72,7 +90,7 @@ describe("ShapeStage", () => {
         });
         const document = buildDocument({
             steps: [looper, step],
-            inputs: { files: { type: "array" } },
+            inputs: { files: { schema: { type: "array" } } },
         });
         const findings = run(document);
         expect(

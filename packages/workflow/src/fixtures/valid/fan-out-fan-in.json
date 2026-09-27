@@ -5,8 +5,8 @@
     "description": "Spawn 5 review agents, summarize, comment on PR.",
     "firstNode": "0192b0a0-7e1d-7000-8000-000000000021",
     "inputs": {
-        "prNumber": { "type": "number" },
-        "repository": { "type": "string" }
+        "prNumber": { "schema": { "type": "number" } },
+        "repository": { "schema": { "type": "string" } }
     },
     "steps": [
         {

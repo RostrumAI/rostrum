@@ -1,3 +1,18 @@
+/**
+ * @fileoverview Tests the termination validation stage, which requires every
+ * reachable path outside a loop body to end at a result step or an
+ * end-workflow conditional branch. This guarantees each run produces a
+ * workflow result instead of stopping at an arbitrary task.
+ *
+ * TerminationStage:
+ * - accepts a sequential workflow ending in a result step.
+ * - flags a reachable terminal task: `workflow.termination.non-result-terminal`
+ *   at its `type` with the step ID and received type.
+ * - accepts a conditional whose only branch and default end the workflow.
+ * - accepts mixed conditional branches where some end and some continue.
+ * - accepts any step type as the terminal step inside a loop body.
+ * - does not flag parallel predecessors that join through dependencies.
+ */
 import { describe, expect, test } from "bun:test";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import {
@@ -95,7 +110,7 @@ describe("TerminationStage", () => {
         const document = buildDocument({
             steps: [loop, bodyTerminal, afterLoop],
             firstNode: loop.id,
-            inputs: { f: { type: "array" } },
+            inputs: { f: { schema: { type: "array" } } },
         });
         expect(run(document)).toEqual([]);
     });
