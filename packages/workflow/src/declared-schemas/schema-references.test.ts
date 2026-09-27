@@ -1,3 +1,25 @@
+/**
+ * @fileoverview Unit tests for ReferenceResolver, which resolves local `$ref`
+ * pointers for the containment check. The checker inlines whatever the
+ * resolver returns, so the resolver must refuse references it can't follow
+ * safely: external, malformed, dangling, inherited, or recursive ones.
+ *
+ * ReferenceResolver:
+ * - resolves local references: `#` returns the root, and pointers reach a
+ *   definition and an array member inside one.
+ * - decodes escaped tokens: `~1` becomes `/`, `~0` becomes `~`, and
+ *   percent-encoding is decoded.
+ * - refuses external, malformed, and dangling references: another document, a
+ *   pointer without a leading slash, a missing member, and a non-schema target
+ *   all resolve to undefined.
+ * - follows own members only: `constructor` and `__proto__` are unreachable.
+ * - refuses recursive references: direct self-reference and a cycle through
+ *   another definition both resolve to undefined.
+ * - ignores references that can't apply: a `$ref` inside `const` or `examples`
+ *   doesn't make a definition recursive.
+ * - answers repeated lookups consistently: cached recursion answers match the
+ *   first lookup for recursive and plain definitions.
+ */
 import { describe, expect, test } from "bun:test";
 import { ReferenceResolver } from "./schema-references";
 
