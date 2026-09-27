@@ -17,13 +17,15 @@ export function observeRun(run: RunState): RunSnapshot {
     }));
     const isCompleted = (stepId: string) =>
         run.visits.get(getVisitKey(stepId, []))?.status === "completed";
-    const unmetDependencies = (stepId: string) =>
+    const getUnmetDependencies = (stepId: string) =>
         (run.workflow.steps.get(stepId)?.dependencies ?? []).filter(
             (dependency) => !isCompleted(dependency),
         );
 
     // Every step in document order.
-    const steps = visits.map(({ stepId, visit }) => observeStep(stepId, visit, unmetDependencies));
+    const steps = visits.map(({ stepId, visit }) =>
+        observeStep(stepId, visit, getUnmetDependencies),
+    );
 
     // Current work: ready and running steps, or only running work while stopping.
     const progress = run.progress;
@@ -137,7 +139,7 @@ function assertOnlyStates<Status extends StepSnapshot["status"]>(
 function observeStep(
     stepId: string,
     visit: VisitState | undefined,
-    unmetDependencies: (stepId: string) => string[],
+    getUnmetDependencies: (stepId: string) => string[],
 ): StepSnapshot {
     if (!visit) {
         return { stepId, status: "pending" };
@@ -145,7 +147,7 @@ function observeStep(
     switch (visit.status) {
         case "waiting": {
             // A visit whose dependencies have all completed is ready; the engine promotes it on its next pass.
-            const waitingFor = unmetDependencies(stepId);
+            const waitingFor = getUnmetDependencies(stepId);
             return waitingFor.length === 0
                 ? { stepId, status: "ready" }
                 : { stepId, status: "waiting", waitingFor };
