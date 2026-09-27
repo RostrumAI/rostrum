@@ -15,7 +15,10 @@ const NAMED_SCHEMA_MAPS: ReadonlySet<string> = new Set([
  * resolves and reads anything it refuses as unprovable or wider.
  */
 export class ReferenceResolver {
+    /** The schema document that local references resolve against. */
     private readonly root: JsonSchema;
+
+    /** Cached answers to whether each reference can reach itself again. */
     private readonly recursive = new Map<string, boolean>();
 
     /** Binds the resolver to the document references point into. */
