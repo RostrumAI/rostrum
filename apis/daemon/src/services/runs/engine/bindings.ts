@@ -97,5 +97,10 @@ function resolveBinding(
                 ? { found: true, value: output[binding.outputName] }
                 : { found: false };
         }
+        default: {
+            // Preparation only emits the kinds above; the compiler flags a new kind here.
+            const unexpectedBinding: never = binding;
+            throw new Error("Unknown binding kind", { cause: unexpectedBinding });
+        }
     }
 }
