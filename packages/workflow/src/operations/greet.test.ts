@@ -5,6 +5,8 @@
  * later checks and conditions rely on the `Hello, <name>!` shape.
  *
  * GREET_OPERATION:
+ * - takes a string name: any string, including the empty string, passes;
+ *   a number or null fails `type`.
  * - admits every Hello greeting: `Hello, Ada!`, the empty-name
  *   `Hello, !`, and a name with a line break pass the compiled schema.
  * - rejects strings that aren't greetings: `hi` and `Hello, Ada` (no
@@ -30,6 +32,23 @@ function checkGreeting(greeting: string): string[] {
 }
 
 describe("GREET_OPERATION", () => {
+    // Proves the name argument accepts any string and refuses other types before dispatch.
+    test("takes a string name", () => {
+        // Compiles the name schema the way publication checks a bound value.
+        const compiled = createDeclaredSchemaCompiler().compile(
+            toJsonSchema(GREET_OPERATION.arguments.name.schema),
+        );
+        if (!compiled.ok) {
+            throw new Error("Expected greet's name schema to compile");
+        }
+
+        // Strings pass, including the empty name; other types fail on `type`.
+        expect(compiled.check("Ada")).toEqual([]);
+        expect(compiled.check("")).toEqual([]);
+        expect(compiled.check(42).map((issue) => issue.keyword)).toEqual(["type"]);
+        expect(compiled.check(null).map((issue) => issue.keyword)).toEqual(["type"]);
+    });
+
     // Proves the output schema admits every greeting the operation produces, even for an empty name.
     test("admits every Hello greeting", () => {
         expect(checkGreeting("Hello, Ada!")).toEqual([]);
