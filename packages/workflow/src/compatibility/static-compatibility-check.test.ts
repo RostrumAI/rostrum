@@ -30,7 +30,8 @@
  * - A pattern the check can't compare is `unprovable` and names `pattern`.
  * - A reference that doesn't resolve is skipped.
  * - A step output is described by the operation's output schema, not the step's declaration.
- * - A loop variable is described by its collection's `items` and `prefixItems`.
+ * - A loop variable is described by its collection's `items` and `prefixItems`; when a
+ *   collection `$ref` or combinator hides them, the binding is unprovable.
  * - A loop collection that resolves back through its own variable, directly or through a
  *   second loop, is left unresolved instead of recursing forever.
  * - Result step bindings are not compared.
@@ -377,6 +378,38 @@ describe("bindings", () => {
             },
         };
         expect(checkDocument(tuple)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+    });
+
+    // Proves an element schema hidden behind a collection combinator is unprovable, not a mismatch.
+    test("a loop variable whose collection hides its items is unprovable", () => {
+        // The collection's items sit behind a $ref, so the element lookup can't read them.
+        const end = resultStep();
+        const body = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.item" } },
+        });
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 5,
+                variable: "item",
+                body: body.id,
+            },
+            { config: { operation: "add" }, inputs: { left: 0 }, successors: [end.id] },
+        );
+        const document = buildDocument({
+            steps: [loop, body, end],
+            firstNode: loop.id,
+            inputs: {
+                items: {
+                    schema: {
+                        $defs: { list: { type: "array", items: { type: "number" } } },
+                        $ref: "#/$defs/list",
+                    },
+                },
+            },
+        });
+        expect(checkDocument(document)).toEqual([["unprovable", "/steps/1/inputs/left"]]);
     });
 
     // Proves a loop whose collection resolves back through its own variable is skipped, not recursed forever.

@@ -4,6 +4,7 @@ import {
     type JsonSchema,
 } from "../declared-schemas/declared-schema-compiler";
 import { checkSchemaContainment } from "../declared-schemas/schema-containment";
+import type { ContainmentResult } from "../declared-schemas/schema-keywords";
 import type { FailureCode } from "../execution/schemas";
 import { escapePointerToken } from "../json-source-map";
 import {
@@ -107,7 +108,16 @@ interface SchemaProducer {
     schema: JsonSchema;
     /** The schema document the producer's references resolve against. */
     root: JsonSchema;
+    /**
+     * A collection keyword, such as `$ref` or `allOf`, that hides a loop
+     * variable's element schema; a binding to the variable is then
+     * unprovable rather than compared against `schema`.
+     */
+    hiddenBy?: string;
 }
+
+/** Collection keywords that can constrain elements where the loop's element lookup can't see. */
+const ELEMENT_HIDING_KEYWORDS = ["$ref", "allOf", "anyOf", "oneOf"] as const;
 
 /** The value a loop step exposes as `results`: an array of iteration results. */
 const LOOP_RESULTS_SCHEMA: JsonSchema = { type: "array" };
@@ -475,10 +485,12 @@ class StaticCompatibilityCheck {
         const prefix = Array.isArray(schema.prefixItems)
             ? schema.prefixItems.filter(isJsonSchema)
             : [];
-        return {
+        const element: SchemaProducer = {
             schema: prefix.length === 0 ? items : { anyOf: [...prefix, items] },
             root: collection.root,
         };
+        const hiddenBy = ELEMENT_HIDING_KEYWORDS.find((keyword) => Object.hasOwn(schema, keyword));
+        return hiddenBy === undefined ? element : { ...element, hiddenBy };
     }
 
     /** Reports a producer that isn't provably contained in its consumer. */
@@ -489,9 +501,11 @@ class StaticCompatibilityCheck {
         stepId: string,
         details: Record<string, unknown>,
     ): void {
-        const result = checkSchemaContainment(producer.schema, consumer, {
-            producerRoot: producer.root,
-        });
+        // An element schema the check couldn't read can't be proven either way.
+        const result: ContainmentResult =
+            producer.hiddenBy === undefined
+                ? checkSchemaContainment(producer.schema, consumer, { producerRoot: producer.root })
+                : { kind: "unprovable", keyword: producer.hiddenBy, path: "" };
         if (result.kind === "contained") {
             return;
         }
