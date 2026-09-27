@@ -150,8 +150,22 @@ describe("numbers", () => {
 
     // Proves integers round exclusive and fractional bounds inward to whole numbers.
     test("integer bounds round inward", () => {
+        // An exclusive whole lower bound and an inclusive fractional upper bound give 1 to 9.
         const producer = [{ type: "integer", exclusiveMinimum: 0, maximum: 9.5 }];
         expect(numberFits(producer, { minimum: 1, maximum: 9 }, "")).toBeUndefined();
+        expect(numberFits(producer, { minimum: 2 }, "")?.keyword).toBe("minimum");
+        expect(numberFits(producer, { maximum: 8 }, "")?.keyword).toBe("maximum");
+
+        // An inclusive fractional lower bound and an exclusive whole upper bound give 1 to 9.
+        const wholeUpper = [{ type: "integer", minimum: 0.5, exclusiveMaximum: 10 }];
+        expect(numberFits(wholeUpper, { minimum: 1, maximum: 9 }, "")).toBeUndefined();
+        expect(numberFits(wholeUpper, { minimum: 2 }, "")?.keyword).toBe("minimum");
+        expect(numberFits(wholeUpper, { maximum: 8 }, "")?.keyword).toBe("maximum");
+
+        // An exclusive fractional upper bound rounds down to the whole number below it.
+        const fractionalUpper = [{ type: "integer", minimum: 0, exclusiveMaximum: 9.5 }];
+        expect(numberFits(fractionalUpper, { maximum: 9 }, "")).toBeUndefined();
+        expect(numberFits(fractionalUpper, { maximum: 8 }, "")?.keyword).toBe("maximum");
     });
 
     // Proves an unbounded producer side fails any consumer bound on that side.
