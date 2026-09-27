@@ -11,6 +11,8 @@
  *   completed step carries output, and only a failed step carries a failure.
  *
  * run snapshots:
+ * - a healthy running run with running, ready, and waiting steps is valid,
+ *   and rejects a failure or a result.
  * - a stopping run carries the failure and its outstanding work: a stopping
  *   run needs its failure and at least one current step.
  * - a failed run carries no result and no active work: a result, current or
@@ -36,6 +38,7 @@ import {
 const RUN_ID = "0192b0a0-7e1d-7000-8000-000000000200";
 const FIRST_STEP = "0192b0a0-7e1d-7000-8000-000000000201";
 const SECOND_STEP = "0192b0a0-7e1d-7000-8000-000000000202";
+const THIRD_STEP = "0192b0a0-7e1d-7000-8000-000000000203";
 const AT = "2026-09-23T12:00:00.000Z";
 
 const publication: RunPublication = {
@@ -53,7 +56,7 @@ const failure: ExecutionFailure = {
 };
 
 /** Builds a run snapshot around a status-specific core, sharing the run's identity. */
-function runSnapshot(
+function buildRunSnapshot(
     core: Record<string, unknown>,
     steps: StepSnapshot[],
 ): Record<string, unknown> {
@@ -102,6 +105,31 @@ describe("step snapshots", () => {
 });
 
 describe("run snapshots", () => {
+    // Proves a healthy running run with ready, running, and waiting steps is well formed.
+    test("a running run reports its current and waiting work", () => {
+        // The first step runs, the second is ready, and the third waits for the first.
+        const steps: StepSnapshot[] = [
+            { stepId: FIRST_STEP, status: "running", startedAt: AT },
+            { stepId: SECOND_STEP, status: "ready" },
+            { stepId: THIRD_STEP, status: "waiting", waitingFor: [FIRST_STEP] },
+        ];
+        const running = buildRunSnapshot(
+            {
+                status: "running",
+                stopping: false,
+                startedAt: AT,
+                currentSteps: [FIRST_STEP, SECOND_STEP],
+                waitingFor: [FIRST_STEP],
+            },
+            steps,
+        );
+        expect(Value.Check(RunSnapshotSchema, running)).toBe(true);
+
+        // A healthy running run carries no failure and no result.
+        expect(Value.Check(RunSnapshotSchema, { ...running, failure })).toBe(false);
+        expect(Value.Check(RunSnapshotSchema, { ...running, result: {} })).toBe(false);
+    });
+
     // Proves a stopping run carries its failure and the work that is still outstanding.
     test("a stopping run carries the failure and its outstanding work", () => {
         // The first step failed while the second is still running.
@@ -109,7 +137,7 @@ describe("run snapshots", () => {
             { stepId: FIRST_STEP, status: "failed", completedAt: AT, failure },
             { stepId: SECOND_STEP, status: "running", startedAt: AT },
         ];
-        const stopping = runSnapshot(
+        const stopping = buildRunSnapshot(
             {
                 status: "running",
                 stopping: true,
@@ -135,7 +163,7 @@ describe("run snapshots", () => {
             { stepId: FIRST_STEP, status: "completed", completedAt: AT, output: { value: 100 } },
             { stepId: SECOND_STEP, status: "failed", startedAt: AT, completedAt: AT, failure },
         ];
-        const failed = runSnapshot(
+        const failed = buildRunSnapshot(
             {
                 status: "failed",
                 stopping: false,
@@ -161,7 +189,7 @@ describe("run snapshots", () => {
     // Proves a completed run reports its result and can't also report a failure.
     test("a completed run carries its result and no failure", () => {
         // An empty result object is still a result.
-        const completed = runSnapshot(
+        const completed = buildRunSnapshot(
             {
                 status: "completed",
                 stopping: false,
@@ -184,7 +212,7 @@ describe("run snapshots", () => {
     // Proves a queued run hasn't started and has no current work yet.
     test("a queued run has no start time and no current work", () => {
         // Before the first advancement every step is pending.
-        const queued = runSnapshot(
+        const queued = buildRunSnapshot(
             { status: "queued", stopping: false, currentSteps: [], waitingFor: [] },
             [{ stepId: FIRST_STEP, status: "pending" }],
         );
@@ -214,7 +242,7 @@ describe("run snapshots", () => {
         };
 
         // A completed run can't still have running or failed steps.
-        const completedRun = runSnapshot(
+        const completedRun = buildRunSnapshot(
             {
                 status: "completed",
                 stopping: false,
@@ -231,19 +259,19 @@ describe("run snapshots", () => {
         expect(Value.Check(RunSnapshotSchema, { ...completedRun, steps: [failed] })).toBe(false);
 
         // A queued run has reached nothing, and a run that isn't stopping has no failed step.
-        const queued = runSnapshot(
+        const queued = buildRunSnapshot(
             { status: "queued", stopping: false, currentSteps: [], waitingFor: [] },
             [completed],
         );
         expect(Value.Check(RunSnapshotSchema, queued)).toBe(false);
-        const runningRun = runSnapshot(
+        const runningRun = buildRunSnapshot(
             { status: "running", stopping: false, startedAt: AT, currentSteps: [], waitingFor: [] },
             [failed],
         );
         expect(Value.Check(RunSnapshotSchema, runningRun)).toBe(false);
 
         // A failed run has settled, so no step is still running.
-        const failedRun = runSnapshot(
+        const failedRun = buildRunSnapshot(
             {
                 status: "failed",
                 stopping: false,
