@@ -1,3 +1,26 @@
+/**
+ * @fileoverview Unit tests for `GraphStage`, validation stage 4 (graph
+ * topology). The stage decides whether a workflow's control graph can run:
+ * a cycle, nested loop, bad loop bound, self-dependency, or dependency not
+ * guaranteed to finish first would make a published workflow hang or fail.
+ *
+ * GraphStage:
+ * - accepts an acyclic document: a task then result yields no findings.
+ * - reports a successor cycle: `workflow.graph.cycle` at the root with the
+ *   cycle path in details.
+ * - reports a loop body cycle at `/steps/0/loop/body`, naming the loop.
+ * - reports a nested loop: `workflow.loop.nested` at the inner loop with
+ *   both loop IDs.
+ * - re-checks maxIterations: `maxIterations: 0` yields
+ *   `workflow.loop.invalid-max-iterations`.
+ * - flags a merge-after-branch dependency: a dependency on one branch
+ *   yields `workflow.graph.unreachable-dependency` with a related location.
+ * - accepts a dependency on a transitive control predecessor.
+ * - accepts pure fan-in joins whose dependencies are not dominators.
+ *
+ * Self-dependency findings are covered by the `incomplete/self-dependency*`
+ * validator fixtures.
+ */
 import { describe, expect, test } from "bun:test";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
 import { buildDocument, resultStep, taskLoopStep, taskStep } from "../../testing/documents";

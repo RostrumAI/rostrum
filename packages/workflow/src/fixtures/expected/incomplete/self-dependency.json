@@ -1,0 +1,15 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.graph.self-dependency",
+            "blocking": true,
+            "path": "/steps/0/dependencies/0",
+            "line": 13,
+            "column": 30,
+            "details": {
+                "stepId": "0192b0a0-7e1d-7000-8000-000000000105"
+            }
+        }
+    ]
+}
