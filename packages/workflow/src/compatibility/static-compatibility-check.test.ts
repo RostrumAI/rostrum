@@ -7,8 +7,29 @@ import {
     type OperationDeclaration,
 } from "../operations/operation-catalog";
 import type { WorkflowDocument } from "../schema";
-import { buildDocument, resultStep, taskStep } from "../testing/documents";
+import { buildDocument, resultStep, taskLoopStep, taskStep, testId } from "../testing/documents";
 import { checkStaticCompatibility } from "./static-compatibility-check";
+
+/** An operation whose argument is tighter than a plain number, for containment cases. */
+const SQUARE_ROOT: OperationDeclaration = {
+    name: "square-root",
+    configSchema: Type.Object({}, { additionalProperties: false }),
+    arguments: { radicand: { schema: Type.Number({ minimum: 0 }) } },
+    outputSchema: Type.Object(
+        { value: Type.Number({ minimum: 0 }) },
+        { additionalProperties: false },
+    ),
+    failureCodes: [],
+};
+
+/** An operation whose argument uses a pattern, which only an identical pattern can prove. */
+const SHOUT: OperationDeclaration = {
+    name: "shout",
+    configSchema: Type.Object({}, { additionalProperties: false }),
+    arguments: { word: { schema: Type.String({ pattern: "^[A-Z]+$" }) } },
+    outputSchema: Type.Object({ word: Type.String() }, { additionalProperties: false }),
+    failureCodes: [],
+};
 
 /** An operation whose declared default violates its own argument schema. */
 const BROKEN_DEFAULT: OperationDeclaration = {
@@ -19,10 +40,12 @@ const BROKEN_DEFAULT: OperationDeclaration = {
     failureCodes: [],
 };
 
-/** The release catalog plus the test-only operation above. */
+/** The release catalog plus the test-only operations above. */
 const TEST_CATALOG: OperationCatalog = new Map([
     ...OPERATION_CATALOG,
-    [BROKEN_DEFAULT.name, BROKEN_DEFAULT],
+    ...[SQUARE_ROOT, SHOUT, BROKEN_DEFAULT].map(
+        (operation) => [operation.name, operation] as const,
+    ),
 ]);
 
 /** Runs the check over a document and returns `[kind, path]` pairs. */
@@ -178,6 +201,18 @@ describe("arguments and declared outputs", () => {
         expect(checkDocument(document)).toEqual([["undeclared-output", "/steps/0/outputs/sum"]]);
     });
 
+    // Proves an output declaration must admit every value the operation can return for it.
+    test("divide declaring value as a string", () => {
+        const document = buildSingleTaskDocument(
+            taskStep({
+                config: { operation: "divide" },
+                inputs: { dividend: 1, divisor: 2 },
+                outputs: { value: { type: "string" } },
+            }),
+        );
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/outputs/value"]]);
+    });
+
     // Proves a result step can't declare outputs, so nothing can bind to one unchecked.
     test("a result step's declared output", () => {
         const task = taskStep();
@@ -188,13 +223,178 @@ describe("arguments and declared outputs", () => {
     });
 });
 
-describe("literal bindings", () => {
+describe("bindings", () => {
     // Proves a literal is validated against the argument's full schema.
     test("a string literal bound to add's left", () => {
         const document = buildSingleTaskDocument(
             taskStep({ config: { operation: "add" }, inputs: { left: "1" } }),
         );
         expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/inputs/left"]]);
+    });
+
+    // Proves a workflow input must be declared at least as tightly as the argument it feeds.
+    test("a number input bound to a minimum-0 argument", () => {
+        const task = taskStep({
+            config: { operation: "square-root" },
+            inputs: { radicand: { ref: "inputs.amount" } },
+        });
+        const loose = buildSingleTaskDocument(task, {
+            inputs: { amount: { schema: { type: "number" } } },
+        });
+        expect(checkDocument(loose)).toEqual([["type-mismatch", "/steps/0/inputs/radicand"]]);
+
+        // Declaring the input with minimum 1 proves every value fits.
+        const tight = buildSingleTaskDocument(task, {
+            inputs: { amount: { schema: { type: "number", minimum: 1 } } },
+        });
+        expect(checkDocument(tight)).toEqual([]);
+    });
+
+    // Proves a binding the check can't compare is unprovable and names the keyword responsible.
+    test("an unprovable binding", () => {
+        const document = buildSingleTaskDocument(
+            taskStep({ config: { operation: "shout" }, inputs: { word: { ref: "inputs.word" } } }),
+            { inputs: { word: { schema: { type: "string", pattern: "^[A-Z]{2,}$" } } } },
+        );
+        const [issue] = checkStaticCompatibility(
+            document,
+            TEST_CATALOG,
+            createDeclaredSchemaCompiler(),
+        );
+        expect(issue?.kind).toBe("unprovable");
+        expect(issue?.path).toBe("/steps/0/inputs/word");
+        expect(issue?.details.keyword).toBe("pattern");
+    });
+
+    // Proves references that don't resolve are left to the references stage.
+    test("an unresolved reference is skipped", () => {
+        const document = buildSingleTaskDocument(
+            taskStep({ inputs: { name: { ref: "inputs.missing" } } }),
+        );
+        expect(checkDocument(document)).toEqual([]);
+    });
+
+    // Proves a step output's producer is the operation's output schema, not the step's declaration.
+    test("a step output feeds the next step through the operation's schema", () => {
+        const end = resultStep();
+        const root = taskStep({ config: { operation: "square-root" }, inputs: { radicand: 4 } });
+        const add = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: `step.${root.id}.value` } },
+        });
+        const greet = taskStep({ inputs: { name: { ref: `step.${root.id}.value` } } });
+        root.successors = [add.id];
+        add.successors = [greet.id];
+        greet.successors = [end.id];
+        root.outputs = { value: { type: "number" } };
+        const document = buildDocument({ steps: [root, add, greet, end], firstNode: root.id });
+
+        // A non-negative number fits add's left but not greet's string name.
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
+    });
+
+    // Proves a loop variable's producer is the element schema of its collection.
+    test("a loop variable is described by its collection's items", () => {
+        const end = resultStep();
+        const body = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.item" } },
+        });
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 5,
+                variable: "item",
+                body: body.id,
+            },
+            { config: { operation: "add" }, inputs: { left: 0 }, successors: [end.id] },
+        );
+        const numbers = buildDocument({
+            steps: [loop, body, end],
+            firstNode: loop.id,
+            inputs: { items: { schema: { type: "array", items: { type: "number" } } } },
+        });
+        expect(checkDocument(numbers)).toEqual([]);
+
+        // Strings in the collection can't feed add's left.
+        const strings = {
+            ...numbers,
+            inputs: { items: { schema: { type: "array", items: { type: "string" } } } },
+        };
+        expect(checkDocument(strings)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+
+        // A string among the tuple's leading items is a possible element too.
+        const tuple = {
+            ...numbers,
+            inputs: {
+                items: {
+                    schema: {
+                        type: "array",
+                        prefixItems: [{ type: "string" }],
+                        items: { type: "number" },
+                    },
+                },
+            },
+        };
+        expect(checkDocument(tuple)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+    });
+
+    // Proves a loop whose collection resolves back through its own variable is skipped, not recursed forever.
+    test("a self-referential loop collection is left unresolved", () => {
+        // A loop over its own variable, with itself as the body so it sits in its own scope.
+        const end = resultStep();
+        const loopId = testId();
+        const loop = taskLoopStep(
+            { collection: { ref: "loop.x" }, maxIterations: 2, variable: "x", body: loopId },
+            {
+                id: loopId,
+                config: { operation: "add" },
+                inputs: { left: { ref: "loop.x" } },
+                successors: [end.id],
+            },
+        );
+        const self = buildDocument({ steps: [loop, end], firstNode: loop.id });
+        expect(checkDocument(self)).toEqual([]);
+
+        // Two loops inside each other's bodies, each iterating the other's variable.
+        const first = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.b" } },
+        });
+        const second = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.a" } },
+        });
+        first.loop = {
+            collection: { ref: "loop.b" },
+            maxIterations: 2,
+            variable: "a",
+            body: second.id,
+        };
+        second.loop = {
+            collection: { ref: "loop.a" },
+            maxIterations: 2,
+            variable: "b",
+            body: first.id,
+        };
+        first.successors = [end.id];
+        const mutual = buildDocument({ steps: [first, second, end], firstNode: first.id });
+        expect(checkDocument(mutual)).toEqual([]);
+    });
+
+    // Proves result steps have no consumer, so any binding fits them.
+    test("result bindings are not compared", () => {
+        const task = taskStep();
+        const end = resultStep({
+            inputs: { anything: { ref: "inputs.whatever" }, literal: [1, "two"] },
+        });
+        task.successors = [end.id];
+        const document = buildDocument({
+            steps: [task, end],
+            firstNode: task.id,
+            inputs: { whatever: { schema: true } },
+        });
+        expect(checkDocument(document)).toEqual([]);
     });
 });
 

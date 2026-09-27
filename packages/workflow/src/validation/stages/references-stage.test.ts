@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
-import { buildDocument, resultStep, taskLoopStep, taskStep } from "../../testing/documents";
+import { buildDocument, resultStep, taskLoopStep, taskStep, testId } from "../../testing/documents";
 import { ValidationContext } from "../validation-context";
 import { ReferencesStage } from "./references-stage";
 
@@ -47,7 +47,8 @@ describe("ReferencesStage", () => {
     });
 
     test("reports unknown steps and bad syntax", () => {
-        const missing = "0192b0a0-7e1d-7000-8000-000000000099";
+        // A fresh ID no step uses; a fixed one could match a step built by an earlier test.
+        const missing = testId();
         const consumer = taskStep({
             inputs: {
                 a: { ref: `step.${missing}.out` },
