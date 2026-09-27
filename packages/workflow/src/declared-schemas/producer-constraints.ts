@@ -45,8 +45,9 @@ export function getPossibleKinds(producer: Conjunction): Set<ValueKind> {
 
 /**
  * The exact values a producer conjunction allows, when a `const` or
- * `enum`, or a type with only one or two values, makes the set finite.
- * Returns undefined for an infinite producer.
+ * `enum`, a null or boolean type, a string limited to the empty string, or
+ * a bounded integer range of at most 64 values makes the set finite.
+ * Returns undefined for an infinite or larger producer.
  */
 export function getFiniteValues(producer: Conjunction): unknown[] | undefined {
     let values: unknown[] | undefined;
