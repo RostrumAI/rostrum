@@ -8,8 +8,9 @@
  * - accepts a v1 document: the calculation fixture has no shape failures.
  * - refuses another format alone: a non-v1 format yields only
  *   `unsupported_format`, even when the rest of the shape is also wrong.
- * - locates shape errors: an empty step list fails at `/steps`, and `null`
- *   fails at the document root.
+ * - locates shape errors: an empty step list fails at `/steps`, `null`
+ *   fails at the document root, and each missing member is located at the
+ *   member itself.
  *
  * checkIdentity
  * - accepts the recorded workflow: a matching ID and format pass.
@@ -86,6 +87,13 @@ describe("checkShape", () => {
             summarize(checkShape({ ...copyFixture(calculationJson), steps: [] })),
         ).toContainEqual(["invalid_document", "/steps"]);
         expect(summarize(checkShape(null))).toEqual([["invalid_document", ""]]);
+
+        // Each missing member is located at the member, not at the object that lacks it.
+        const { firstNode: _firstNode, steps: _steps, ...partial } = copyFixture(calculationJson);
+        expect(summarize(checkShape(partial))).toEqual([
+            ["invalid_document", "/firstNode"],
+            ["invalid_document", "/steps"],
+        ]);
     });
 });
 
