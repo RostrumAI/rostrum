@@ -1,3 +1,32 @@
+/**
+ * @fileoverview Tests the static compatibility check that publication and
+ * daemon preparation both run. Each issue it reports blocks a publication,
+ * so each kind must appear at the right JSON Pointer and only when the
+ * document is actually wrong.
+ *
+ * operations and configuration:
+ * - An unknown operation is reported at `config/operation` with the sorted supported names.
+ * - A task with no config is reported at the step as naming no operation.
+ * - A config member the operation doesn't declare is located at that member.
+ *
+ * declared schemas and defaults:
+ * - Malformed input and output schemas are located at the offending keyword.
+ * - A remote `$ref` and a lookbehind pattern are invalid schemas; a root `$ref: "#"` is valid.
+ * - Defaults that fail their schema are reported, on workflow inputs and on catalog arguments.
+ * - An explicit `null` default is checked like any other value.
+ *
+ * arguments and declared outputs:
+ * - An unbound required argument is reported at `inputs`, or at the step when `inputs` is absent;
+ *   an unbound argument with a default is not.
+ * - A binding for an undeclared argument is reported at the binding.
+ * - A task output its operation doesn't always return, and any result step output, is undeclared.
+ *
+ * literal bindings:
+ * - A literal is validated against the argument's full schema.
+ *
+ * issue attribution:
+ * - Step-level issues carry the step id in `stepId` and `details`; workflow-level ones carry none.
+ */
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";
