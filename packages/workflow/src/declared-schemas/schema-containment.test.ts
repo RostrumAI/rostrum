@@ -1,3 +1,29 @@
+/**
+ * @fileoverview Tests `checkSchemaContainment`, which decides whether every
+ * value a producer schema allows is also allowed by a consumer schema. Static
+ * binding checks rely on it never reporting `contained` for a pair the runtime
+ * validator could reject.
+ *
+ * - numbers: an unbounded number fails a minimum; tighter bounds and integer fit
+ *   looser ones; exclusive bounds compare at the boundary; `multipleOf` is
+ *   contained only for exact integer division and never for float-rounding or
+ *   unbounded-integer cases the runtime rejects.
+ * - keywords the checker can't compare: a consumer `not` is unprovable and
+ *   named; patterns match only by identity; an ignored producer keyword only
+ *   widens it; a keyword that can't apply to the producer's type is vacuous.
+ * - finite producers: enum and short integer ranges are checked value by value;
+ *   an unbounded producer fails a consumer enum; a mismatch becomes unprovable
+ *   when an uncompared producer constraint could exclude the failing values.
+ * - objects and arrays: members compare by name, including prototype names like
+ *   `constructor`; unrequired members fail a consumer `required`; an open
+ *   producer fails a closed consumer; elements, tuples, and lengths compare.
+ * - combinators and references: `anyOf` on both sides, with multi-type producers
+ *   split by type; producer `oneOf` read as `anyOf`; `allOf` on both sides; local
+ *   `$ref` inlined on both sides; a recursive `$ref` is unprovable as consumer and
+ *   `true` as producer; expansion past the limit is unprovable, also when nested.
+ * - boolean schemas: `true` and `false` act as the everything and nothing schemas.
+ * - the operation catalog: every catalog schema is contained in itself.
+ */
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG, toJsonSchema } from "../operations/operation-catalog";
 import type { JsonSchema } from "./declared-schema-compiler";
