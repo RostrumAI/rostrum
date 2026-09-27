@@ -183,12 +183,12 @@ export function createWaitingVisit(
 
 /** Promotes a waiting visit whose dependencies have all completed. */
 export function promoteVisit(visit: WaitingVisit): ReadyVisit {
-    return { ...identityOf(visit), status: "ready" };
+    return { ...copyVisitIdentity(visit), status: "ready" };
 }
 
 /** Claims a ready visit for one piece of work. */
 export function claimVisit(visit: ReadyVisit, workId: string, at: string): RunningVisit {
-    return { ...identityOf(visit), status: "running", workId, startedAt: at };
+    return { ...copyVisitIdentity(visit), status: "running", workId, startedAt: at };
 }
 
 /** Commits a visit's validated output, deep-frozen so later steps bind to a value nothing can change. */
@@ -198,7 +198,7 @@ export function completeVisit(
     at: string,
 ): CompletedVisit {
     const completed: CompletedVisit = {
-        ...identityOf(visit),
+        ...copyVisitIdentity(visit),
         status: "completed",
         output: deepFreeze(output),
         completedAt: at,
@@ -213,7 +213,7 @@ export function failVisit(
     at: string,
 ): FailedVisit {
     const failed: FailedVisit = {
-        ...identityOf(visit),
+        ...copyVisitIdentity(visit),
         status: "failed",
         failure: deepFreeze(failure),
         completedAt: at,
@@ -263,7 +263,7 @@ export function completeRun(
 }
 
 /** Copies a visit's identity members, which every state keeps unchanged. */
-function identityOf(visit: VisitState): VisitBase {
+function copyVisitIdentity(visit: VisitState): VisitBase {
     return {
         key: visit.key,
         stepId: visit.stepId,
