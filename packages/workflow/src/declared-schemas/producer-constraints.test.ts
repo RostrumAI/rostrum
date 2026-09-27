@@ -126,7 +126,11 @@ describe("type and enumeration", () => {
             keyword: "enum",
             path: "/enum",
         });
-        expect(enumerationFits([{}], { const: 1 }, "")?.keyword).toBe("const");
+        expect(enumerationFits([{}], { const: 1 }, "")).toEqual({
+            kind: "mismatch",
+            keyword: "const",
+            path: "/const",
+        });
         expect(enumerationFits([{}], { type: "number" }, "")).toBeUndefined();
     });
 
