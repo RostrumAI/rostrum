@@ -349,6 +349,7 @@ const FailedRunSnapshot = Type.Object(
             ]),
             { minItems: 1 },
         ),
+        // A terminal run waits for nothing; abandoned waiting steps keep their own lists.
         currentSteps: NoStepIds,
         waitingFor: NoStepIds,
         failure: ExecutionFailureSchema,
@@ -361,7 +362,9 @@ const FailedRunSnapshot = Type.Object(
  * publication's steps in document order, which is display order, not
  * execution order, limited to the step states the run's status allows.
  * `waitingFor` lists the dependency step IDs that waiting visits still
- * need; each waiting step also names its own.
+ * need; each waiting step also names its own. Like `currentSteps`, it
+ * describes work the run can still do, so a terminal run reports it
+ * empty even when abandoned waiting steps keep their own lists.
  */
 export const RunSnapshotSchema = Type.Union([
     QueuedRunSnapshot,
