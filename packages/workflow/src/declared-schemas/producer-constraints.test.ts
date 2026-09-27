@@ -1,3 +1,41 @@
+/**
+ * @fileoverview Tests the per-keyword readings of a producer conjunction
+ * and its comparisons against a consumer schema. Each reading must err
+ * wide, so the containment check never passes a producer value the
+ * consumer would reject.
+ *
+ * possible kinds and finite values:
+ * - kinds: conjuncts intersect their types; an integer multipleOf rules
+ *   out fractions and a fractional one doesn't.
+ * - finite values: const and enum intersect and drop values the type
+ *   excludes; null, booleans, a range under 64 integers, and the empty
+ *   string are enumerated; unbounded or wider producers are not.
+ *
+ * type and enumeration:
+ * - typeFits: every producer kind must be in the consumer's type.
+ * - enumerationFits: an infinite producer never fits a const or enum.
+ *
+ * numbers and strings:
+ * - bounds: the producer's tightest bound must sit inside the consumer's;
+ *   integer bounds round inward; an unbounded side fails.
+ * - multipleOf: proven only for bounded integers with a dividing step,
+ *   otherwise unprovable; a fractional producer is a mismatch.
+ * - non-numbers: numeric keywords pass vacuously.
+ * - lengths: the producer's tightest length bounds are compared.
+ * - pattern: only an identical producer pattern proves it.
+ *
+ * counts, arrays, and objects:
+ * - count bounds default to 0 and infinity and take the tightest conjunct.
+ * - a closed tuple caps maxItems at its prefix length.
+ * - element schemas: prefixItems, then items, then anything.
+ * - closed names intersect; patternProperties keeps an object open.
+ * - declared names collect across conjuncts; unnamed members fall back to
+ *   additionalProperties, or anything.
+ *
+ * uncompared constraints:
+ * - a producer keyword outside the comparable set can explain any
+ *   mismatch; a producer pattern only matters for string and value keywords.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     enumerationFits,
