@@ -446,7 +446,7 @@ class StaticCompatibilityCheck {
         const operationName = getStepConfig(producer).operation;
         const operation =
             typeof operationName === "string" ? this.catalog.get(operationName) : undefined;
-        const member = operation ? operationOutputMember(operation, output) : undefined;
+        const member = operation ? getOperationOutputMember(operation, output) : undefined;
         return member === undefined ? undefined : { schema: member, root: member };
     }
 
