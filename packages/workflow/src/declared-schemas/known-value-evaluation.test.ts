@@ -28,6 +28,8 @@
  * - $ref: local references are followed; external ones are unprovable.
  * - boolean schemas and unknown keywords: true passes, false is a
  *   mismatch, an incomparable keyword such as if is unprovable.
+ * - incomparable keyword wins over order: patternProperties makes the
+ *   result unprovable even when additionalProperties comes first.
  * - annotations: title, description, format, and default are ignored.
  */
 import { describe, expect, test } from "bun:test";
@@ -200,6 +202,20 @@ describe("combinators and references", () => {
             kind: "unprovable",
             keyword: "if",
             path: "/if",
+        });
+    });
+
+    // Proves an incomparable keyword decides before an order-dependent mismatch.
+    test("an incomparable keyword wins over keyword order", () => {
+        // additionalProperties alone would reject `ab`, but patternProperties might accept it.
+        const consumer = {
+            additionalProperties: { type: "number" },
+            patternProperties: { "^a": { type: "string" } },
+        };
+        expect(evaluate(consumer, { ab: "x" })).toEqual({
+            kind: "unprovable",
+            keyword: "patternProperties",
+            path: "/patternProperties",
         });
     });
 
