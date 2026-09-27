@@ -11,8 +11,8 @@
  *   member, malformed ID, empty steps, loop bound, loop collection,
  *   conditional default).
  * - workflow input declarations: a default of any value and a boolean schema
- *   are accepted; the bare pre-declaration form, a missing schema, an extra
- *   member, and a non-schema `schema` are rejected at the input.
+ *   are accepted. Rejected declarations are covered by the
+ *   `invalid-shape/input-declaration-*` validator fixtures.
  */
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
@@ -157,24 +157,5 @@ describe("workflow input declarations", () => {
         expect(
             getInputErrorPaths({ anything: { schema: true }, nothing: { schema: false } }),
         ).toEqual([]);
-    });
-
-    // Proves the old bare form, a missing schema, and an extra member are all shape errors.
-    test("rejects malformed declarations", () => {
-        // The bare schema form, which lacks `schema` and has extra members.
-        expect(getInputErrorPaths({ name: { type: "string" } })).toContain("/inputs/name");
-
-        // A default without a schema.
-        expect(getInputErrorPaths({ name: { default: "Ada" } })).toContain("/inputs/name");
-
-        // A valid schema alongside an unknown member.
-        expect(
-            getInputErrorPaths({ name: { schema: { type: "string" }, required: true } }),
-        ).toContain("/inputs/name");
-    });
-
-    // Proves a schema that is neither an object nor a boolean is a shape error at the schema.
-    test("rejects a non-schema value", () => {
-        expect(getInputErrorPaths({ name: { schema: "string" } })).toContain("/inputs/name/schema");
     });
 });
