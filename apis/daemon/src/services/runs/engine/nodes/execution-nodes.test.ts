@@ -1,3 +1,27 @@
+/**
+ * @fileoverview Tests the execution nodes: the decisions task and result steps
+ * hand the workflow engine. The engine applies these decisions without
+ * re-checking them, so a wrong decision here dispatches bad arguments, stalls
+ * a run, or commits the wrong result. Nodes are built from the prepared
+ * sequential-calculation fixture (add, divide, result).
+ *
+ * TaskExecutionNode:
+ * - prepares task work: resolved arguments, including a defaulted one.
+ * - fails with a located `unresolved_binding` when a producer hasn't completed.
+ * - fails with a located `io_type_mismatch` when a resolved value fails its
+ *   argument's check.
+ * - continues to each successor, carrying the visit's loop metadata unchanged.
+ *
+ * ResultExecutionNode:
+ * - prepares a local output from its resolved inputs, with no executor.
+ * - finishes the run with the committed output as the result.
+ *
+ * ExecutionNode:
+ * - gives the same visit key for the same step and metadata at any time, and
+ *   creates the visit as waiting.
+ * - lists only the dependencies the lookup doesn't report as completed.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG } from "@rostrum/workflow";
 import calculationJson from "@rostrum/workflow/fixtures/valid/sequential-calculation.json";
