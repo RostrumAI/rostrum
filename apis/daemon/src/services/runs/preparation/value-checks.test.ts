@@ -6,6 +6,8 @@
  *
  * createValueChecker:
  * - a valid value has no failures.
+ * - checks the value it was given: the compiled check receives that exact
+ *   value, once.
  * - locates each issue under the value's path: each issue keeps its message,
  *   uses the location's code, and prefixes its path with the value's pointer.
  * - attributes failures to the location's step: `stepId` is copied from the
@@ -28,6 +30,22 @@ describe("createValueChecker", () => {
     test("a valid value has no failures", () => {
         const checker = createValueChecker(createFixedCheck([]));
         expect(checker(1, { path: "/inputs/amount", code: "invalid_input" })).toEqual([]);
+    });
+
+    // Proves the compiled check receives the checked value itself, not a copy or the location.
+    test("checks the value it was given", () => {
+        // Records every value the compiled check is called with.
+        const received: unknown[] = [];
+        const checker = createValueChecker((value) => {
+            received.push(value);
+            return [];
+        });
+        const payload = { amount: 3 };
+        checker(payload, { path: "/inputs/payload", code: "invalid_input" });
+
+        // The check ran once, on the same object the caller passed.
+        expect(received).toHaveLength(1);
+        expect(received[0]).toBe(payload);
     });
 
     // Proves each issue becomes a failure located under the value's own path, with the location's code.
