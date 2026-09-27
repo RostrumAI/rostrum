@@ -1,0 +1,17 @@
+{
+    "validForPublication": false,
+    "findings": [
+        {
+            "code": "workflow.shape.required-field",
+            "blocking": true,
+            "path": "/inputs/name/schema",
+            "details": {
+                "schemaPath": "#/properties/inputs/patternProperties/^.*$",
+                "keyword": "required",
+                "params": {
+                    "requiredProperties": ["schema"]
+                }
+            }
+        }
+    ]
+}
