@@ -72,7 +72,7 @@ function describeOutcome(snapshot: RunSnapshot): string {
     }
 }
 
-/** Prints one scenario's outcome. */
+/** Logs one scenario so smoke progress stays visible while fixtures run. */
 function reportOutcome(name: string, snapshot: RunSnapshot): void {
     console.log(`${name}: ${snapshot.status} ${describeOutcome(snapshot)}`);
 }
