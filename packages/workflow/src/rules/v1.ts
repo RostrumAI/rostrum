@@ -17,10 +17,10 @@ import type { WorkflowFormatRuleSet } from "./workflow-format-rule-set";
  * unchanged, so a v1 document keeps validating identically forever.
  * It carries the document schema, the demonstrative step-type registry
  * (`task` requires an `operation` in its config; `result` accepts any
- * config object), the metadata members the digest excludes, and stages
- * 2 through 8 of the validation pipeline. Stage 0 (parse) and stage 1 (format
- * selection) are format-version-independent and run before the rule set's
- * stages.
+ * config object), the metadata members the digest excludes, and the
+ * validation stages from the document shape stage through the input/output
+ * compatibility stage. The parse stage and the format version stage are
+ * format-version-independent and run before the rule set's stages.
  */
 
 const stepTypes = new StepTypeRegistry({

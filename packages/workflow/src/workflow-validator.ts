@@ -19,10 +19,11 @@ export interface ValidationResult {
  * Reads workflow JSON and validates it under the rules selected by its
  * declared `workflowFormatVersion`.
  *
- * Stage 0 parses the raw input (duplicate keys, `NaN`/`Infinity`, and
- * invalid UTF-8 are errors) and stage 1 selects the workflow-format rule set
- * by exact match; the selected rule set then runs its own frozen stages
- * 2 through 8 with prerequisite gating. The same document produces the
+ * The parse stage parses the raw input (duplicate keys, `NaN`/`Infinity`,
+ * and invalid UTF-8 are errors) and the format version stage selects the
+ * workflow-format rule set by exact match; the selected rule set then runs
+ * its own frozen stages, from the document shape stage through the
+ * input/output compatibility stage, with prerequisite gating. The same document produces the
  * same ordered findings whether it arrives as text or already parsed;
  * only the line and column numbers differ.
  */

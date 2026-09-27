@@ -1,6 +1,6 @@
 /**
- * @fileoverview Unit tests for `GraphStage`, validation stage 4 (graph
- * topology). The stage decides whether a workflow's control graph can run:
+ * @fileoverview Unit tests for `GraphStage`, the graph topology validation
+ * stage. The stage decides whether a workflow's control graph can run:
  * a cycle, nested loop, bad loop bound, self-dependency, or dependency not
  * guaranteed to finish first would make a published workflow hang or fail.
  *

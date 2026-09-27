@@ -4,16 +4,17 @@ import { type Static, Type } from "typebox";
  * Workflow format v1 document schema.
  *
  * Source of truth for the format's public JSON Schema 2020-12
- * artifact. The schema expresses exactly the stage 2 (document shape)
+ * artifact. The schema expresses exactly the document shape stage's
  * contract: required fields, types, UUID v7 string formats, array
  * bounds, `maxIterations >= 1`, and `additionalProperties: false`.
  *
  * Rules that later validation stages own are intentionally absent from this
  * schema so their findings carry the right stage codes: mutual exclusions
- * and unknown step types (stage 3), predicate operators and conditional ref
- * shape (stage 5), data-reference syntax and resolution (stage 7). A
- * binding value is therefore any JSON value; the `{ "ref": "..." }`
- * interpretation is a stage 7 rule, not a shape rule.
+ * and unknown step types (identity and references stage), predicate
+ * operators and conditional ref shape (conditional semantics stage),
+ * data-reference syntax and resolution (data references stage). A binding
+ * value is therefore any JSON value; the `{ "ref": "..." }` interpretation
+ * is a data references stage rule, not a shape rule.
  */
 
 /**
@@ -27,7 +28,7 @@ const UuidV7 = Type.String({ pattern: UUID_V7_PATTERN });
 /** Any JSON value. Used for binding values and JSON Schema fragments. */
 const JsonValue = Type.Any({ title: "JSON value" });
 
-/** A reference object: `{ "ref": "<path>" }`. Path syntax is checked in stage 7. */
+/** A reference object: `{ "ref": "<path>" }`. Path syntax is checked in the data references stage. */
 const ReferenceObject = Type.Object({ ref: Type.String() }, { additionalProperties: false });
 
 /** Bounded forEach loop configuration on a step. */
@@ -60,7 +61,7 @@ const Step = Type.Object(
 /**
  * A condition expression: a leaf predicate (`ref`, `op`, optional `value`)
  * or an `all`/`any` group of nested conditions. The operator set and ref
- * path shape are checked in stage 5.
+ * path shape are checked in the conditional semantics stage.
  */
 const Condition = Type.Cyclic(
     {

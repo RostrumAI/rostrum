@@ -9,7 +9,8 @@ import {
 /**
  * Strict JSON parsing with a source map.
  *
- * Stage 0 of the validation pipeline parses raw input under the v1 rules:
+ * The parse stage, the first stage of the validation pipeline, parses raw
+ * input under the v1 rules:
  * duplicate keys are errors rather than last-wins, raw
  * control characters in strings are rejected, the `NaN`/`Infinity`
  * literals accepted by `JSON.parse` are rejected because they are not
