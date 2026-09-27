@@ -1,0 +1,24 @@
+{
+    "workflowFormatVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000104",
+    "name": "Step waits for itself",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000105",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000105",
+            "type": "task",
+            "config": { "operation": "greet" },
+            "inputs": { "name": "Ada" },
+            "outputs": { "greeting": { "type": "string" } },
+            "dependencies": ["0192b0a0-7e1d-7000-8000-000000000105"],
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000106"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000106",
+            "type": "result",
+            "inputs": {
+                "greeting": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000105.greeting" }
+            }
+        }
+    ]
+}
