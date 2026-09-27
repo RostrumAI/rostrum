@@ -9,6 +9,7 @@
  * operations and configuration:
  * - An unknown operation is reported at `config/operation` with the sorted supported names.
  * - A task with no config is reported at the step as naming no operation.
+ * - A non-string operation is reported at `config/operation` with the supplied value.
  * - A config member the operation doesn't declare is located at that member.
  *
  * declared schemas and defaults:
@@ -30,7 +31,7 @@
  * - A reference binding is not checked as a literal.
  * - A workflow input must be declared at least as tightly as the argument it feeds.
  * - A pattern the check can't compare is `unprovable` and names `pattern`.
- * - A reference that doesn't resolve is skipped.
+ * - A reference that doesn't resolve, including one to an undeclared step output, is skipped.
  * - A step output is described by the operation's output schema, not the step's declaration.
  * - A loop step's `results` is an array, so it can't feed a string argument.
  * - A loop variable is described by its collection's `items` and `prefixItems`; when a
@@ -144,6 +145,36 @@ describe("operations and configuration", () => {
     test("a task without an operation", () => {
         const document = buildSingleTaskDocument(taskStep({ config: undefined, inputs: {} }));
         expect(checkDocument(document)).toEqual([["unknown-operation", "/steps/0"]]);
+    });
+
+    // Proves a present but non-string operation is located at the member and keeps its value.
+    test("a non-string operation", () => {
+        const task = taskStep({ config: { operation: 42 }, inputs: {} });
+        const [issue] = checkStaticCompatibility(
+            buildSingleTaskDocument(task),
+            OPERATION_CATALOG,
+            createDeclaredSchemaCompiler(),
+        );
+
+        // The issue points at the member the author wrote and echoes what was supplied.
+        expect(issue?.kind).toBe("unknown-operation");
+        expect(issue?.path).toBe("/steps/0/config/operation");
+        expect(issue?.message).toBe("The task's operation must be a string");
+        expect(issue?.details).toEqual({
+            stepId: task.id,
+            operation: 42,
+            supported: ["add", "divide", "greet"],
+        });
+    });
+
+    // Proves an explicit null operation is a present member, not an absent one.
+    test("a null operation", () => {
+        const document = buildSingleTaskDocument(
+            taskStep({ config: { operation: null }, inputs: {} }),
+        );
+        expect(checkDocument(document)).toEqual([
+            ["unknown-operation", "/steps/0/config/operation"],
+        ]);
     });
 
     // Proves configuration members the operation doesn't declare are located individually.
@@ -358,6 +389,20 @@ describe("bindings", () => {
         const document = buildSingleTaskDocument(
             taskStep({ inputs: { name: { ref: "inputs.missing" } } }),
         );
+        expect(checkDocument(document)).toEqual([]);
+    });
+
+    // Proves a step output reference is skipped when the producer step doesn't declare that output.
+    test("a reference to an undeclared step output is skipped", () => {
+        // square-root returns a number value, but the root step declares no outputs.
+        const end = resultStep();
+        const root = taskStep({ config: { operation: "square-root" }, inputs: { radicand: 4 } });
+        const greet = taskStep({ inputs: { name: { ref: `step.${root.id}.value` } } });
+        root.successors = [greet.id];
+        greet.successors = [end.id];
+        const document = buildDocument({ steps: [root, greet, end], firstNode: root.id });
+
+        // The number would mismatch greet's string name if the unresolved reference were compared.
         expect(checkDocument(document)).toEqual([]);
     });
 
