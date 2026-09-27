@@ -164,8 +164,20 @@ function compileSchema(ajv: Ajv2020, schema: JsonSchema, fallbackId: string): Sc
     }
 
     // Check the declaration against the 2020-12 meta-schema first, so a
-    // malformed keyword is reported where it sits.
-    if (!ajv.validateSchema(schema)) {
+    // malformed keyword is reported where it sits. Ajv throws, rather than
+    // returning false, for a `$schema` dialect it doesn't know.
+    let conforms: boolean;
+    try {
+        conforms = ajv.validateSchema(schema) === true;
+    } catch {
+        // The error names only the unknown meta-schema, which the refusal locates instead.
+        return {
+            ok: false,
+            path: "/$schema",
+            message: "Only the JSON Schema 2020-12 dialect is supported",
+        };
+    }
+    if (!conforms) {
         const first = ajv.errors?.[0];
         return {
             ok: false,

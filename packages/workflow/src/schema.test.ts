@@ -1,8 +1,25 @@
+/**
+ * @fileoverview Tests the workflow document's shape schema, the first check
+ * every saved or published document passes. It must accept every shape the
+ * format allows and reject malformed ones for the documented reason.
+ *
+ * - valid examples: every `valid/` fixture has no shape errors.
+ * - incomplete drafts: every `incomplete/` fixture fails only for missing
+ *   members, so a draft is never malformed beyond omission.
+ * - invalid shape examples: each `invalid-shape/` fixture fails at the
+ *   member it was written to break (format version, missing or unknown
+ *   member, malformed ID, empty steps, loop bound, loop collection,
+ *   conditional default).
+ * - workflow input declarations: a default of any value and a boolean schema
+ *   are accepted; the bare pre-declaration form, a missing schema, an extra
+ *   member, and a non-schema `schema` are rejected at the input.
+ */
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Compile } from "typebox/compile";
 import { WorkflowDocumentSchema } from "./schema";
+import { buildDocument } from "./testing/documents";
 
 const FIXTURES_DIR = join(import.meta.dir, "fixtures");
 
@@ -107,5 +124,44 @@ describe("invalid shape examples fail for the expected reason", () => {
         const document = loadFixture("invalid-shape", "conditional-default-missing.json");
         const pointers = [...validator.Errors(document)].map((error) => error.instancePath);
         expect(pointers).toContain("/conditionals/0");
+    });
+});
+
+describe("workflow input declarations", () => {
+    /** Returns the pointers of every shape error for a document declaring the given inputs. */
+    function getInputErrorPaths(inputs: unknown): string[] {
+        const document = { ...buildDocument(), inputs };
+        return [...validator.Errors(document)].map((error) => error.instancePath);
+    }
+
+    // Proves a declaration may carry a default, of any JSON value, including null.
+    test("accepts a default", () => {
+        expect(getInputErrorPaths({ count: { schema: { type: "number" }, default: 3 } })).toEqual(
+            [],
+        );
+        expect(getInputErrorPaths({ note: { schema: { type: "null" }, default: null } })).toEqual(
+            [],
+        );
+    });
+
+    // Proves `true` and `false` are whole schemas, so either is a valid declaration.
+    test("accepts a boolean schema", () => {
+        expect(
+            getInputErrorPaths({ anything: { schema: true }, nothing: { schema: false } }),
+        ).toEqual([]);
+    });
+
+    // Proves the old bare form, a missing schema, and an extra member are all shape errors.
+    test("rejects malformed declarations", () => {
+        expect(getInputErrorPaths({ name: { type: "string" } })).toContain("/inputs/name");
+        expect(getInputErrorPaths({ name: { default: "Ada" } })).toContain("/inputs/name");
+        expect(
+            getInputErrorPaths({ name: { schema: { type: "string" }, required: true } }),
+        ).toContain("/inputs/name");
+    });
+
+    // Proves a schema that is neither an object nor a boolean is a shape error at the schema.
+    test("rejects a non-schema value", () => {
+        expect(getInputErrorPaths({ name: { schema: "string" } })).toContain("/inputs/name/schema");
     });
 });

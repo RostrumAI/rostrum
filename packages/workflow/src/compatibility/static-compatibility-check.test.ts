@@ -1,26 +1,49 @@
 /**
- * @fileoverview Tests the static compatibility check over whole documents. It
- * backs both publication findings and preparation refusals, so each issue kind
- * must be found and located at the JSON Pointer an author has to repair.
+ * @fileoverview Tests the static compatibility check that publication and
+ * daemon preparation both run. Each issue it reports blocks a publication,
+ * so each kind must appear at the right JSON Pointer and only when the
+ * document is actually wrong. Test-only operations add a `minimum: 0`
+ * argument (`square-root`), a pattern argument (`shout`), and a default
+ * that fails its own schema (`broken-default`).
  *
- * - operations and configuration: an unknown operation lists the supported names;
- *   a task without configuration names no operation; undeclared configuration
- *   members are located individually.
- * - declared schemas and defaults: malformed declarations, references leaving the
- *   schema, and unsupported patterns are invalid; a reference to the schema's own
- *   root is valid; defaults, including an explicit null, must satisfy their schema.
- * - arguments and declared outputs: required arguments must be bound; undeclared
- *   arguments are reported at the binding; a step may only declare outputs its
- *   operation always returns, with a schema admitting every returned value; a
- *   result step declares no outputs.
- * - bindings: literals are checked against the full argument schema; an input
- *   must be declared at least as tightly as the argument it feeds; an uncomparable
- *   binding is unprovable and names the keyword; unresolved references are
- *   skipped; step outputs use the operation's schema; loop variables use their
- *   collection's items; a self-referential loop is skipped; result bindings fit.
- * - condition operands: a leaf on a task output is judged by the operation's
- *   output schema, so `neq` against an impossible greeting is a mismatch.
- * - issue attribution: step-level issues carry the step id; workflow-level ones don't.
+ * operations and configuration:
+ * - An unknown operation is reported at `config/operation` with the sorted supported names.
+ * - A task with no config is reported at the step as naming no operation.
+ * - A config member the operation doesn't declare is located at that member.
+ *
+ * declared schemas and defaults:
+ * - Malformed input and output schemas are located at the offending keyword.
+ * - A remote `$ref` and a lookbehind pattern are invalid schemas; a root `$ref: "#"` is valid.
+ * - Defaults that fail their schema are reported, on workflow inputs and on catalog arguments.
+ * - An explicit `null` default is checked like any other value.
+ *
+ * arguments and declared outputs:
+ * - An unbound required argument is reported at `inputs`, or at the step when `inputs` is absent;
+ *   an unbound argument with a default is not.
+ * - A binding for an undeclared argument is reported at the binding.
+ * - A task output its operation doesn't always return, and any result step output, is undeclared.
+ * - An output declaration that rejects values the operation returns is a `type-mismatch`.
+ * - A loop step may declare its reserved `results` output, which its operation never returns.
+ *
+ * bindings:
+ * - A literal is validated against the argument's full schema.
+ * - A workflow input must be declared at least as tightly as the argument it feeds.
+ * - A pattern the check can't compare is `unprovable` and names `pattern`.
+ * - A reference that doesn't resolve is skipped.
+ * - A step output is described by the operation's output schema, not the step's declaration.
+ * - A loop step's `results` is an array, so it can't feed a string argument.
+ * - A loop variable is described by its collection's `items` and `prefixItems`; when a
+ *   collection `$ref` or combinator hides them, the binding is unprovable.
+ * - A loop collection that resolves back through its own variable, directly or through a
+ *   second loop, is left unresolved instead of recursing forever.
+ * - Result step bindings are not compared.
+ *
+ * condition operands:
+ * - A leaf on a task output is judged by the operation's output schema, so `neq`
+ *   against an impossible greeting is an operand mismatch.
+ *
+ * issue attribution:
+ * - Step-level issues carry the step id in `stepId` and `details`; workflow-level ones carry none.
  */
 import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
@@ -244,6 +267,28 @@ describe("arguments and declared outputs", () => {
         expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/0/outputs/value"]]);
     });
 
+    // Proves a loop step's reserved results output is exempt from the undeclared-output rule.
+    test("a loop step may declare its results output", () => {
+        // greet never returns `results`, but the loop step exposes it as its iteration results.
+        const end = resultStep();
+        const body = taskStep();
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 2,
+                variable: "item",
+                body: body.id,
+            },
+            { outputs: { results: { type: "array" } }, successors: [end.id] },
+        );
+        const document = buildDocument({
+            steps: [loop, body, end],
+            firstNode: loop.id,
+            inputs: { items: { schema: { type: "array" } } },
+        });
+        expect(checkDocument(document)).toEqual([]);
+    });
+
     // Proves a result step can't declare outputs, so nothing can bind to one unchecked.
     test("a result step's declared output", () => {
         const task = taskStep();
@@ -307,20 +352,45 @@ describe("bindings", () => {
 
     // Proves a step output's producer is the operation's output schema, not the step's declaration.
     test("a step output feeds the next step through the operation's schema", () => {
+        // The root declares its value as any number, but square-root always returns one >= 0.
         const end = resultStep();
         const root = taskStep({ config: { operation: "square-root" }, inputs: { radicand: 4 } });
-        const add = taskStep({
-            config: { operation: "add" },
-            inputs: { left: { ref: `step.${root.id}.value` } },
+        const again = taskStep({
+            config: { operation: "square-root" },
+            inputs: { radicand: { ref: `step.${root.id}.value` } },
         });
         const greet = taskStep({ inputs: { name: { ref: `step.${root.id}.value` } } });
-        root.successors = [add.id];
-        add.successors = [greet.id];
+        root.successors = [again.id];
+        again.successors = [greet.id];
         greet.successors = [end.id];
         root.outputs = { value: { type: "number" } };
-        const document = buildDocument({ steps: [root, add, greet, end], firstNode: root.id });
+        const document = buildDocument({ steps: [root, again, greet, end], firstNode: root.id });
 
-        // A non-negative number fits add's left but not greet's string name.
+        // Only the operation's minimum-0 schema fits the next radicand; neither fits greet's name.
+        expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
+    });
+
+    // Proves a binding to a loop step's results receives an array.
+    test("a loop's results are an array", () => {
+        // A step after the loop binds the loop's results to greet's string name.
+        const end = resultStep();
+        const body = taskStep();
+        const after = taskStep({ successors: [end.id] });
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 2,
+                variable: "item",
+                body: body.id,
+            },
+            { successors: [after.id] },
+        );
+        after.inputs = { name: { ref: `step.${loop.id}.results` } };
+        const document = buildDocument({
+            steps: [loop, body, after, end],
+            firstNode: loop.id,
+            inputs: { items: { schema: { type: "array" } } },
+        });
         expect(checkDocument(document)).toEqual([["type-mismatch", "/steps/2/inputs/name"]]);
     });
 
@@ -368,6 +438,38 @@ describe("bindings", () => {
             },
         };
         expect(checkDocument(tuple)).toEqual([["type-mismatch", "/steps/1/inputs/left"]]);
+    });
+
+    // Proves an element schema hidden behind a collection combinator is unprovable, not a mismatch.
+    test("a loop variable whose collection hides its items is unprovable", () => {
+        // The collection's items sit behind a $ref, so the element lookup can't read them.
+        const end = resultStep();
+        const body = taskStep({
+            config: { operation: "add" },
+            inputs: { left: { ref: "loop.item" } },
+        });
+        const loop = taskLoopStep(
+            {
+                collection: { ref: "inputs.items" },
+                maxIterations: 5,
+                variable: "item",
+                body: body.id,
+            },
+            { config: { operation: "add" }, inputs: { left: 0 }, successors: [end.id] },
+        );
+        const document = buildDocument({
+            steps: [loop, body, end],
+            firstNode: loop.id,
+            inputs: {
+                items: {
+                    schema: {
+                        $defs: { list: { type: "array", items: { type: "number" } } },
+                        $ref: "#/$defs/list",
+                    },
+                },
+            },
+        });
+        expect(checkDocument(document)).toEqual([["unprovable", "/steps/1/inputs/left"]]);
     });
 
     // Proves a loop whose collection resolves back through its own variable is skipped, not recursed forever.
