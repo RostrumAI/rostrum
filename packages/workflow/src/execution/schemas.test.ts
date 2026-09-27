@@ -23,8 +23,9 @@
  *   and rejects a failure or a result.
  * - a stopping run carries the failure and its outstanding work: a stopping
  *   run needs its failure and at least one current step.
- * - a failed run carries no result and no active work: a result, current or
- *   waiting work, or a stopping flag is rejected.
+ * - a failed run carries no result and no active work: abandoned waiting
+ *   steps keep their own lists, and a result, current or waiting work, or a
+ *   stopping flag is rejected.
  * - a completed run carries its result and no failure: the result, even an
  *   empty one, is required, and a failure is rejected.
  * - a queued run has no start time and no current work.
@@ -243,6 +244,13 @@ describe("run snapshots", () => {
             steps,
         );
         expect(Value.Check(RunSnapshotSchema, failed)).toBe(true);
+
+        // An abandoned waiting step keeps its own list while the terminal run reports none.
+        const abandoned = {
+            ...failed,
+            steps: [...steps, { stepId: THIRD_STEP, status: "waiting", waitingFor: [SECOND_STEP] }],
+        };
+        expect(Value.Check(RunSnapshotSchema, abandoned)).toBe(true);
 
         // Adding a result, current work, waiting work, or a stopping flag is rejected.
         expect(Value.Check(RunSnapshotSchema, { ...failed, result: { total: 100 } })).toBe(false);
