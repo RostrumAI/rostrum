@@ -59,6 +59,15 @@ describe("scalar keywords", () => {
     // Proves `const` and `enum` compare JSON values regardless of member order.
     test("const and enum", () => {
         expect(evaluate({ const: { a: 1, b: 2 } }, { b: 2, a: 1 })).toBeUndefined();
+
+        // A differing member value fails const and is located at the keyword.
+        expect(evaluate({ const: { a: 1, b: 2 } }, { a: 1, b: 3 })).toEqual({
+            kind: "mismatch",
+            keyword: "const",
+            path: "/const",
+        });
+
+        // Enum passes on any listed value and fails when none match.
         expect(evaluate({ enum: ["x", "y"] }, "y")).toBeUndefined();
         expect(evaluate({ enum: ["x", "y"] }, "z")?.keyword).toBe("enum");
     });

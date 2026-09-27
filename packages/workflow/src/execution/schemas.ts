@@ -153,6 +153,7 @@ export const RunPublicationSchema = Type.Object(
         workflowId: Identifier,
         publicationNumber: Type.Integer({ minimum: 1 }),
         workflowFormatVersion: Type.String(),
+        // The publication digest: a SHA-256 hash written as 64 lowercase hex characters.
         digest: Type.String({ pattern: "^[0-9a-f]{64}$" }),
     },
     { additionalProperties: false },
