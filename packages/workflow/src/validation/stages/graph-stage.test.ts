@@ -1,26 +1,25 @@
 /**
- * @fileoverview Tests the graph validation stage, which rejects control-flow
- * cycles, nested loops, invalid loop bounds, and dependencies that a step
- * cannot rely on having run. These rules keep every accepted workflow finite
- * and its dependency joins satisfiable.
+ * @fileoverview Unit tests for `GraphStage`, validation stage 4 (graph
+ * topology). The stage decides whether a workflow's control graph can run:
+ * a cycle, nested loop, bad loop bound, self-dependency, or dependency not
+ * guaranteed to finish first would make a published workflow hang or fail.
  *
  * GraphStage:
- * - accepts an acyclic document: no findings.
+ * - accepts an acyclic document: a task then result yields no findings.
  * - reports a successor cycle: `workflow.graph.cycle` at the root with the
- *   cycle path in `details.cycle`.
- * - reports a loop body cycle: the finding points at `/steps/0/loop/body`
- *   and names the loop.
- * - reports a nested loop: `workflow.loop.nested` at the inner loop with the
- *   outer and inner loop IDs.
- * - re-checks maxIterations: `0` yields `workflow.loop.invalid-max-iterations`.
- * - flags a merge-after-branch dependency not reached on all paths:
- *   `workflow.graph.unreachable-dependency` with the dependency as a related
- *   location.
+ *   cycle path in details.
+ * - reports a loop body cycle at `/steps/0/loop/body`, naming the loop.
+ * - reports a nested loop: `workflow.loop.nested` at the inner loop with
+ *   both loop IDs.
+ * - re-checks maxIterations: `maxIterations: 0` yields
+ *   `workflow.loop.invalid-max-iterations`.
+ * - flags a merge-after-branch dependency: a dependency on one branch
+ *   yields `workflow.graph.unreachable-dependency` with a related location.
  * - accepts a dependency on a transitive control predecessor.
  * - accepts pure fan-in joins whose dependencies are not dominators.
- * - reports a reachable self-dependency only at the self-referencing array
- *   member, without an unreachable-dependency finding.
- * - reports a self-dependency on a step that firstNode does not reach.
+ * - reports a reachable self-dependency at its own array index, without an
+ *   `unreachable-dependency` finding for the same entry.
+ * - reports a self-dependency on a step unreachable from `firstNode`.
  */
 import { describe, expect, test } from "bun:test";
 import { V1_WORKFLOW_FORMAT_RULE_SET } from "../../rules/v1";
