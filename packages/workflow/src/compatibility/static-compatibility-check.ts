@@ -172,7 +172,7 @@ class StaticCompatibilityCheck {
         if (step.type !== "task") {
             return;
         }
-        const operation = this.operationFor(step, pointer);
+        const operation = this.getTaskOperation(step, pointer);
         if (!operation) {
             return;
         }
@@ -182,7 +182,10 @@ class StaticCompatibilityCheck {
     }
 
     /** Finds the task's operation in the catalog, reporting an absent or unknown one. */
-    private operationFor(step: WorkflowStep, pointer: string): OperationDeclaration | undefined {
+    private getTaskOperation(
+        step: WorkflowStep,
+        pointer: string,
+    ): OperationDeclaration | undefined {
         const name = getStepConfig(step).operation;
         const operation = typeof name === "string" ? this.catalog.get(name) : undefined;
         if (operation) {
