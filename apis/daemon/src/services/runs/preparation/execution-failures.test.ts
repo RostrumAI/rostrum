@@ -1,3 +1,19 @@
+/**
+ * @fileoverview Tests the helpers that build and order the located failures
+ * preparation reports. A refusal lists every failure, so each one must carry
+ * only the fields that apply and read in the same order on every run.
+ *
+ * createFailure
+ * - attributes the step only when given: without a step ID the failure has no
+ *   `stepId` member at all; with one, the ID is kept.
+ *
+ * sortFailures
+ * - orders by path then code: failures sort by JSON Pointer first and by
+ *   failure code within the same pointer.
+ * - doesn't reorder its input: sorting returns a new list and leaves the
+ *   caller's list unchanged.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { createFailure, sortFailures } from "./execution-failures";
 

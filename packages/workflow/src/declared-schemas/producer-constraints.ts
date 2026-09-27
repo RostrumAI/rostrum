@@ -95,7 +95,14 @@ function getFiniteMembers(producer: Conjunction, kind: ValueKind): unknown[] | u
         case "integer": {
             const lower = getNumericBound(producer, "minimum", "exclusiveMinimum", true);
             const upper = getNumericBound(producer, "maximum", "exclusiveMaximum", true);
-            if (!lower || !upper || upper.value - lower.value >= MAX_ENUMERATED_INTEGERS) {
+            // Past the safe-integer range `value++` stops changing the value, so the loop never ends.
+            if (
+                !lower ||
+                !upper ||
+                !Number.isSafeInteger(lower.value) ||
+                !Number.isSafeInteger(upper.value) ||
+                upper.value - lower.value >= MAX_ENUMERATED_INTEGERS
+            ) {
                 return undefined;
             }
             const integers: number[] = [];
@@ -129,17 +136,58 @@ export function typeFits(
     return undefined;
 }
 
-/** A consumer `const` or `enum` can only hold an infinite producer's values by accident. */
+/**
+ * Checks a consumer `const` or `enum` against a producer too large to
+ * check value by value. A producer with infinitely many values can only
+ * fit one by accident, so that is a mismatch; a finite one, such as a
+ * wide integer range, might fit, so that is unprovable.
+ */
 export function enumerationFits(
+    producer: Conjunction,
     consumer: SchemaObject,
     path: string,
 ): ContainmentFailure | undefined {
     for (const keyword of ["const", "enum"] as const) {
         if (Object.hasOwn(consumer, keyword)) {
-            return { kind: "mismatch", keyword, path: `${path}/${keyword}` };
+            return {
+                kind: hasInfinitelyManyValues(producer) ? "mismatch" : "unprovable",
+                keyword,
+                path: `${path}/${keyword}`,
+            };
         }
     }
     return undefined;
+}
+
+/**
+ * True when the producer allows infinitely many values: some kind it can
+ * take isn't null, boolean, an integer bounded on both sides, or a string
+ * with a maximum length.
+ */
+function hasInfinitelyManyValues(producer: Conjunction): boolean {
+    for (const kind of getPossibleKinds(producer)) {
+        switch (kind) {
+            case "null":
+            case "boolean":
+                continue;
+            case "integer":
+                if (
+                    getNumericBound(producer, "minimum", "exclusiveMinimum", true) &&
+                    getNumericBound(producer, "maximum", "exclusiveMaximum", true)
+                ) {
+                    continue;
+                }
+                return true;
+            case "string":
+                if (Number.isFinite(getUpperBound(producer, "maxLength"))) {
+                    continue;
+                }
+                return true;
+            default:
+                return true;
+        }
+    }
+    return false;
 }
 
 /** Checks numeric keywords, which apply only when the producer can be a number. */
@@ -183,9 +231,13 @@ export function numberFits(
         typeof multipleOf === "number" &&
         !isMultipleProven(producer, integral, lower, upper, multipleOf)
     ) {
+        // A proper interval of fractions with no step of its own holds a value that isn't a
+        // multiple of anything fixed; a stepped or single-point producer might still fit.
+        const stepped = getProducerMultiples(producer, false).length > 0;
+        const singlePoint =
+            lower !== undefined && upper !== undefined && lower.value === upper.value;
         return {
-            // Any interval of fractions holds a value that isn't a multiple of anything fixed.
-            kind: integral ? "unprovable" : "mismatch",
+            kind: integral || stepped || singlePoint ? "unprovable" : "mismatch",
             keyword: "multipleOf",
             path: `${path}/multipleOf`,
         };

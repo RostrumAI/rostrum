@@ -1,6 +1,10 @@
 /** @fileoverview Checks a stored publication's document before it is prepared. */
 
-import { type WorkflowDocument, WorkflowDocumentSchema } from "@rostrum/workflow";
+import {
+    escapePointerToken,
+    type WorkflowDocument,
+    WorkflowDocumentSchema,
+} from "@rostrum/workflow";
 import type { ExecutionFailure, RunPublication } from "@rostrum/workflow/execution";
 import { Compile } from "typebox/compile";
 import { createFailure } from "./execution-failures";
@@ -41,13 +45,22 @@ export function checkShape(parsed: unknown): ExecutionFailure[] {
     if (DOCUMENT_SHAPE.Check(parsed)) {
         return [];
     }
-    return [...DOCUMENT_SHAPE.Errors(parsed)].map((error) =>
-        createFailure(
-            "invalid_document",
-            error.instancePath,
-            `The document's shape is invalid: ${error.message}`,
-        ),
-    );
+    return [...DOCUMENT_SHAPE.Errors(parsed)].flatMap((error) => {
+        // A missing member fails `required` at its parent; locate each one at the member itself.
+        const paths =
+            error.keyword === "required"
+                ? error.params.requiredProperties.map(
+                      (name) => `${error.instancePath}/${escapePointerToken(name)}`,
+                  )
+                : [error.instancePath];
+        return paths.map((path) =>
+            createFailure(
+                "invalid_document",
+                path,
+                `The document's shape is invalid: ${error.message}`,
+            ),
+        );
+    });
 }
 
 /** Checks that the document is the publication the run recorded. */
