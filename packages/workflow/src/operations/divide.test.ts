@@ -11,14 +11,20 @@
  *   rather than at binding; a numeric string fails `type`.
  * - returns only a numeric value: a null value or an extra member fails.
  * - declares `division_by_zero` and `numeric_overflow`.
+ *
+ * DIVIDE_OPERATION in the static check (a catalog holding only `divide`):
+ * - an unbound divisor is a missing argument at the task's inputs.
+ * - a step can't declare the quotient as an integer.
  */
 import { describe, expect, test } from "bun:test";
+import { checkStaticCompatibility } from "../compatibility/static-compatibility-check";
 import {
     createDeclaredSchemaCompiler,
     type JsonSchema,
 } from "../declared-schemas/declared-schema-compiler";
+import { buildDocument, resultStep, taskStep } from "../testing/documents";
 import { DIVIDE_OPERATION } from "./divide";
-import { toJsonSchema } from "./operation-catalog";
+import { type OperationCatalog, toJsonSchema } from "./operation-catalog";
 
 /** Compiles one of the declaration's schemas and returns the keywords a value fails. */
 function getFailedKeywords(schema: JsonSchema, value: unknown): string[] {
@@ -66,5 +72,36 @@ describe("DIVIDE_OPERATION declaration", () => {
             "division_by_zero",
             "numeric_overflow",
         ]);
+    });
+});
+
+/** A catalog holding only `divide`, so each case exercises its declaration alone. */
+const CATALOG: OperationCatalog = new Map([[DIVIDE_OPERATION.name, DIVIDE_OPERATION]]);
+
+/** Checks a `divide` task bound to `inputs` and returns the issue kinds and paths. */
+function checkDivideTask(inputs: Record<string, unknown>, outputs?: Record<string, unknown>) {
+    const end = resultStep();
+    const task = taskStep({ config: { operation: "divide" }, inputs, successors: [end.id] });
+    if (outputs) {
+        task.outputs = outputs;
+    }
+    const document = buildDocument({ steps: [task, end], firstNode: task.id });
+    return checkStaticCompatibility(document, CATALOG, createDeclaredSchemaCompiler()).map(
+        (issue) => [issue.kind, issue.path],
+    );
+}
+
+describe("DIVIDE_OPERATION in the static check", () => {
+    // Proves a missing divisor is located at the task's inputs.
+    test("requires both arguments", () => {
+        expect(checkDivideTask({ dividend: 1, divisor: 2 })).toEqual([]);
+        expect(checkDivideTask({ dividend: 1 })).toEqual([["missing-argument", "/steps/0/inputs"]]);
+    });
+
+    // Proves a quotient can't be declared as an integer, since division yields fractions.
+    test("returns value as any number", () => {
+        expect(
+            checkDivideTask({ dividend: 1, divisor: 2 }, { value: { type: "integer" } }),
+        ).toEqual([["type-mismatch", "/steps/0/outputs/value"]]);
     });
 });
