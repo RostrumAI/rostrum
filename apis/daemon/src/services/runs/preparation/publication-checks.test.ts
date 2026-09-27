@@ -1,3 +1,36 @@
+/**
+ * @fileoverview Tests the checks the daemon runs on a stored publication's
+ * document before preparing it. Each check decides part of what this release
+ * refuses to run, and each must report every failure at the member
+ * responsible so a refusal can list them all.
+ *
+ * checkShape
+ * - accepts a v1 document: the calculation fixture has no shape failures.
+ * - refuses another format alone: a non-v1 format yields only
+ *   `unsupported_format`, even when the rest of the shape is also wrong.
+ * - locates shape errors: an empty step list fails at `/steps`, and `null`
+ *   fails at the document root.
+ *
+ * checkIdentity
+ * - accepts the recorded workflow: a matching ID and format pass.
+ * - reports a different workflow and format: each mismatch is a
+ *   `publication_mismatch` at `/id` or `/workflowFormatVersion`.
+ *
+ * checkStructure
+ * - accepts consistent links: the calculation fixture passes.
+ * - reports every broken link: a duplicate step ID, a missing entry step, and
+ *   dangling successors and dependencies are each located.
+ *
+ * checkSupportedSteps
+ * - accepts a sequential workflow: task and result steps in a line pass.
+ * - refuses conditionals: at the document's `/conditionals` and at the routed
+ *   step's `conditional`.
+ * - refuses loops and parallel successors: each at the step member responsible.
+ * - accepts a repeated successor: the same successor listed twice is one path.
+ * - refuses unsupported steps: self-dependency, an unknown step type, and a
+ *   configured result step are refused, each naming its step.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { type WorkflowDocument, WorkflowDocumentSchema } from "@rostrum/workflow";
 import type { ExecutionFailure, RunPublication } from "@rostrum/workflow/execution";
