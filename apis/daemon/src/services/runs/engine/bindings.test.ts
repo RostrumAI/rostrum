@@ -1,3 +1,23 @@
+/**
+ * @fileoverview Tests `resolveBindings`, which turns a step's prepared
+ * bindings into the values the step receives. A wrong lookup here would feed
+ * a step a missing, defaulted, or prototype-inherited value.
+ *
+ * resolveBindings:
+ * - resolves literals, workflow inputs, and completed step outputs: each
+ *   binding kind reads from its own source.
+ * - an output of a step that hasn't completed is unresolved: the result is a
+ *   located `unresolved_binding` failure naming the input, path, and step.
+ * - a workflow input the run lacks is unresolved the same way.
+ * - a prototype member never satisfies a missing output or input: an output
+ *   named `constructor` stays unresolved, and `a.b` reads the member named
+ *   `a.b`, not a nested path.
+ * - falsy values resolve: `null` and `false` count as present values.
+ * - an input named __proto__ is an own member: the result's prototype is
+ *   unchanged and the value sits under an own `__proto__` key.
+ * - no inputs resolve to an empty object.
+ */
+
 import { describe, expect, test } from "bun:test";
 import type { PreparedInput } from "../preparation/prepared-workflow";
 import { type BindingContext, resolveBindings } from "./bindings";
@@ -47,6 +67,20 @@ describe("resolveBindings", () => {
                 code: "unresolved_binding",
                 message: "The value bound to 'right' isn't available",
                 path: "/steps/0/inputs/right",
+                stepId: STEP,
+            },
+        });
+    });
+
+    // Proves a workflow input the run didn't accept is unresolved rather than undefined.
+    test("a workflow input the run lacks is unresolved", () => {
+        const inputs = inputsOf([["amount", { kind: "workflow-input", inputName: "amount" }]]);
+        expect(resolveBindings(inputs, contextOf({ other: 1 }), STEP)).toEqual({
+            ok: false,
+            failure: {
+                code: "unresolved_binding",
+                message: "The value bound to 'amount' isn't available",
+                path: "/steps/0/inputs/amount",
                 stepId: STEP,
             },
         });

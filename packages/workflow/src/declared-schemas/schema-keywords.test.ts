@@ -1,3 +1,30 @@
+/**
+ * @fileoverview Unit tests for the schema keyword vocabulary that the
+ * containment check reads JSON Schemas with. The checker relies on these
+ * helpers to classify values, read keyword values without throwing, and
+ * compare JSON literals, so a wrong answer here changes every binding verdict.
+ *
+ * value kinds:
+ * - classifies each JSON value: null, boolean, string, array, and object map
+ *   to their kinds; whole numbers (including `3.0`) are `integer`, others `fraction`.
+ * - maps type names to the kinds they allow: `number` spans both numeric
+ *   kinds, and an unknown name such as `decimal` allows none.
+ * - names a type that allows each kind: every kind round-trips to a type name
+ *   whose kinds include it.
+ *
+ * keyword readers:
+ * - read malformed values as empty: a non-list, non-object, or wrong-shaped
+ *   keyword value reads as an empty list or record.
+ * - drop members of the wrong kind: list readers keep only schemas or strings.
+ * - read a type as a list of names: a single name and a list read the same way.
+ * - keep property names exactly: `__proto__` stays an ordinary named member
+ *   and non-schema members are dropped.
+ *
+ * JSON helpers:
+ * - isObject rejects arrays and null.
+ * - isSameJson compares canonical forms: member order is ignored, array order
+ *   and value types are not.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     ALL_KINDS,
