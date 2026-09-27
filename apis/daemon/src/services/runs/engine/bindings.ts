@@ -72,7 +72,17 @@ export function resolveBindings(
 function resolveBinding(
     input: PreparedInput,
     context: BindingContext,
-): { found: true; value: unknown } | { found: false } {
+):
+    | {
+          /** The binding's value is available. */
+          found: true;
+          /** The resolved value, which may itself be null or false. */
+          value: unknown;
+      }
+    | {
+          /** The binding's source holds no such value in this run. */
+          found: false;
+      } {
     const binding = input.binding;
     switch (binding.kind) {
         case "literal":

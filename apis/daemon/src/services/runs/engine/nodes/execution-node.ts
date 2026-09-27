@@ -88,9 +88,9 @@ export abstract class ExecutionNode<Step extends PreparedStep = PreparedStep> {
     }
 
     /**
-     * Creates this step's visit for the given metadata. Every predecessor
-     * asking for the same step and metadata gets the same identity,
-     * whichever asked first.
+     * Creates this step's visit for the given metadata. The visit's key
+     * depends only on the step and metadata, so the engine can tell a
+     * repeated request from a new visit and keep the first one.
      */
     createVisit(metadata: VisitMetadata, at: string): WaitingVisit {
         return createWaitingVisit(this.step.id, metadata, at);

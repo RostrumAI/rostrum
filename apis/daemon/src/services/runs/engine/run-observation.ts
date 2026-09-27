@@ -55,6 +55,10 @@ export function observeRun(run: RunState): RunSnapshot {
                 waitingFor: [],
             };
         case "running":
+            // A stopping run waits only while work is running; with none it would already have failed.
+            if (progress.stopping && currentSteps.length === 0) {
+                throw new Error("A stopping run can't have no running step");
+            }
             return progress.stopping
                 ? {
                       ...identity,

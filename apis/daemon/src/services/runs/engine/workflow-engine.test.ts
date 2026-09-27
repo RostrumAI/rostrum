@@ -1,3 +1,36 @@
+/**
+ * @fileoverview Tests `WorkflowEngine`, the single owner of run state. The
+ * engine decides which steps run, in what order, and how a run ends, so these
+ * tests drive real prepared fixtures through a manual scheduler and clock and
+ * check the snapshots callers see.
+ *
+ * - the worked example: the calculation completes with total 100 and 25 each;
+ *   an omitted surcharge defaults to 0; people 0 fails at the divisor, keeps
+ *   the addition's output, and has no result; the minimum workflow returns `{}`.
+ * - traversal: reversed step order and repeated advancement run each task
+ *   once; an immediate result starts at most one task per turn; mutating a
+ *   returned output doesn't change what successors or snapshots see.
+ * - dependency gating and dead runs: a waiting visit is dispatched once its
+ *   dependency completes; an unsatisfiable dependency fails as
+ *   `unmet_dependencies` at its location; ending without a result fails as
+ *   `missing_result`; an unreachable step stays pending in a completed run.
+ * - completions: a result for other work is an `execution_error` that leaves
+ *   the other run untouched; a rejecting or throwing executor fails the run;
+ *   outputs that break the operation or the step's declaration fail as
+ *   `invalid_output` and never reach the division; a terminal run is
+ *   stable under repeated advancement.
+ * - independent runs: one run completes and another fails on their own inputs
+ *   while a third stays held.
+ * - task deadlines: a timeout stops the run but fails it only once the task
+ *   settles, discarding late output; the deadline starts at the claim and is
+ *   cancelled on settlement; the timeout outranks a later failure or
+ *   rejection; a registration abort reaches the executing task.
+ * - guarded state: an unresolved binding or a failed input check fails the
+ *   visit before dispatch; a result reached beside unfinished work fails the
+ *   run; snapshots are frozen; malformed or undeclared task failures and a
+ *   throwing transition fail the run with `execution_error`; an unusable task
+ *   timeout is refused at construction.
+ */
 import { describe, expect, test } from "bun:test";
 import {
     createDeclaredSchemaCompiler,

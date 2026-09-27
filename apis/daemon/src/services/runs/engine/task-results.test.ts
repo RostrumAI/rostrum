@@ -1,3 +1,29 @@
+/**
+ * @fileoverview Tests the checks the workflow engine applies to a settled
+ * task before committing it. A task result is untrusted: it must identify
+ * the dispatched work, report only failures its operation declares, and
+ * return output that satisfies the operation and step. Uses the division
+ * step of the sequential-calculation fixture.
+ *
+ * getTaskFailure
+ * - accepts output for the dispatched work: returns undefined.
+ * - rejects a missing or misidentified result: a rejected executor or a
+ *   result for other work is an `execution_error` at the step.
+ * - locates a declared failure under the step: `division_by_zero` keeps its
+ *   code with the step path prefixed; `task_error` with `""` is at the step.
+ * - distrusts undeclared codes and malformed pointers: a code divide doesn't
+ *   declare, or a pointer without a leading `/`, becomes `execution_error`.
+ *
+ * checkTaskOutput
+ * - accepts a valid output as an owned frozen copy: later changes to the
+ *   returned object don't reach it.
+ * - rejects output that breaks the operation's schema: `invalid_output` at
+ *   the offending member under the step's outputs.
+ * - rejects output that breaks a declared output: the step's declaration is
+ *   checked separately from the operation's schema.
+ * - rejects uncopyable and non-object output: a function member, an array,
+ *   and null fail with `invalid_output` instead of throwing.
+ */
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG } from "@rostrum/workflow";
 import type { FailureCode } from "@rostrum/workflow/execution";

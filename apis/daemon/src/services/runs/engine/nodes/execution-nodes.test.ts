@@ -1,3 +1,28 @@
+/**
+ * @fileoverview Tests the execution nodes: the decisions task and result steps
+ * hand the workflow engine. The engine applies these decisions without
+ * re-checking them, so a wrong decision here dispatches bad arguments, stalls
+ * a run, or commits the wrong result. Nodes are built from the prepared
+ * sequential-calculation fixture (add, divide, result).
+ *
+ * TaskExecutionNode:
+ * - prepares task work: resolved arguments, including a defaulted one.
+ * - fails with a located `unresolved_binding` when a producer hasn't completed.
+ * - fails with a located `io_type_mismatch` when a resolved value fails its
+ *   argument's check.
+ * - continues to each successor, carrying the visit's loop metadata unchanged.
+ *
+ * ResultExecutionNode:
+ * - prepares a local output from its resolved inputs, with no executor.
+ * - fails with `unresolved_binding` when a bound output isn't available.
+ * - finishes the run with the committed output as the result.
+ *
+ * ExecutionNode:
+ * - gives the same visit key for the same step and metadata at any time, and
+ *   creates the visit as waiting.
+ * - lists only the dependencies the lookup doesn't report as completed.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { OPERATION_CATALOG } from "@rostrum/workflow";
 import calculationJson from "@rostrum/workflow/fixtures/valid/sequential-calculation.json";
@@ -8,7 +33,7 @@ import type {
 } from "../../preparation/prepared-workflow";
 import { PublicationPreparer } from "../../preparation/publication-preparer";
 import type { BindingContext } from "../bindings";
-import { createWaitingVisit, promoteVisit } from "../run-state";
+import { createWaitingVisit, promoteVisit, type ReadyVisit } from "../run-state";
 import { ResultExecutionNode } from "./result-execution-node";
 import { TaskExecutionNode } from "./task-execution-node";
 
@@ -66,8 +91,10 @@ function buildContext(
     };
 }
 
-/** A ready visit of the given step with no loop metadata. */
-const readyVisit = (stepId: string) => promoteVisit(createWaitingVisit(stepId, [], AT));
+/** Builds a ready visit of the given step with no loop metadata. */
+function readyVisit(stepId: string): ReadyVisit {
+    return promoteVisit(createWaitingVisit(stepId, [], AT));
+}
 
 describe("TaskExecutionNode", () => {
     // Proves a ready task resolves its arguments, including a defaulted one, for the executor.
@@ -133,6 +160,27 @@ describe("ResultExecutionNode", () => {
             buildContext({}, { [ADD_STEP]: { value: 90 }, [DIVIDE_STEP]: { value: 30 } }),
         );
         expect(preparation).toEqual({ kind: "local", output: { total: 90, perPerson: 30 } });
+    });
+
+    // Proves a result whose producer hasn't completed fails before anything is committed.
+    test("fails when a bound output isn't available", () => {
+        // Only the addition has completed, so the division's output can't be bound.
+        const node = new ResultExecutionNode(getResultStep());
+        const preparation = node.prepareExecution(
+            readyVisit(RESULT_STEP),
+            buildContext({}, { [ADD_STEP]: { value: 90 } }),
+        );
+
+        // The failure names the unbound result input.
+        expect(preparation).toEqual({
+            kind: "failure",
+            failure: {
+                code: "unresolved_binding",
+                message: "The value bound to 'perPerson' isn't available",
+                path: "/steps/2/inputs/perPerson",
+                stepId: RESULT_STEP,
+            },
+        });
     });
 
     // Proves the committed output becomes the run's result exactly.
