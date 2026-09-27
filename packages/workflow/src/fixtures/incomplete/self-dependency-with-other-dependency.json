@@ -1,0 +1,35 @@
+{
+    "workflowFormatVersion": "v1",
+    "id": "0192b0a0-7e1d-7000-8000-000000000107",
+    "name": "Step waits for a predecessor and itself",
+    "firstNode": "0192b0a0-7e1d-7000-8000-000000000108",
+    "steps": [
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000108",
+            "type": "task",
+            "config": { "operation": "greet" },
+            "inputs": { "name": "Ada" },
+            "outputs": { "greeting": { "type": "string" } },
+            "successors": ["0192b0a0-7e1d-7000-8000-000000000109"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-000000000109",
+            "type": "task",
+            "config": { "operation": "greet" },
+            "inputs": { "name": "Grace" },
+            "outputs": { "greeting": { "type": "string" } },
+            "dependencies": [
+                "0192b0a0-7e1d-7000-8000-000000000108",
+                "0192b0a0-7e1d-7000-8000-000000000109"
+            ],
+            "successors": ["0192b0a0-7e1d-7000-8000-00000000010a"]
+        },
+        {
+            "id": "0192b0a0-7e1d-7000-8000-00000000010a",
+            "type": "result",
+            "inputs": {
+                "greeting": { "ref": "step.0192b0a0-7e1d-7000-8000-000000000109.greeting" }
+            }
+        }
+    ]
+}
