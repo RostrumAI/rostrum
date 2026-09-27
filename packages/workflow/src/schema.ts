@@ -20,7 +20,8 @@ import { type Static, Type } from "typebox";
  * UUID v7: version nibble 7 in the third group, RFC 9562 variant (8, 9,
  * a, or b) in the fourth group, lowercase hexadecimal.
  */
-const UUID_V7_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
+export const UUID_V7_PATTERN =
+    "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
 
 const UuidV7 = Type.String({ pattern: UUID_V7_PATTERN });
 
