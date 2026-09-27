@@ -1,3 +1,26 @@
+/**
+ * @fileoverview Tests the pure run-state transitions in `run-state.ts`.
+ * The engine changes visits and run progress only through these functions,
+ * so they fix which members each state carries and that the first recorded
+ * failure decides how a run ends.
+ *
+ * visit keys:
+ * - empty metadata is the step ID: a visit outside any loop is keyed by its step ID alone.
+ * - frames append in order: each loop frame adds an `@loop:iteration` segment, so iterations get distinct keys.
+ *
+ * visit transitions:
+ * - a task visit's successful path: waiting → ready → running → completed keeps identity and adds only each state's members.
+ * - completing a ready visit has no start time: a visit completed without work has no `startedAt` or
+ *   `workId`, and its committed output is frozen.
+ * - failing before and after dispatch: only a claimed visit keeps `startedAt`, neither keeps `workId`, and the failure is frozen.
+ * - transitions don't mutate their input: promoting leaves the waiting visit unchanged.
+ *
+ * run progress:
+ * - terminal states: only completed and failed runs are terminal; queued, running, and stopping are not.
+ * - stopping keeps the first failure: stopping an already stopping run returns the same progress.
+ * - failing carries the stopping failure and times: a failed run keeps the recorded failure and start time.
+ * - completing records the result: a completed run holds exactly the given result and times.
+ */
 import { describe, expect, test } from "bun:test";
 import type { ExecutionFailure } from "@rostrum/workflow/execution";
 import {
@@ -81,6 +104,7 @@ describe("visit transitions", () => {
             ENDED,
         );
         expect(Object.hasOwn(completed, "startedAt")).toBe(false);
+        expect(Object.isFrozen(completed.output)).toBe(true);
         expect(Object.hasOwn(completed, "workId")).toBe(false);
     });
 

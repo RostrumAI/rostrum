@@ -242,7 +242,9 @@ class PreparedWorkflowAssembly {
     prepareInputs(): ReadonlyMap<string, PreparedWorkflowInput> {
         const inputs = new Map<string, PreparedWorkflowInput>();
         for (const [name, declaration] of Object.entries(this.document.inputs ?? {})) {
-            const prepared: PreparedWorkflowInput = { check: this.checkerFor(declaration.schema) };
+            const prepared: PreparedWorkflowInput = {
+                check: this.createCheckerFor(declaration.schema),
+            };
             if (Object.hasOwn(declaration, "default")) {
                 inputs.set(name, {
                     ...prepared,
@@ -296,7 +298,7 @@ class PreparedWorkflowAssembly {
         const bindings = step.inputs ?? {};
         const inputs = new Map<string, PreparedInput>();
         for (const [name, argument] of Object.entries(operation.arguments)) {
-            const check = this.checkerFor(toJsonSchema(argument.schema));
+            const check = this.createCheckerFor(toJsonSchema(argument.schema));
             if (Object.hasOwn(bindings, name)) {
                 const inputPointer = `${path}/inputs/${escapePointerToken(name)}`;
                 const binding = this.prepareBinding(
@@ -321,7 +323,7 @@ class PreparedWorkflowAssembly {
         const declaredOutputs = new Map<string, ValueChecker>();
         for (const [name, schema] of Object.entries(step.outputs ?? {})) {
             if (isJsonSchema(schema)) {
-                declaredOutputs.set(name, this.checkerFor(schema));
+                declaredOutputs.set(name, this.createCheckerFor(schema));
             }
         }
         return {
@@ -330,7 +332,7 @@ class PreparedWorkflowAssembly {
             inputs,
             operation,
             config: ownedCopy(getStepConfig(step)),
-            outputCheck: this.checkerFor(toJsonSchema(operation.outputSchema)),
+            outputCheck: this.createCheckerFor(toJsonSchema(operation.outputSchema)),
             declaredOutputs,
         };
     }
@@ -379,14 +381,15 @@ class PreparedWorkflowAssembly {
     }
 
     /**
-     * Builds a value checker for a schema the static check already
-     * compiled successfully; preparation only calls this when it found no
-     * invalid schema.
+     * Builds a value checker for a declared schema. Steps are prepared
+     * before failures are counted, so an invalid declaration can reach
+     * here; it gets a checker that reports `invalid_schema`, and the
+     * static check has already refused the publication, so no run uses it.
      */
-    private checkerFor(schema: unknown): ValueChecker {
+    private createCheckerFor(schema: unknown): ValueChecker {
         const compiled = isJsonSchema(schema) ? this.compiler.compile(schema) : undefined;
         if (!compiled?.ok) {
-            // Invalid declarations were reported as `invalid_schema`, so no run can reach this checker.
+            // The publication is refused for this declaration, so this checker is discarded unused.
             return (_value, location) => [
                 createFailure(
                     "invalid_schema",

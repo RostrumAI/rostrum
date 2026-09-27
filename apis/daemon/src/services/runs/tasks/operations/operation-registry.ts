@@ -41,7 +41,7 @@ export type OperationOutcome<Declaration extends OperationDeclaration> =
     | {
           /** The operation reported a domain failure. */
           readonly ok: false;
-          /** The failure. */
+          /** The declared domain failure the operation reported, located relative to its step. */
           readonly failure: OperationFailure<Declaration>;
       };
 
