@@ -13,8 +13,9 @@ import type { SchemaProducer, StaticCompatibilityIssue } from "./static-compatib
  * an optional comparison value. Conditionals don't execute yet, but
  * publication validates them, so each leaf must provably suit its
  * operator: an ordering operator needs numbers, `contains` needs a string
- * or an array, `in` and `notin` need an array value, and an equality or
- * membership test must be able to succeed, or its outcome is fixed.
+ * or an array and a value to search for, `in` and `notin` need an array
+ * value, and an equality or membership test must be able to succeed, or
+ * its outcome is fixed.
  */
 
 /** One leaf predicate and where it sits in the document. */
@@ -142,8 +143,9 @@ function checkLeaf(
         case "contains":
             fits =
                 (contained(STRING_SCHEMA) && typeof leaf.value === "string") ||
-                contained(ARRAY_SCHEMA);
-            rule = "'contains' needs a string output with a string value, or an array output";
+                (contained(ARRAY_SCHEMA) && leaf.hasValue);
+            rule =
+                "'contains' needs a string output with a string value, or an array output with a value";
             break;
         case "in":
         case "notin":
