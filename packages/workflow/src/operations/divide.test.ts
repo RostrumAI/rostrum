@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Tests the `divide` operation's catalog declaration through
+ * the static compatibility check, with a catalog holding only `divide`.
+ * Publication relies on these argument and output schemas to accept or
+ * refuse a workflow.
+ *
+ * DIVIDE_OPERATION:
+ * - Both `dividend` and `divisor` must be bound, since neither has a default.
+ * - A zero divisor passes publication; division by zero is a runtime failure.
+ * - A step can't declare `value` as an integer, since division yields fractions.
+ * - The failure codes are exactly `division_by_zero` and `numeric_overflow`.
+ */
 import { describe, expect, test } from "bun:test";
 import { checkStaticCompatibility } from "../compatibility/static-compatibility-check";
 import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";

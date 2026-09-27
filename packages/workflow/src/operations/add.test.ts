@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Tests the `add` operation's catalog declaration through the
+ * static compatibility check, with a catalog holding only `add`. Publication
+ * relies on these argument and output schemas to accept or refuse a workflow.
+ *
+ * ADD_OPERATION:
+ * - `left` is required and `right` may be left to its default.
+ * - Both arguments accept numbers only; a string literal is a `type-mismatch`.
+ * - A step may declare `value` as a number, but not as an integer.
+ * - `numeric_overflow` is a declared failure code.
+ */
 import { describe, expect, test } from "bun:test";
 import { checkStaticCompatibility } from "../compatibility/static-compatibility-check";
 import { createDeclaredSchemaCompiler } from "../declared-schemas/declared-schema-compiler";
