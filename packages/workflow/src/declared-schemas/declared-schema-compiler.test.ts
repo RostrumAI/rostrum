@@ -7,7 +7,8 @@
  * isJsonSchema: accepts objects and booleans; rejects null, arrays, strings,
  * and numbers.
  *
- * refused schemas: a mistyped keyword is located at `/minimum`; an unknown
+ * refused schemas: an unknown `$schema` dialect is refused at `/$schema`;
+ * a mistyped keyword is located at `/minimum`; an unknown
  * keyword is refused; `$async` is refused at `/$async`; an external `$ref`
  * is refused with its reference named; lookaround and backreference
  * patterns are refused as not linear-time.
@@ -55,6 +56,14 @@ describe("isJsonSchema", () => {
 });
 
 describe("refused schemas", () => {
+    // Proves an unknown `$schema` dialect is refused at `$schema` instead of throwing.
+    test("an unknown dialect is refused", () => {
+        expect(getRefusal({ $schema: "https://example.com/dialect", type: "number" })).toEqual({
+            path: "/$schema",
+            message: "Only the JSON Schema 2020-12 dialect is supported",
+        });
+    });
+
     // Proves a malformed keyword is located at the keyword inside the schema.
     test("a keyword with the wrong type is located", () => {
         expect(getRefusal({ type: "number", minimum: "zero" })?.path).toBe("/minimum");
