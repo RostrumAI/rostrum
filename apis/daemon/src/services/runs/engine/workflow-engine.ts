@@ -169,8 +169,9 @@ export class WorkflowEngine {
     }
 
     /**
-     * Admits a prepared run with its validated inputs: creates its state,
-     * queued, and schedules its first advancement. Returns the run's ID.
+     * Admits a prepared run with its validated inputs: creates its state
+     * in the `queued` status and schedules its first advancement. Returns
+     * the run's ID.
      * From here the run belongs to the engine; the registration is
      * released once it is terminal and its work has settled.
      */

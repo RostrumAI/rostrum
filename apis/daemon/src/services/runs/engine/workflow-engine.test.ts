@@ -28,8 +28,9 @@
  * - guarded state: an unresolved binding or a failed input check fails the
  *   visit before dispatch; a result reached beside unfinished work fails the
  *   run; snapshots are frozen; malformed or undeclared task failures and a
- *   throwing transition fail the run with `execution_error`; an unusable task
- *   timeout is refused at construction.
+ *   throwing transition fail the run with `execution_error`; an unknown run
+ *   has no snapshot and can't be advanced; an unusable task timeout is
+ *   refused at construction.
  */
 import { describe, expect, test } from "bun:test";
 import {
@@ -166,7 +167,7 @@ class HeldExecutor implements TaskExecutor {
     }
 
     /** Returns the n-th received task, failing the test when it hasn't arrived. */
-    task(index: number): HeldTask {
+    getTask(index: number): HeldTask {
         const task = this.received[index];
         if (!task) {
             throw new Error(`Task ${index} wasn't dispatched`);
@@ -175,7 +176,7 @@ class HeldExecutor implements TaskExecutor {
     }
 
     /** Returns a run's task for one step, failing the test when it hasn't arrived. */
-    taskFor(runId: string, stepId: string): HeldTask {
+    getTaskForStep(runId: string, stepId: string): HeldTask {
         const task = this.received.find(
             (candidate) => candidate.work.runId === runId && candidate.work.stepId === stepId,
         );
@@ -199,10 +200,18 @@ class CountingExecutor implements TaskExecutor {
     }
 }
 
+/** A registration the test can abort and whose releases it can count. */
+interface HeldRegistration extends RunRegistration {
+    /** How many times the engine released the run. */
+    releases: number;
+    /** Aborts the registration's signal when the test fires it. */
+    readonly controller: AbortController;
+}
+
 /** A registration that records its release and can be aborted by the test. */
-function createRegistration(): RunRegistration & { releases: number; controller: AbortController } {
+function createRegistration(): HeldRegistration {
     const controller = new AbortController();
-    const held = {
+    const held: HeldRegistration = {
         releases: 0,
         controller,
         signal: controller.signal,
@@ -301,6 +310,7 @@ function relinkWorkflow(
 describe("the worked example", () => {
     // Proves the calculation runs to its exact result through real preparation, operations, and bindings.
     test("90 plus 10, split 4 ways, is total 100 and 25 each", async () => {
+        // Admit the calculation with every input supplied.
         const { engine, scheduler } = createEngine(new LocalTaskExecutor(registry));
         const workflow = prepareWorkflow(calculationJson);
         const held = createRegistration();
@@ -313,6 +323,7 @@ describe("the worked example", () => {
         // Admission only queues the run; nothing runs inline.
         expect(inspect(engine, runId).status).toBe("queued");
 
+        // Once its turns run, the run completes with the exact result and releases once.
         await scheduler.runUntilIdle();
         const snapshot = inspect(engine, runId);
         expect(snapshot.status).toBe("completed");
@@ -469,13 +480,13 @@ describe("traversal", () => {
         // The addition returns an object the test keeps and changes after settling.
         const returned = { value: 90 };
         executor
-            .task(0)
-            .settle({ runId, workId: executor.task(0).work.workId, ok: true, output: returned });
+            .getTask(0)
+            .settle({ runId, workId: executor.getTask(0).work.workId, ok: true, output: returned });
         await scheduler.runUntilIdle();
         returned.value = -1;
 
         // The division received the committed 90, and the snapshot still shows it.
-        expect(executor.task(1).work.inputs).toEqual({ dividend: 90, divisor: 4 });
+        expect(executor.getTask(1).work.inputs).toEqual({ dividend: 90, divisor: 4 });
         expect(getStepSnapshot(inspect(engine, runId), ADD_STEP)).toMatchObject({
             output: { value: 90 },
         });
@@ -498,9 +509,9 @@ describe("dependency gating and dead runs", () => {
             createRegistration(),
         );
         await scheduler.runUntilIdle();
-        executor.task(0).settle({
+        executor.getTask(0).settle({
             runId,
-            workId: executor.task(0).work.workId,
+            workId: executor.getTask(0).work.workId,
             ok: true,
             output: { value: 90 },
         });
@@ -517,9 +528,9 @@ describe("dependency gating and dead runs", () => {
         expect(waiting.currentSteps).toEqual([DIVIDE_STEP]);
 
         // Once the division completes, the result commits; only two tasks ever ran.
-        executor.task(1).settle({
+        executor.getTask(1).settle({
             runId,
-            workId: executor.task(1).work.workId,
+            workId: executor.getTask(1).work.workId,
             ok: true,
             output: { value: 22.5 },
         });
@@ -693,8 +704,8 @@ describe("completions", () => {
 
             // The add task answers with the invalid output.
             executor
-                .task(0)
-                .settle({ runId, workId: executor.task(0).work.workId, ok: true, output });
+                .getTask(0)
+                .settle({ runId, workId: executor.getTask(0).work.workId, ok: true, output });
             await scheduler.runUntilIdle();
 
             // The step and run fail, and the division is never dispatched.
@@ -736,9 +747,9 @@ describe("completions", () => {
             createRegistration(),
         );
         await scheduler.runUntilIdle();
-        executor.task(0).settle({
+        executor.getTask(0).settle({
             runId,
-            workId: executor.task(0).work.workId,
+            workId: executor.getTask(0).work.workId,
             ok: true,
             output: { value: 11 },
         });
@@ -802,7 +813,7 @@ describe("independent runs", () => {
 
         // Settle only the second and third runs' tasks, checking each saw its own run's values.
         const answer = async (runId: string, stepId: string, value: number) => {
-            const task = executor.taskFor(runId, stepId);
+            const task = executor.getTaskForStep(runId, stepId);
             task.settle({ runId, workId: task.work.workId, ok: true, output: { value } });
             await scheduler.runUntilIdle();
             return task.work.inputs;
@@ -810,7 +821,7 @@ describe("independent runs", () => {
         expect(await answer(succeeds, ADD_STEP, 90)).toEqual({ left: 90, right: 0 });
         expect(await answer(succeeds, DIVIDE_STEP, 22.5)).toEqual({ dividend: 90, divisor: 4 });
         expect(await answer(fails, ADD_STEP, 90)).toEqual({ left: 90, right: 0 });
-        const failedDivision = executor.taskFor(fails, DIVIDE_STEP);
+        const failedDivision = executor.getTaskForStep(fails, DIVIDE_STEP);
         failedDivision.settle({
             runId: fails,
             workId: failedDivision.work.workId,
@@ -867,13 +878,13 @@ describe("task deadlines", () => {
             currentSteps: [ADD_STEP],
         });
         expect(getStepSnapshot(stopping, ADD_STEP)?.status).toBe("running");
-        expect(executor.task(0).signal.aborted).toBe(true);
+        expect(executor.getTask(0).signal.aborted).toBe(true);
         expect(held.releases).toBe(0);
 
         // The task finally returns output; it's discarded and the visit ends with the timeout.
-        executor.task(0).settle({
+        executor.getTask(0).settle({
             runId,
-            workId: executor.task(0).work.workId,
+            workId: executor.getTask(0).work.workId,
             ok: true,
             output: { value: 1 },
         });
@@ -909,7 +920,7 @@ describe("task deadlines", () => {
         expect(inspect(engine, runId).status).toBe("running");
 
         // Settling in time cancels the deadline before any later claim starts another.
-        const first = executor.task(0);
+        const first = executor.getTask(0);
         first.settle({ runId, workId: first.work.workId, ok: true, output: { value: 1 } });
         await flushPromises();
         expect(scheduler.pendingTimers).toBe(0);
@@ -918,7 +929,7 @@ describe("task deadlines", () => {
         await scheduler.runUntilIdle();
         held.controller.abort();
         expect(first.signal.aborted).toBe(false);
-        expect(executor.task(1).signal.aborted).toBe(true);
+        expect(executor.getTask(1).signal.aborted).toBe(true);
     });
 
     // Proves a failure reported after the deadline doesn't replace the timeout.
@@ -937,7 +948,7 @@ describe("task deadlines", () => {
 
             // Let the deadline pass, then have the held task settle anyway.
             scheduler.advanceTime(TIMEOUT_MS);
-            const task = executor.task(0);
+            const task = executor.getTask(0);
             if (late === "failure") {
                 task.settle({
                     runId,
@@ -968,7 +979,7 @@ describe("task deadlines", () => {
 
         // The abort reaches the task's signal, and the registration isn't released by it.
         held.controller.abort();
-        expect(executor.task(0).signal.aborted).toBe(true);
+        expect(executor.getTask(0).signal.aborted).toBe(true);
         expect(held.releases).toBe(0);
     });
 });
@@ -1058,9 +1069,9 @@ describe("guarded state", () => {
             createRegistration(),
         );
         await scheduler.runUntilIdle();
-        executor.task(0).settle({
+        executor.getTask(0).settle({
             runId,
-            workId: executor.task(0).work.workId,
+            workId: executor.getTask(0).work.workId,
             ok: true,
             output: { value: 1 },
         });
@@ -1131,7 +1142,7 @@ describe("guarded state", () => {
             );
             await scheduler.runUntilIdle();
             // The malformed result breaks the executor contract on purpose.
-            const task = executor.task(0);
+            const task = executor.getTask(0);
             task.settle({ runId, workId: task.work.workId, ...shape } as unknown as TaskWorkResult);
             await scheduler.runUntilIdle();
 
@@ -1159,7 +1170,7 @@ describe("guarded state", () => {
         await scheduler.runUntilIdle();
 
         // Completing the addition triggers the throwing advancement.
-        const task = executor.task(0);
+        const task = executor.getTask(0);
         task.settle({ runId, workId: task.work.workId, ok: true, output: { value: 1 } });
         await scheduler.runUntilIdle();
 
@@ -1176,6 +1187,31 @@ describe("guarded state", () => {
         engine.advanceWorkflow(runId);
         await scheduler.runUntilIdle();
         expect(inspect(engine, runId)).toEqual(snapshot);
+    });
+
+    // Proves an unknown run ID has no snapshot and advancing it changes nothing.
+    test("an unknown run can't be inspected or advanced", async () => {
+        // Admit one real run so the engine has state an unknown ID could disturb.
+        const { engine, scheduler } = createEngine(new HeldExecutor());
+        const workflow = prepareWorkflow(calculationJson);
+        const runId = engine.admit(
+            workflow,
+            validateInputs(workflow, { amount: 1, people: 1 }),
+            createRegistration(),
+        );
+        await scheduler.runUntilIdle();
+        const before = inspect(engine, runId);
+        const turnsBefore = scheduler.turnsRun;
+
+        // Advancing an ID the engine never minted neither throws nor schedules a turn.
+        const unknownId = "0192b0a0-7e1d-7000-8000-0000000009ff";
+        expect(() => engine.advanceWorkflow(unknownId)).not.toThrow();
+        await scheduler.runUntilIdle();
+        expect(scheduler.turnsRun).toBe(turnsBefore);
+
+        // The unknown ID has no snapshot, and the admitted run is untouched.
+        expect(engine.inspectRun(unknownId)).toBeUndefined();
+        expect(inspect(engine, runId)).toEqual(before);
     });
 
     // Proves a task timeout outside the range timers honor is refused at construction.

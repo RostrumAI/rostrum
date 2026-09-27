@@ -92,7 +92,7 @@ function buildContext(
 }
 
 /** Builds a ready visit of the given step with no loop metadata. */
-function readyVisit(stepId: string): ReadyVisit {
+function createReadyVisit(stepId: string): ReadyVisit {
     return promoteVisit(createWaitingVisit(stepId, [], AT));
 }
 
@@ -101,7 +101,7 @@ describe("TaskExecutionNode", () => {
     test("prepares task work with resolved inputs", () => {
         const node = new TaskExecutionNode(getTaskStep(ADD_STEP));
         const preparation = node.prepareExecution(
-            readyVisit(ADD_STEP),
+            createReadyVisit(ADD_STEP),
             buildContext({ amount: 90, surcharge: 0, people: 3 }),
         );
         expect(preparation).toMatchObject({ kind: "task", inputs: { left: 90, right: 0 } });
@@ -111,7 +111,7 @@ describe("TaskExecutionNode", () => {
     test("fails when a producer hasn't completed", () => {
         const node = new TaskExecutionNode(getTaskStep(DIVIDE_STEP));
         const preparation = node.prepareExecution(
-            readyVisit(DIVIDE_STEP),
+            createReadyVisit(DIVIDE_STEP),
             buildContext({ people: 3 }),
         );
         expect(preparation).toEqual({
@@ -129,7 +129,7 @@ describe("TaskExecutionNode", () => {
     test("fails when a resolved value doesn't fit its argument", () => {
         const node = new TaskExecutionNode(getTaskStep(DIVIDE_STEP));
         const preparation = node.prepareExecution(
-            readyVisit(DIVIDE_STEP),
+            createReadyVisit(DIVIDE_STEP),
             buildContext({ people: "three" }, { [ADD_STEP]: { value: 90 } }),
         );
         expect(preparation.kind === "failure" && preparation.failure).toMatchObject({
@@ -156,7 +156,7 @@ describe("ResultExecutionNode", () => {
     test("prepares a local output", () => {
         const node = new ResultExecutionNode(getResultStep());
         const preparation = node.prepareExecution(
-            readyVisit(RESULT_STEP),
+            createReadyVisit(RESULT_STEP),
             buildContext({}, { [ADD_STEP]: { value: 90 }, [DIVIDE_STEP]: { value: 30 } }),
         );
         expect(preparation).toEqual({ kind: "local", output: { total: 90, perPerson: 30 } });
@@ -167,7 +167,7 @@ describe("ResultExecutionNode", () => {
         // Only the addition has completed, so the division's output can't be bound.
         const node = new ResultExecutionNode(getResultStep());
         const preparation = node.prepareExecution(
-            readyVisit(RESULT_STEP),
+            createReadyVisit(RESULT_STEP),
             buildContext({}, { [ADD_STEP]: { value: 90 } }),
         );
 
@@ -187,7 +187,7 @@ describe("ResultExecutionNode", () => {
     test("finishes the run with its output", () => {
         const node = new ResultExecutionNode(getResultStep());
         const output = { total: 90, perPerson: 30 };
-        expect(node.completeExecution(readyVisit(RESULT_STEP), output)).toEqual({
+        expect(node.completeExecution(createReadyVisit(RESULT_STEP), output)).toEqual({
             kind: "finish",
             result: output,
         });
