@@ -13,8 +13,12 @@
  *   pointer without a leading slash, a missing member, and a non-schema target
  *   all resolve to undefined.
  * - follows own members only: `constructor` and `__proto__` are unreachable.
+ * - refuses malformed percent-encoding: a bad escape resolves to undefined
+ *   instead of throwing.
  * - refuses recursive references: direct self-reference and a cycle through
  *   another definition both resolve to undefined.
+ * - finds recursion through properties named like keywords: a member called
+ *   `title` or matching `^const$` is still walked as a schema.
  * - ignores references that can't apply: a `$ref` inside `const` or `examples`
  *   doesn't make a definition recursive.
  * - answers repeated lookups consistently: cached recursion answers match the
@@ -82,6 +86,24 @@ describe("ReferenceResolver", () => {
         expect(resolver.resolve("#/$defs/list")).toBeUndefined();
         expect(resolver.resolve("#/$defs/a")).toBeUndefined();
         expect(resolver.resolve("#/$defs/b")).toBeUndefined();
+    });
+
+    // Proves a malformed percent-escape is a dangling reference, not a thrown URIError.
+    test("refuses malformed percent-encoding", () => {
+        const resolver = new ReferenceResolver({ $defs: { name: { type: "string" } } });
+        expect(resolver.resolve("#/%E0%A4%A")).toBeUndefined();
+    });
+
+    // Proves a cycle through a property named like an annotation keyword is still found.
+    test("finds recursion through properties named like keywords", () => {
+        const resolver = new ReferenceResolver({
+            $defs: {
+                node: { type: "object", properties: { title: { $ref: "#/$defs/node" } } },
+                leaf: { patternProperties: { "^const$": { $ref: "#/$defs/leaf" } } },
+            },
+        });
+        expect(resolver.resolve("#/$defs/node")).toBeUndefined();
+        expect(resolver.resolve("#/$defs/leaf")).toBeUndefined();
     });
 
     // Proves literal values and annotations that mention a reference don't make it recursive.
